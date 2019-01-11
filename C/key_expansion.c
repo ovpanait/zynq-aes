@@ -30,13 +30,16 @@ static const uint8_t Rcon[11] = {
 
 #define get_sbox(x) (sbox[(x)])
 
-static void print_word(uint8_t *word)
+static void print_keys(uint8_t *sched)
 {
-	int i;
+	int i, j;
 
-	for (i = 0; i < 4; ++i)
-		printf("0x%02X ", *(word + i));
-	printf("\n");
+	for (i = 0; i < Nr + 1; ++i) {
+		printf("Round key %2d: ", i);
+		for (j = 0; j < Nb * Nk; ++j)
+			printf("0x%02X ", *((sched + i *(Nb * Nk))+ j));
+		printf("\n");
+	}
 }
 
 void key_expansion(uint8_t *sched, uint8_t *key)
@@ -79,26 +82,24 @@ void key_expansion(uint8_t *sched, uint8_t *key)
 		sched[i * Nk + 1] = sched[(i - Nk) * Nk + 1] ^ tmp[1];
 		sched[i * Nk + 2] = sched[(i - Nk) * Nk + 2] ^ tmp[2];
 		sched[i * Nk + 3] = sched[(i - Nk) * Nk + 3] ^ tmp[3];
-		
-		#ifdef DEBUG
-		print_word(sched + i * Nk);
-		#endif
 	}
-}
 
+	#ifdef DEBUG
+	print_keys(sched);
+	#endif
+}
 
 #ifdef DEBUG
 int main(int argc, char **argv)
 {
 	uint8_t sched[(Nb * (Nr + 1)) * Nb];
-	uint8_t key[4 * Nb] = {
+	uint8_t key[Nb * Nk] = {
 		0x54, 0x68, 0x61, 0x74,
 		0x73, 0x20, 0x6D, 0x79,
 		0x20, 0x4B, 0x75, 0x6E,
 		0x67, 0x20, 0x46, 0x75
 	};
-	
+
 	key_expansion(sched, key);
-	
 }
 #endif
