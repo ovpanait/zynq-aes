@@ -9,6 +9,8 @@ module round_key(
 
 		 output reg [0:`KEY_S-1] round_key,
 		 output reg 		 w_e,
+		 output reg [0:3] 	 round_no,
+
 		 output reg 		 en_o
 		 );
 
@@ -97,7 +99,6 @@ module round_key(
 
    wire [0:`WORD_S-1] 			 round_key_tmp_arr[0:`Nk];
 
-   reg [0:3] 				 round_no;
    reg 					 state;
 
    // Helper functions
@@ -139,7 +140,7 @@ module round_key(
 			  get_sbox(get_byte(prev_key_arr[`Nk-1], 0))
 			  };
 
-   assign g0 = get_byte(subbytes_tmp, 0) ^ get_rcon(round_no);
+   assign g0 = get_byte(subbytes_tmp, 0) ^ get_rcon(round_no + 1'b1);
    assign g = {
 	       g0,
 	       get_byte(subbytes_tmp, 1),
@@ -171,7 +172,7 @@ module round_key(
 
 		if (en == 1'b1) begin
 		   round_key <= key;
-		   round_no <= 1'b1;
+		   round_no <= 1'b0;
 		   w_e <= 1'b1;
 		   state <= AES_ROUND;
 		end
@@ -190,7 +191,7 @@ module round_key(
 			      };
 		round_no <= round_no + 1'b1;
 
-		if (round_no == `Nr) begin
+		if (round_no == `Nr - 1'b1) begin
 		   en_o <= 1'b1;
 		   state <= IDLE;
 		end
