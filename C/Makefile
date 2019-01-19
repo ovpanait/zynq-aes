@@ -1,5 +1,10 @@
 CC=gcc
-CFLAGS=-DDEBUG
+CFLAGS=-DDEBUG -I.
+
+DEPS= aes.h
+
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
 
 key_expansion: key_expansion.o
 	gcc -o $@ $< $(CFLAGS)

@@ -2,9 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define Nk 4
-#define Nr 10
-#define Nb 4
+#include "aes.h"
 
 static const uint8_t sbox[256] = {
   //0     1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
@@ -27,8 +25,6 @@ static const uint8_t sbox[256] = {
 
 static const uint8_t Rcon[11] = {
   0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36 };
-
-#define get_sbox(x) (sbox[(x)])
 
 static void print_keys(uint8_t *sched)
 {
