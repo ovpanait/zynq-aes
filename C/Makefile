@@ -9,7 +9,10 @@ DEPS= aes.h
 key_expansion: key_expansion.o
 	gcc -o $@ $< $(CFLAGS)
 
+cipher: cipher.o
+	gcc -o $@ $< $(CFLAGS)
+
 .PHONY: clean
 
 clean:
-	rm -f *.o key_expansion
+	rm -f *.o key_expansion cipher

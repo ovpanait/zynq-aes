@@ -7,4 +7,6 @@
 
 #define get_sbox(x) (sbox[(x)])
 
+typedef uint8_t state_t[Nb][Nb];
+
 #endif
