@@ -6,13 +6,11 @@ DEPS= aes.h
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-key_expansion: key_expansion.o
-	gcc -o $@ $< $(CFLAGS)
+test: cipher.o key_expansion.o test.o
+	$(CC) -o $@ $^ $(CFLAGS)
 
-cipher: cipher.o
-	gcc -o $@ $< $(CFLAGS)
-
+.SILENT:
 .PHONY: clean
 
 clean:
-	rm -f *.o key_expansion cipher
+	rm -f *.o key_expansion cipher test
