@@ -9,7 +9,7 @@ DEPS= aes.h
 test: cipher.o key_expansion.o test.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
-.SILENT:
+.SILENT: clean
 .PHONY: clean
 
 clean:
