@@ -14,12 +14,6 @@ module round_key(
 		 output reg 		 en_o
 		 );
 
-   localparam rcon = {
-		      8'h36, 8'h1B, 8'h80,
-		      8'h40, 8'h20, 8'h10, 8'h08,
-		      8'h04, 8'h02, 8'h01, 8'h8D
-		      };
-
    parameter IDLE = 1'b0, AES_ROUND = 1'b1;
 
    genvar 				 i;

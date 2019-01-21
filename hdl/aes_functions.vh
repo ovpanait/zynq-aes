@@ -65,6 +65,11 @@ localparam  sbox = {
 		    8'h7B, 8'h77, 8'h7C, 8'h63
 		    };
 
+localparam rcon = {
+		   8'h36, 8'h1B, 8'h80,
+		   8'h40, 8'h20, 8'h10, 8'h08,
+		   8'h04, 8'h02, 8'h01, 8'h8D
+		   };
 
 // Helper functions
 function [0:`BYTE_S-1] get_byte;
@@ -74,7 +79,23 @@ function [0:`BYTE_S-1] get_byte;
       get_byte = word[byte_no*`BYTE_S +: `BYTE_S];
    end
 endfunction
-//
+
+function [0:`BLK_S-1] blk_get_byte;
+   input [0:`BLK_S-1] 		 blk;
+   input [0:`BLK_S/`BYTE_S-1] 	 byte_no;
+   begin
+      blk_get_byte = blk[byte_no*`BYTE_S +: `BYTE_S];
+   end
+endfunction
+
+
+function [0:`WORD_S-1] get_word;
+   input [0:`BLK_S-1] 		 blk;
+   input [0:2] 			 word_no;
+   begin
+      get_word = blk[word_no*`WORD_S +: `WORD_S];
+   end
+endfunction
 
 // AES specific functions
 function [0:`BYTE_S-1] get_sbox;
@@ -88,5 +109,77 @@ function [0:`BYTE_S-1] get_rcon;
    input [0:`BYTE_S-1] index;
    begin
       get_rcon = rcon[index*`BYTE_S +: `BYTE_S];
+   end
+endfunction
+
+// Cipher functions
+
+// subBytes
+function [0:`BLK_S-1] sub_bytes;
+   input [0:`BLK_S-1] blk;
+
+   integer 	      i;
+   begin
+      for (i = 0; i < `BLK_S / `BYTE_S; i=i+1) begin
+	 sub_bytes[i*`BYTE_S +: `BYTE_S] = get_sbox(blk[i*`BYTE_S +: `BYTE_S]);
+      end
+   end
+endfunction
+
+// shiftRows
+function [0:`BLK_S-1] shift_rows;
+   input [0:`BLK_S-1] blk;
+
+   integer 	      i, j, k;
+   begin
+      for (j = 0; j < `BLK_S / `BYTE_S; j=j+4) begin
+	 for (i=j, k=j; i < `BLK_S / `BYTE_S; i=i+1, k=k+5)
+	   shift_rows[i*`BYTE_S +: `BYTE_S] = blk_get_byte(blk, k % 16);
+      end
+   end
+endfunction
+
+// mixColumns
+function [0:`BYTE_S-1] mul2;
+   input [0:`BYTE_S-1] op;
+   begin
+      mul2 = ((op << 1) ^ (((op >> 7) & 1'b1) * 8'h1b));
+   end
+endfunction // mul2
+
+function [0:`BYTE_S-1] mul3;
+   input [0:`BYTE_S-1] op;
+   begin
+      mul3 = mul2(op) ^ op;
+   end
+endfunction // mul3
+
+function [0:`WORD_S-1] mix_word;
+   input [0:`WORD_S-1] word;
+
+   reg [0:`BYTE_S-1]   byte0;
+   reg [0:`BYTE_S-1]   byte1;
+   reg [0:`BYTE_S-1]   byte2;
+   reg [0:`BYTE_S-1]   byte3;
+   begin
+      byte0 = get_byte(word, 0);
+      byte1 = get_byte(word, 1);
+      byte2 = get_byte(word, 2);
+      byte3 = get_byte(word, 3);
+
+      mix_word[0*`BYTE_S +: `BYTE_S] = mul2(byte0) ^ mul3(byte1) ^ byte2 ^ byte3;
+      mix_word[1*`BYTE_S +: `BYTE_S] = byte0 ^ mul2(byte1) ^ mul3(byte2) ^ byte3;
+      mix_word[2*`BYTE_S +: `BYTE_S] = byte0 ^ byte1 ^ mul2(byte2) ^ mul3(byte3);
+      mix_word[3*`BYTE_S +: `BYTE_S] = mul3(byte0) ^ byte1 ^ byte2 ^mul2(byte3);
+   end
+endfunction
+
+function [0:`BLK_S-1] mix_cols;
+   input [0:`BLK_S-1] blk;
+   integer 	      i;
+   begin
+      for (i = 0; i < `BLK_S / `WORD_S; i=i+1) begin
+	 mix_cols[i*`WORD_S +: `WORD_S] = mix_word(get_word(blk,i));
+      end
    end
 endfunction
