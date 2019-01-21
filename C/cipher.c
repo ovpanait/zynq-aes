@@ -20,7 +20,7 @@ static void dbg_state(const char *dbg_msg, state_t state)
 #endif
 
 // Populate state 2D array
-static void to_state(state_t state, uint8_t *plaintext)
+static void plaintext_to_state(state_t state, uint8_t *plaintext)
 {
 	int row, col;
 	int plaintext_i;
@@ -34,6 +34,18 @@ static void to_state(state_t state, uint8_t *plaintext)
 	#ifdef DEBUG
 	dbg_state(__func__, state);
 	#endif
+}
+
+static void state_to_ciphertext(state_t state, uint8_t *ciphertext)
+{
+	int row, col;
+	int ciphertext_i;
+
+	for (col = 0, ciphertext_i = 0; col < Nb; ++col) {
+		for (row = 0; row < Nb; ++row, ++ciphertext_i) {
+			ciphertext[ciphertext_i] = state[row][col];
+		}
+	}
 }
 
 static void add_round_key(state_t state, uint8_t *key)
@@ -142,18 +154,19 @@ static void mix_columns(state_t state)
 	#endif
 }
 
-void cipher(uint8_t *plaintext, uint8_t *key)
+void cipher(uint8_t *plaintext, uint8_t *key, uint8_t *ciphertext)
 {
 	int round;
 	uint8_t sched[(Nb * (Nr + 1)) * Nb];
 	state_t state;
 
 	key_expansion(sched, key);
-	to_state(state, plaintext);
+	plaintext_to_state(state, plaintext);
 
 	// cipher round 0
 	add_round_key(state, sched);
 
+	// rounds 1 -> Nr - 1
 	for (round = 1; round < Nr; ++round) {
 		sub_bytes(state);
 		shift_rows(state);
@@ -165,4 +178,6 @@ void cipher(uint8_t *plaintext, uint8_t *key)
 	sub_bytes(state);
 	shift_rows(state);
 	add_round_key(state, sched + (round * Nb * 4));
+
+	state_to_ciphertext(state, ciphertext);
 }
