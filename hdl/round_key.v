@@ -19,11 +19,11 @@ module round_key(
    genvar 				 i;
    wire [0:`WORD_S-1] 			 prev_key_arr[0:`Nk];
 
-   wire [0:`WORD_S-1] 			 subbytes_tmp;
-   wire [0:`BYTE_S-1] 			 g0;
-   wire [0:`WORD_S-1] 			 g;
+   reg [0:`WORD_S-1] 			 subbytes_tmp;
+   reg [0:`BYTE_S-1] 			 g0;
+   reg [0:`WORD_S-1] 			 g;
 
-   wire [0:`WORD_S-1] 			 round_key_tmp_arr[0:`Nk];
+   reg [0:`WORD_S-1] 			 round_key_tmp_arr[0:`Nk];
 
    reg 					 state;
 
@@ -35,25 +35,27 @@ module round_key(
       end
    endgenerate
 
-   assign subbytes_tmp = {
-			  get_sbox(get_byte(prev_key_arr[`Nk-1], 1)),
-			  get_sbox(get_byte(prev_key_arr[`Nk-1], 2)),
-			  get_sbox(get_byte(prev_key_arr[`Nk-1], 3)),
-			  get_sbox(get_byte(prev_key_arr[`Nk-1], 0))
-			  };
+   always @(*) begin
+      subbytes_tmp = {
+		      get_sbox(get_byte(prev_key_arr[`Nk-1], 1)),
+		      get_sbox(get_byte(prev_key_arr[`Nk-1], 2)),
+		      get_sbox(get_byte(prev_key_arr[`Nk-1], 3)),
+		      get_sbox(get_byte(prev_key_arr[`Nk-1], 0))
+		      };
 
-   assign g0 = get_byte(subbytes_tmp, 0) ^ get_rcon(round_no + 1'b1);
-   assign g = {
-	       g0,
-	       get_byte(subbytes_tmp, 1),
-	       get_byte(subbytes_tmp, 2),
-	       get_byte(subbytes_tmp, 3)
-	       };
+      g0 = get_byte(subbytes_tmp, 0) ^ get_rcon(round_no + 1'b1);
+      g = {
+	   g0,
+	   get_byte(subbytes_tmp, 1),
+	   get_byte(subbytes_tmp, 2),
+	   get_byte(subbytes_tmp, 3)
+	   };
 
-   assign round_key_tmp_arr[0] = g ^ prev_key_arr[0];
-   assign round_key_tmp_arr[1] = round_key_tmp_arr[0] ^ prev_key_arr[1];
-   assign round_key_tmp_arr[2] = round_key_tmp_arr[1] ^ prev_key_arr[2];
-   assign round_key_tmp_arr[3] = round_key_tmp_arr[2] ^ prev_key_arr[3];
+      round_key_tmp_arr[0] = g ^ prev_key_arr[0];
+      round_key_tmp_arr[1] = round_key_tmp_arr[0] ^ prev_key_arr[1];
+      round_key_tmp_arr[2] = round_key_tmp_arr[1] ^ prev_key_arr[2];
+      round_key_tmp_arr[3] = round_key_tmp_arr[2] ^ prev_key_arr[3];
+   end
 
    always @(posedge clk) begin
       if (reset == 1'b1) begin
