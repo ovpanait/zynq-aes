@@ -37,7 +37,7 @@ int main(int argc, char **argv)
 	printf("ciphertext:\n");
 	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
 		printf("%02x", ciphertext[i]);
-	printf("\n\n");
+	printf("\n");
 
 	return 0;
 }

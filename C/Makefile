@@ -1,7 +1,12 @@
 CC=gcc
-CFLAGS=-DDEBUG -I.
+CFLAGS= -I.
 
 DEPS= aes.h
+
+DEBUG ?= 0
+ifeq ($(DEBUG), 1)
+    CFLAGS += -DDEBUG
+endif
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
