@@ -11,8 +11,8 @@ module tb_main();
    reg reset;
    reg en;
 
-   reg [`KEY_S-1:0] prev_key;
-   wire [`KEY_S-1:0] round_key;
+   reg [0:`KEY_S-1] prev_key;
+   wire [0:`KEY_S-1] round_key;
    wire 	     w_e;
    wire 	     en_o;
 
@@ -97,7 +97,7 @@ module tb_main();
 				    `KEY_S'h28fddef86da4244accc0a4fe3b316f26
 				    };
 
-   reg [`Nb-1:0] round = 1'b0;
+   reg [0:`Nb-1] round = 1'b0;
 
    always @(round_key) begin
       if (w_e == 1'b1) begin
