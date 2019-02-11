@@ -29,7 +29,9 @@ wire            en_i_cipher;
 wire            en_o_cipher;
 
 // Key expansion
-assign en_i_round_key = aes_key_strobe ? en : 1'b0;
+//assign en_i_round_key = (en && aes_key_strobe);
+assign en_i_round_key = en;
+
 
 round_key round_key_gen(
         .clk(clk),
@@ -60,7 +62,8 @@ key_sram sram(
 );
 
 // Encryption block
-assign en_i_ciphertext = aes_key_strobe ? en_o_round_key : en;
+//assign en_i_ciphertext = (en & !aes_key_strobe) | en_o_round_key;
+assign en_i_ciphertext = en_o_round_key;
 
 cipher encrypt_blk(
         .clk(clk),

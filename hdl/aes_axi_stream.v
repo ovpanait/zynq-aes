@@ -37,18 +37,7 @@ module aes_axi_stream #
         input wire [C_S_AXIS_TDATA_WIDTH-1 : 0]      s00_axis_tdata,
         input wire [(C_S_AXIS_TDATA_WIDTH/8)-1 : 0]  s00_axis_tstrb,
         input wire                                   s00_axis_tlast,
-        input wire                                   s00_axis_tvalid,
-
-        /*
-        * AES signals
-        */
-        input wire [0:`BLK_S-1]         aes_ciphertext,
-        input wire                      aes_done,
-
-        output wire                     aes_start,
-        output wire [0:`KEY_S-1]        aes_key,
-        output wire                     aes_key_strobe,
-        output wire [0:`BLK_S-1]        aes_plaintext
+        input wire                                   s00_axis_tvalid
 );
 
 // function called clogb2 that returns an integer which has the
@@ -61,9 +50,9 @@ function integer clogb2 (input integer bit_depth);
 endfunction
 
 // Input FIFO size (slave side)
-localparam NUMBER_OF_INPUT_WORDS  = 20;
+localparam NUMBER_OF_INPUT_WORDS  = 8;
 // Output FIFO size (master side)
-localparam NUMBER_OF_OUTPUT_WORDS = 8;
+localparam NUMBER_OF_OUTPUT_WORDS = 4;
 
 // bit_num gives the minimum number of bits needed to address 'NUMBER_OF_INPUT_WORDS' size of FIFO.
 localparam bit_num  = clogb2(NUMBER_OF_INPUT_WORDS-1);
@@ -168,8 +157,7 @@ assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 assign axis_tlast = (read_pointer == NUMBER_OF_OUTPUT_WORDS-1);
 assign axis_tvalid = (state == MASTER_SEND) && !tx_done;
 
-always @(posedge m00_axis_aclk)
-begin
+always @(posedge m00_axis_aclk) begin
         if(!m00_axis_aresetn) begin
                 read_pointer <= 0;
                 tx_done <= 1'b0;
@@ -192,8 +180,7 @@ end
 
 assign tx_en = m00_axis_tready && axis_tvalid;
 
-always@(posedge m00_axis_aclk)
-begin
+always @(posedge m00_axis_aclk) begin
         if(!m00_axis_aresetn) begin
                 stream_data_out <= 1'b0;
         end
@@ -201,7 +188,7 @@ begin
                 stream_data_out <= out_stream_data_fifo[read_pointer];
                 if (tx_en) begin
                         stream_data_out <= out_stream_data_fifo[read_pointer + 1'b1];
-                end
+                end	
         end
 end
 
@@ -217,8 +204,7 @@ end
 assign s00_axis_tready = axis_tready;
 assign axis_tready = ((state == WRITE_FIFO) && !writes_done);
 
-always@(posedge s00_axis_aclk)
-begin
+always @(posedge s00_axis_aclk) begin
         if(!s00_axis_aresetn) begin
                 write_pointer <= 1'b0;
                 writes_done <= 1'b0;
@@ -252,22 +238,30 @@ always @(posedge s00_axis_aclk) begin
         end
 end
 
-assign start_processing = (state == PROCESS_STUFF) && !processing_done;
+assign start_processing = (state == WRITE_FIFO && writes_done == 1'b1 && !processing_done);
 
 /* 
 * Delay processing module "done" strobe by one clock to match fsm implementation
 */
 
-always @(posedge clk) begin
+always @(posedge s00_axis_aclk) begin
         processing_done <= __processing_done;
 end
 
 /*
 * AES specific stuff
 */
+wire [0:`BLK_S-1]       aes_ciphertext;
+wire                    aes_done;
+
+wire                    aes_start;
+wire [0:`BLK_S-1]       aes_plaintext;
+wire [0:`KEY_S-1]       aes_key;
+wire                    aes_key_strobe;
+
 assign __processing_done = aes_done;
 assign aes_start = start_processing;
-assign aes_key_strobe = (writes_done == 1'b1 & write_pointer == NUMBER_OF_INPUT_WORDS-1);
+assign aes_key_strobe = (writes_done == 1'b1) && (write_pointer == NUMBER_OF_INPUT_WORDS-1);
 
 // Map FIFO to output signals
 genvar i;
@@ -280,7 +274,7 @@ endgenerate
 
 // aes key
 generate for (i = 0; i < `Nk; i=i+1) begin
-        assign aes_key[`BLK_S + i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = in_stream_data_fifo[`Nb + i];
+        assign aes_key[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = in_stream_data_fifo[`Nb + i];
 end
 endgenerate
 
@@ -289,5 +283,18 @@ generate for (i = 0; i < NUMBER_OF_OUTPUT_WORDS; i=i+1) begin
         assign out_stream_data_fifo[i] = aes_ciphertext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH];
 end
 endgenerate
+
+aes_top aes_mod(
+        .clk(s00_axis_aclk),
+        .reset(!s00_axis_aresetn),
+        .en(aes_start),
+
+        .aes_key_strobe(aes_key_strobe),
+        .aes_key(aes_key),
+        .aes_plaintext(aes_plaintext),
+
+        .aes_ciphertext(aes_ciphertext),
+        .en_o(aes_done)
+);
 
 endmodule

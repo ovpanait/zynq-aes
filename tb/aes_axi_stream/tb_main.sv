@@ -46,16 +46,8 @@ bit                                     reset;
 // Test signals
 reg [0:7]               data_tmp[];
 
-reg [0:`BLK_S-1]        aes_plaintext_in;
-reg [0:`KEY_S-1]        aes_key_in;
-
-wire [0:`BLK_S-1]       aes_plaintext_out;
-wire [0:`KEY_S-1]       aes_key_out;
-wire                    aes_start;
-wire                    aes_key_strobe;
-
-reg [0:`BLK_S-1]        aes_ciphertext;
-reg                     aes_done;
+reg [0:`BLK_S-1]        aes_plaintext;
+reg [0:`KEY_S-1]        aes_key;
 
 // instantiate bd
 design_1_wrapper DUT(
@@ -97,27 +89,27 @@ initial begin
         // Test 1
         fork
                 begin
-                        aes_key_in =  {
+                        aes_key =  {
                                 8'h54, 8'h68, 8'h61, 8'h74,
                                 8'h73, 8'h20, 8'h6D, 8'h79,
                                 8'h20, 8'h4B, 8'h75, 8'h6E,
                                 8'h67, 8'h20, 8'h46, 8'h75
                         };
 
-                        aes_plaintext_in =  {
+                        aes_plaintext =  {
                                 8'h54, 8'h77, 8'h6F, 8'h20,
                                 8'h4F, 8'h6E, 8'h65, 8'h20,
                                 8'h4E, 8'h69, 8'h6E, 8'h65,
                                 8'h20, 8'h54, 8'h77, 8'h6F
                         };
 
-                        $display("Sending ");
+                        $display("Sending...");
 
-                        tester #($size(aes_plaintext_in))::packed_to_unpacked(aes_plaintext_in, data_tmp);
+                        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
                         tester::print_unpacked(data_tmp);
                         gen_transaction(data_tmp);
 
-                        tester #($size(aes_key_in))::packed_to_unpacked(aes_key_in, data_tmp);
+                        tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
                         tester::print_unpacked(data_tmp);
                         gen_transaction(data_tmp);
                 end
@@ -126,8 +118,8 @@ initial begin
                 end
         join
 
-        wait(comparison_cnt == 8);
-
+        wait(comparison_cnt == 4);
+        
         if(error_cnt == 0) begin
                 $display("EXAMPLE TEST DONE : Test Completed Successfully");
         end 
@@ -137,6 +129,37 @@ end
 $finish;
 
    end
+
+
+   always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key_strobe) begin
+        $display("xxx reset: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.reset);
+
+        $display("xxx key: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key);
+        $display("xxx plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_plaintext);
+        $display("xxx aes_key_strobe: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key_strobe);
+
+        $display("xxx ciphertext: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_ciphertext);
+   end
+
+
+   always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.en) begin
+
+        $display("xxx3 reset: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.reset);
+
+        $display("xxx3 key: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key);
+        $display("xxx3 plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_plaintext);
+        $display("xxx3 aes_key_strobe: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key_strobe);
+
+        $display("xxx3 ciphertext: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_ciphertext);
+   end
+
+   always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.ciphertext) begin
+       //    $display(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.ciphertext)
+       $display("xxx2 plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.plaintext);
+       $display("xxx2 plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.key);
+        $display("xxx2 round_no: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.round_no);
+         $display("xxx2 ciphertext: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.ciphertext);
+   end  
 
    task slv_gen_tready();
            axi4stream_ready_gen                           ready_gen;
@@ -171,7 +194,7 @@ $finish;
                            master_moniter_transaction_queue_size--;
 
                            mst_scb_transaction.get_data(mst_data);
-                           print_data("Received master data: ", mst_data);
+                           print_data("Sent master data: ", mst_data);
                    end
            end
    end // initial begin
