@@ -11,6 +11,7 @@ module tb_main();
    reg reset;
    reg en;
 
+   reg aes_key_strobe;
    reg [0:`KEY_S-1] aes_key;
    reg [0:`BLK_S-1] aes_plaintext;
 
@@ -22,6 +23,7 @@ module tb_main();
 		.reset(reset),
 		.en(en),
 
+                .aes_key_strobe(aes_key_strobe),
 		.aes_key(aes_key),
 		.aes_plaintext(aes_plaintext),
 
@@ -57,7 +59,8 @@ module tb_main();
 
       // Testcase
       @(negedge clk) begin
-	 en = 1;
+	 en = 1'b1;
+         aes_key_strobe = 1'b1;
 	 aes_key =  {
 		 8'h54, 8'h68, 8'h61, 8'h74,
 		 8'h73, 8'h20, 8'h6D, 8'h79,
@@ -77,14 +80,42 @@ module tb_main();
 	 en = 0;
       end
 
-      @(posedge DUT.en_o);
+      @(posedge en_o);
 
       // Test ciphertext output
-`define RES_AES_CIPHERTEXT `BLK_S'h29c3505f571420f6402299b31a02d73a
+`define T1_AES_CIPHERTEXT `BLK_S'h29c3505f571420f6402299b31a02d73a
       @(negedge clk);
-      tester #($size(aes_ciphertext))::verify_output(aes_ciphertext, `RES_AES_CIPHERTEXT);
+      tester #($size(aes_ciphertext))::verify_output(aes_ciphertext, `T1_AES_CIPHERTEXT);
 
-      // Test 1 clock cycle
+      // Test en_o clock cycle
+      @(negedge clk);
+      tester #($size(en_o))::verify_output(en_o, `BLK_S'h0);
+
+      // Test encryption without changing keys
+      @(negedge clk) begin
+              aes_key_strobe = 1'b0;
+              en = 1'b1;
+
+              aes_key = {`KEY_S{1'b0}};
+
+              aes_plaintext = {
+                        8'h12, 8'h34, 8'h56, 8'h78,
+                        8'h91, 8'h11, 8'h23, 8'h45,
+                        8'h67, 8'h89, 8'h01, 8'h23,
+                        8'h45, 8'h67, 8'h89, 8'h01
+                };
+      end
+
+      @(negedge clk) begin
+        en = 1'b0;
+      end      
+
+      @(posedge en_o);
+      @(negedge clk); 
+     `define T2_AES_CIPHERTEXT `BLK_S'h2914b1466013ba1e48d6d795e97d3e15
+      tester #($size(aes_ciphertext))::verify_output(aes_ciphertext, `T2_AES_CIPHERTEXT);
+
+      // Test en_o clock cycle
       @(negedge clk);
       tester #($size(en_o))::verify_output(en_o, `BLK_S'h0);
 
