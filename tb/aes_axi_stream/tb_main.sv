@@ -49,6 +49,21 @@ reg [0:7]               data_tmp[];
 reg [0:`BLK_S-1]        aes_plaintext;
 reg [0:`KEY_S-1]        aes_key;
 
+//  Expected results
+reg [0:8*`WORD_S-1] expected_results = {
+        // Test 1
+        32'h29c3505f,
+        32'h571420f6,
+        32'h402299b3,
+        32'h1a02d73a,
+
+        // Test 2
+        32'h2914b146,
+        32'h6013ba1e,
+        32'h48d6d795,
+        32'he97d3e15
+};
+
 // instantiate bd
 design_1_wrapper DUT(
         .aresetn(reset),
@@ -87,169 +102,149 @@ initial begin
         slv_agent.start_slave();
 
         // Test 1
-        fork
-                begin
-                        aes_key =  {
-                                8'h54, 8'h68, 8'h61, 8'h74,
-                                8'h73, 8'h20, 8'h6D, 8'h79,
-                                8'h20, 8'h4B, 8'h75, 8'h6E,
-                                8'h67, 8'h20, 8'h46, 8'h75
-                        };
+        begin
+                aes_key =  {
+                        8'h54, 8'h68, 8'h61, 8'h74,
+                        8'h73, 8'h20, 8'h6D, 8'h79,
+                        8'h20, 8'h4B, 8'h75, 8'h6E,
+                        8'h67, 8'h20, 8'h46, 8'h75
+                };
 
-                        aes_plaintext =  {
-                                8'h54, 8'h77, 8'h6F, 8'h20,
-                                8'h4F, 8'h6E, 8'h65, 8'h20,
-                                8'h4E, 8'h69, 8'h6E, 8'h65,
-                                8'h20, 8'h54, 8'h77, 8'h6F
-                        };
+                aes_plaintext =  {
+                        8'h54, 8'h77, 8'h6F, 8'h20,
+                        8'h4F, 8'h6E, 8'h65, 8'h20,
+                        8'h4E, 8'h69, 8'h6E, 8'h65,
+                        8'h20, 8'h54, 8'h77, 8'h6F
+                };
 
-                        $display("Sending...");
+                $display("Sending...");
 
-                        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
-                        tester::print_unpacked(data_tmp);
-                        gen_transaction(data_tmp);
+                tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
+                tester::print_unpacked(data_tmp);
+                gen_transaction(data_tmp);
 
-                        tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
-                        tester::print_unpacked(data_tmp);
-                        gen_transaction(data_tmp);
-                end
-                begin
-                        slv_gen_tready();
-                end
-        join
+                tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
+                tester::print_unpacked(data_tmp);
+                gen_transaction(data_tmp);
+        end
+        begin
+                slv_gen_tready();
+        end
 
         wait(comparison_cnt == 4);
-        
+
+        // Test 2
+        aes_plaintext = {
+                8'h12, 8'h34, 8'h56, 8'h78,
+                8'h91, 8'h11, 8'h23, 8'h45,
+                8'h67, 8'h89, 8'h01, 8'h23,
+                8'h45, 8'h67, 8'h89, 8'h01
+        };
+
+        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 1);
+        wait(comparison_cnt == 8);
+
         if(error_cnt == 0) begin
-                $display("EXAMPLE TEST DONE : Test Completed Successfully");
+                $display("Regression Testing Completed Successfully");
         end 
-        else begin  
-        $display("EXAMPLE TEST DONE ",$sformatf("Test Failed: %d Comparison Failed", error_cnt));
+
+        $finish;
+end
+
+task slv_gen_tready();
+        axi4stream_ready_gen                           ready_gen;
+        ready_gen = slv_agent.driver.create_ready("ready_gen");
+        ready_gen.set_ready_policy(XIL_AXI4STREAM_READY_GEN_OSC);
+        ready_gen.set_low_time(2);
+        ready_gen.set_high_time(6);
+        slv_agent.driver.send_tready(ready_gen);
+endtask :slv_gen_tready
+
+initial begin
+        forever begin
+                mst_agent.monitor.item_collected_port.get(mst_monitor_transaction);
+                master_moniter_transaction_queue.push_back(mst_monitor_transaction);
+                master_moniter_transaction_queue_size++;
+        end  
 end 
-$finish;
 
-   end
+initial begin
+        forever begin
+                slv_agent.monitor.item_collected_port.get(slv_monitor_transaction);
+                slave_moniter_transaction_queue.push_back(slv_monitor_transaction);
+                slave_moniter_transaction_queue_size++;
+        end
+end
 
+initial begin
+        forever begin
+                wait (master_moniter_transaction_queue_size>0 ) begin
+                        xil_axi4stream_data_byte mst_data [0:3];
+                        mst_scb_transaction = master_moniter_transaction_queue.pop_front;
+                        master_moniter_transaction_queue_size--;
 
-   always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key_strobe) begin
-        $display("xxx reset: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.reset);
+                        mst_scb_transaction.get_data(mst_data);
+                        print_data("Sent master data: ", mst_data);
+                end
+        end
+end // initial begin
 
-        $display("xxx key: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key);
-        $display("xxx plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_plaintext);
-        $display("xxx aes_key_strobe: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key_strobe);
+initial begin
+        forever begin
+                wait (slave_moniter_transaction_queue_size > 0) begin
+                        xil_axi4stream_data_byte slv_data [3:0];
+                        slv_scb_transaction = slave_moniter_transaction_queue.pop_front;
+                        slave_moniter_transaction_queue_size--;  
 
-        $display("xxx ciphertext: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_ciphertext);
-   end
+                        slv_scb_transaction.get_data(slv_data);
+                        print_data("Received slave data: ", slv_data);
 
+                        comparison_cnt++;
+                end  
+        end
+end // initial begin
 
-   always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.en) begin
+/* ******************** */
+task automatic gen_rand_transaction(ref axi4stream_transaction wr_transaction);
+        wr_transaction = mst_agent.driver.create_transaction("Master VIP write transaction");
+        wr_transaction.set_xfer_alignment(XIL_AXI4STREAM_XFER_RANDOM);
+        WR_TRANSACTION_FAIL: assert(wr_transaction.randomize());
+endtask
 
-        $display("xxx3 reset: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.reset);
+// Tasks
+task gen_transaction(input [0:7] data[], input last = 0);
+        for (int i = 0; i < $size(data); i = i + 4)
+        begin
+                xil_axi4stream_data_byte data_dbg[4];
+                axi4stream_transaction                         wr_transaction; 
 
-        $display("xxx3 key: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key);
-        $display("xxx3 plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_plaintext);
-        $display("xxx3 aes_key_strobe: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key_strobe);
+                gen_rand_transaction(wr_transaction);
+                wr_transaction.set_data('{data[i+3], data[i+2], data[i+1], data[i]});
 
-        $display("xxx3 ciphertext: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_ciphertext);
-   end
+                wr_transaction.set_last(0);
+                if (i == $size(data) - 1 && last == 1)
+                        wr_transaction.set_last(1);
 
-   always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.ciphertext) begin
-       //    $display(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.ciphertext)
-       $display("xxx2 plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.plaintext);
-       $display("xxx2 plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.key);
-        $display("xxx2 round_no: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.round_no);
-         $display("xxx2 ciphertext: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.encrypt_blk.ciphertext);
-   end  
+                wr_transaction.get_data(data_dbg);
+                print_data("Debug: ", data_dbg);
 
-   task slv_gen_tready();
-           axi4stream_ready_gen                           ready_gen;
-           ready_gen = slv_agent.driver.create_ready("ready_gen");
-           ready_gen.set_ready_policy(XIL_AXI4STREAM_READY_GEN_OSC);
-           ready_gen.set_low_time(2);
-           ready_gen.set_high_time(6);
-           slv_agent.driver.send_tready(ready_gen);
-   endtask :slv_gen_tready
+                mst_agent.driver.send(wr_transaction);
+        end
+endtask; // gen_transaction
 
-   initial begin
-           forever begin
-                   mst_agent.monitor.item_collected_port.get(mst_monitor_transaction);
-                   master_moniter_transaction_queue.push_back(mst_monitor_transaction);
-                   master_moniter_transaction_queue_size++;
-           end  
-   end 
+function print_data(string msg, xil_axi4stream_data_byte data[4]);
+        begin
+                $write({msg, " "});
 
-   initial begin
-           forever begin
-                   slv_agent.monitor.item_collected_port.get(slv_monitor_transaction);
-                   slave_moniter_transaction_queue.push_back(slv_monitor_transaction);
-                   slave_moniter_transaction_queue_size++;
-           end
-   end
-
-   initial begin
-           forever begin
-                   wait (master_moniter_transaction_queue_size>0 ) begin
-                           xil_axi4stream_data_byte mst_data [0:3];
-                           mst_scb_transaction = master_moniter_transaction_queue.pop_front;
-                           master_moniter_transaction_queue_size--;
-
-                           mst_scb_transaction.get_data(mst_data);
-                           print_data("Sent master data: ", mst_data);
-                   end
-           end
-   end // initial begin
-
-   initial begin
-           forever begin
-                   wait (slave_moniter_transaction_queue_size > 0) begin
-                           xil_axi4stream_data_byte slv_data [3:0];
-                           slv_scb_transaction = slave_moniter_transaction_queue.pop_front;
-                           slave_moniter_transaction_queue_size--;  
-
-                           slv_scb_transaction.get_data(slv_data);
-                           print_data("Received slave data: ", slv_data);
-
-                           comparison_cnt++;
-                   end  
-           end
-   end // initial begin
-
-   /* ******************** */
-   task automatic gen_rand_transaction(ref axi4stream_transaction wr_transaction);
-           wr_transaction = mst_agent.driver.create_transaction("Master VIP write transaction");
-           wr_transaction.set_xfer_alignment(XIL_AXI4STREAM_XFER_RANDOM);
-           WR_TRANSACTION_FAIL: assert(wr_transaction.randomize());
-   endtask
-
-   // Tasks
-   task gen_transaction(input [0:7] data[], input last = 0);
-           for (int i = 0; i < $size(data); i = i + 4)
-           begin
-                   xil_axi4stream_data_byte data_dbg[4];
-                   axi4stream_transaction                         wr_transaction; 
-
-                   gen_rand_transaction(wr_transaction);
-                   wr_transaction.set_data('{data[i+3], data[i+2], data[i+1], data[i]});
-                   wr_transaction.set_last(last);
-
-                   wr_transaction.get_data(data_dbg);
-                   print_data("Debug: ", data_dbg);
-
-                   mst_agent.driver.send(wr_transaction);
-           end
-   endtask; // gen_transaction
-
-   function print_data(string msg, xil_axi4stream_data_byte data[4]);
-           begin
-                   $write({msg, " "});
-
-                   // data is stored in litle endian
-                   $write("0x");
-                   for(int i = $size(data) - 1; i >= 0; i--) begin
-                           $write("%H", data[i]);
-                   end
-                   $display("");
-           end
-   endfunction // print_data
-   endmodule
+                // data is stored in litle endian
+                $write("0x");
+                for(int i = $size(data) - 1; i >= 0; i--) begin
+                        $write("%H", data[i]);
+                end
+                $display("");
+        end
+endfunction // print_data
+endmodule
 

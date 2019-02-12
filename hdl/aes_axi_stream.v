@@ -238,6 +238,7 @@ always @(posedge s00_axis_aclk) begin
         end
 end
 
+// One clock enable
 assign start_processing = (state == WRITE_FIFO && writes_done == 1'b1 && !processing_done);
 
 /* 
