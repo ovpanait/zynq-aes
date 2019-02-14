@@ -50,7 +50,7 @@ reg [0:`BLK_S-1]        aes_plaintext;
 reg [0:`KEY_S-1]        aes_key;
 
 //  Expected results
-reg [0:8*`WORD_S-1] expected_results = {
+reg [0:`WORD_S-1] expected_results[] = '{
         // Test 1
         32'h29c3505f,
         32'h571420f6,
@@ -144,6 +144,7 @@ initial begin
         tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 1);
+
         wait(comparison_cnt == 8);
 
         if(error_cnt == 0) begin
@@ -194,13 +195,18 @@ end // initial begin
 initial begin
         forever begin
                 wait (slave_moniter_transaction_queue_size > 0) begin
-                        xil_axi4stream_data_byte slv_data [3:0];
+                        xil_axi4stream_data_byte slv_data [4];
+                        reg [0:`WORD_S-1] slv_data_packed;
+
                         slv_scb_transaction = slave_moniter_transaction_queue.pop_front;
                         slave_moniter_transaction_queue_size--;  
 
                         slv_scb_transaction.get_data(slv_data);
                         print_data("Received slave data: ", slv_data);
 
+                        tester#($size(slv_data_packed))::pack(slv_data, slv_data_packed);
+
+                        tester #($size(slv_data_packed))::verify_output(slv_data_packed, expected_results[comparison_cnt]);
                         comparison_cnt++;
                 end  
         end
@@ -224,7 +230,7 @@ task gen_transaction(input [0:7] data[], input last = 0);
                 wr_transaction.set_data('{data[i+3], data[i+2], data[i+1], data[i]});
 
                 wr_transaction.set_last(0);
-                if (i == $size(data) - 1 && last == 1)
+                if (i == $size(data) - 4 && last == 1)
                         wr_transaction.set_last(1);
 
                 wr_transaction.get_data(data_dbg);
@@ -232,7 +238,7 @@ task gen_transaction(input [0:7] data[], input last = 0);
 
                 mst_agent.driver.send(wr_transaction);
         end
-endtask; // gen_transaction
+endtask;
 
 function print_data(string msg, xil_axi4stream_data_byte data[4]);
         begin
@@ -245,6 +251,23 @@ function print_data(string msg, xil_axi4stream_data_byte data[4]);
                 end
                 $display("");
         end
-endfunction // print_data
+endfunction;
+
+// Debugging
+/*always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.en) begin
+        $display("xxx1 en: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.en);
+        $display("xxx1 aes_plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_plaintext);
+        $display("xxx1 aes_key: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key);
+
+end
+always @(DUT.design_1_i.aes_axi_stream_0.inst.writes_done) begin
+        $display("xxx2 writes_done: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.writes_done);
+end
+
+always @(DUT.design_1_i.aes_axi_stream_0.inst.s00_axis_tlast) begin
+        $display("xxx3 axis_tlast: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.s00_axis_tlast);
+end
+*/
+
 endmodule
 
