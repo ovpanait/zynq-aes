@@ -5,7 +5,7 @@ module aes_top(
         input                   reset,
         input                   en,
 
-        input                   aes_key_strobe, // key expansion is needed
+        input [0:`WORD_S-1]     aes_cmd,
         input [0:`KEY_S-1]      aes_key,
         input [0:`BLK_S-1]      aes_plaintext,
 
@@ -29,7 +29,7 @@ wire            en_i_cipher;
 wire            en_o_cipher;
 
 // Key expansion
-assign en_i_round_key = (en && aes_key_strobe);
+assign en_i_round_key = (en && aes_cmd == `SET_KEY);
 
 round_key round_key_gen(
         .clk(clk),
@@ -60,12 +60,12 @@ key_sram sram(
 );
 
 // Encryption block
-assign en_i_ciphertext = (en & !aes_key_strobe) | en_o_round_key;
+assign en_i_cipher = (en && aes_cmd == `ENCRYPT);
 
 cipher encrypt_blk(
         .clk(clk),
         .reset(reset),
-        .en(en_i_ciphertext),
+        .en(en_i_cipher),
 
         .plaintext(aes_plaintext),
         .key(round_key_out),
@@ -76,6 +76,6 @@ cipher encrypt_blk(
         .en_o(en_o_cipher)
 );
 
-assign en_o = en_o_cipher;
+assign en_o = en_o_cipher | en_o_round_key;
 
 endmodule
