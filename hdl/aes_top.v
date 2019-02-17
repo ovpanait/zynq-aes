@@ -28,6 +28,8 @@ wire            en_o_round_key;
 wire            en_i_cipher;
 wire            en_o_cipher;
 
+wire [0:`BLK_S-1] __aes_ciphertext;
+
 // Key expansion
 assign en_i_round_key = (en && aes_cmd == `SET_KEY);
 
@@ -72,10 +74,11 @@ cipher encrypt_blk(
         .round_no(encrypt_round_no),
         .r_e(r_e),
 
-        .ciphertext(aes_ciphertext),
+        .ciphertext(__aes_ciphertext),
         .en_o(en_o_cipher)
 );
 
+assign aes_ciphertext = (en_o_round_key == 1'b1) ? {`BLK_S{1'b0}} : __aes_ciphertext;
 assign en_o = en_o_cipher | en_o_round_key;
 
 endmodule

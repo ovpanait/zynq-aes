@@ -51,6 +51,11 @@ reg [0:`KEY_S-1]        aes_key;
 
 //  Expected results
 reg [0:`WORD_S-1] expected_results[] = '{
+        32'h0,
+        32'h0,
+        32'h0,
+        32'h0,
+
         // Test 1
         32'h29c3505f,
         32'h571420f6,
@@ -102,36 +107,41 @@ initial begin
         slv_agent.start_slave();
 
         // Test 1
-        begin
-                aes_key =  {
-                        8'h54, 8'h68, 8'h61, 8'h74,
-                        8'h73, 8'h20, 8'h6D, 8'h79,
-                        8'h20, 8'h4B, 8'h75, 8'h6E,
-                        8'h67, 8'h20, 8'h46, 8'h75
-                };
+        aes_key =  {
+                8'h54, 8'h68, 8'h61, 8'h74,
+                8'h73, 8'h20, 8'h6D, 8'h79,
+                8'h20, 8'h4B, 8'h75, 8'h6E,
+                8'h67, 8'h20, 8'h46, 8'h75
+        };
 
-                aes_plaintext =  {
-                        8'h54, 8'h77, 8'h6F, 8'h20,
-                        8'h4F, 8'h6E, 8'h65, 8'h20,
-                        8'h4E, 8'h69, 8'h6E, 8'h65,
-                        8'h20, 8'h54, 8'h77, 8'h6F
-                };
+        aes_plaintext =  {
+                8'h54, 8'h77, 8'h6F, 8'h20,
+                8'h4F, 8'h6E, 8'h65, 8'h20,
+                8'h4E, 8'h69, 8'h6E, 8'h65,
+                8'h20, 8'h54, 8'h77, 8'h6F
+        };
 
-                $display("Sending...");
+        $display("Sending...");
+        tester #(32)::packed_to_unpacked(`SET_KEY, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
 
-                tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
-                tester::print_unpacked(data_tmp);
-                gen_transaction(data_tmp);
+        tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
 
-                tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
-                tester::print_unpacked(data_tmp);
-                gen_transaction(data_tmp);
-        end
-        begin
-                slv_gen_tready();
-        end
+        slv_gen_tready();
 
         wait(comparison_cnt == 4);
+        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
+
+        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
+
+        wait(comparison_cnt == 8);
 
         // Test 2
         aes_plaintext = {
@@ -140,12 +150,15 @@ initial begin
                 8'h67, 8'h89, 8'h01, 8'h23,
                 8'h45, 8'h67, 8'h89, 8'h01
         };
+        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
 
         tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
         tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
+        gen_transaction(data_tmp);
 
-        wait(comparison_cnt == 8);
+        wait(comparison_cnt == 12);
 
         if(error_cnt == 0) begin
                 $display("Regression Testing Completed Successfully");

@@ -50,7 +50,7 @@ function integer clogb2 (input integer bit_depth);
 endfunction
 
 // Input FIFO size (slave side)
-localparam NUMBER_OF_INPUT_WORDS  = 8;
+localparam NUMBER_OF_INPUT_WORDS  = 5;
 // Output FIFO size (master side)
 localparam NUMBER_OF_OUTPUT_WORDS = 4;
 
@@ -258,24 +258,25 @@ wire                    aes_done;
 wire                    aes_start;
 wire [0:`BLK_S-1]       aes_plaintext;
 wire [0:`KEY_S-1]       aes_key;
-wire                    aes_key_strobe;
+wire [0:`WORD_S-1]      aes_cmd;
 
 assign __processing_done = aes_done;
 assign aes_start = start_processing;
-assign aes_key_strobe = (writes_done == 1'b1) && (write_pointer == NUMBER_OF_INPUT_WORDS-1);
 
 // Map FIFO to output signals
 genvar i;
 
+assign aes_cmd = in_stream_data_fifo[0];
+
 // aes plaintext
 generate for (i = 0; i < `Nb; i=i+1) begin
-        assign aes_plaintext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = in_stream_data_fifo[i];
+        assign aes_plaintext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = (aes_cmd == `ENCRYPT) ? in_stream_data_fifo[i+1] : 32'h0;
 end
 endgenerate
 
 // aes key
 generate for (i = 0; i < `Nk; i=i+1) begin
-        assign aes_key[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = in_stream_data_fifo[`Nb + i];
+        assign aes_key[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = (aes_cmd == `SET_KEY) ? in_stream_data_fifo[i+1] : 32'h0;
 end
 endgenerate
 
@@ -290,7 +291,7 @@ aes_top aes_mod(
         .reset(!s00_axis_aresetn),
         .en(aes_start),
 
-        .aes_key_strobe(aes_key_strobe),
+        .aes_cmd(aes_cmd),
         .aes_key(aes_key),
         .aes_plaintext(aes_plaintext),
 
