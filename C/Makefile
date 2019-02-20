@@ -1,4 +1,3 @@
-CC=gcc
 CFLAGS= -I.
 
 DEPS= aes.h
