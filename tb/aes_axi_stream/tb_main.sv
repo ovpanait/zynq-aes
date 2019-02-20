@@ -74,6 +74,25 @@ design_1_wrapper DUT(
         .aresetn(reset),
         .aclk(clock)
 );
+// Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
+// buffer (data from the buffer gets converted to little endian 32-bit words and sent on the axi bus)
+function [0:`WORD_S-1] swap_bytes32(input [0:`WORD_S-1] data);
+        integer i;
+        begin
+                for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
+                        swap_bytes32[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
+        end
+endfunction
+
+function [0:`BLK_S-1] swap_blk(input [0:`BLK_S-1] blk);
+        integer i;
+        begin
+                for (i = 0; i < `BLK_S / `WORD_S; i=i+1)
+                        swap_blk[i*`WORD_S +: `WORD_S] = swap_bytes32(blk[i*`WORD_S +: `WORD_S]);
+
+        end
+endfunction
+
 
 always #10 clock <= ~clock;
 
@@ -107,19 +126,22 @@ initial begin
         slv_agent.start_slave();
 
         // Test 1
+        // The values need to be swap to math the values put by the kernel on the AXI bus
         aes_key =  {
                 8'h54, 8'h68, 8'h61, 8'h74,
                 8'h73, 8'h20, 8'h6D, 8'h79,
                 8'h20, 8'h4B, 8'h75, 8'h6E,
                 8'h67, 8'h20, 8'h46, 8'h75
         };
-
         aes_plaintext =  {
                 8'h54, 8'h77, 8'h6F, 8'h20,
                 8'h4F, 8'h6E, 8'h65, 8'h20,
                 8'h4E, 8'h69, 8'h6E, 8'h65,
                 8'h20, 8'h54, 8'h77, 8'h6F
         };
+ 
+        aes_plaintext = swap_blk(aes_plaintext);
+        aes_key = swap_blk(aes_key);
 
         $display("Sending...");
         tester #(32)::packed_to_unpacked(`SET_KEY, data_tmp);
@@ -150,6 +172,8 @@ initial begin
                 8'h67, 8'h89, 8'h01, 8'h23,
                 8'h45, 8'h67, 8'h89, 8'h01
         };
+        aes_plaintext = swap_blk(aes_plaintext);
+
         tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
@@ -219,7 +243,10 @@ initial begin
 
                         tester#($size(slv_data_packed))::pack(slv_data, slv_data_packed);
 
-                        tester #($size(slv_data_packed))::verify_output(slv_data_packed, expected_results[comparison_cnt]);
+                        tester #($size(slv_data_packed))::verify_output(slv_data_packed, 
+                                         swap_bytes32(expected_results[comparison_cnt])); // swap bytes again 
+                                                                                          // to match the values
+                                                                                          // as seen by the kernel
                         comparison_cnt++;
                 end  
         end
@@ -247,7 +274,6 @@ task gen_transaction(input [0:7] data[], input last = 0);
                         wr_transaction.set_last(1);
 
                 wr_transaction.get_data(data_dbg);
-                print_data("Debug: ", data_dbg);
 
                 mst_agent.driver.send(wr_transaction);
         end

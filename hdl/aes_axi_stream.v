@@ -260,6 +260,16 @@ wire [0:`BLK_S-1]       aes_plaintext;
 wire [0:`KEY_S-1]       aes_key;
 wire [0:`WORD_S-1]      aes_cmd;
 
+// Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
+// buffer.
+function [0:`WORD_S-1] swap_bytes(input [0:`WORD_S-1] data);
+        integer i;
+        begin
+                for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
+                        swap_bytes[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
+        end
+endfunction
+
 assign __processing_done = aes_done;
 assign aes_start = start_processing;
 
@@ -270,19 +280,22 @@ assign aes_cmd = in_stream_data_fifo[0];
 
 // aes plaintext
 generate for (i = 0; i < `Nb; i=i+1) begin
-        assign aes_plaintext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = (aes_cmd == `ENCRYPT) ? in_stream_data_fifo[i+1] : 32'h0;
+        assign aes_plaintext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = 
+                (aes_cmd == `ENCRYPT) ? swap_bytes(in_stream_data_fifo[i+1]) : 32'h0;
 end
 endgenerate
 
 // aes key
 generate for (i = 0; i < `Nk; i=i+1) begin
-        assign aes_key[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = (aes_cmd == `SET_KEY) ? in_stream_data_fifo[i+1] : 32'h0;
+        assign aes_key[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = 
+                (aes_cmd == `SET_KEY) ? swap_bytes(in_stream_data_fifo[i+1]) : 32'h0;
 end
 endgenerate
 
 // aes ciphertext
 generate for (i = 0; i < NUMBER_OF_OUTPUT_WORDS; i=i+1) begin
-        assign out_stream_data_fifo[i] = aes_ciphertext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH];
+        assign out_stream_data_fifo[i] = 
+                swap_bytes(aes_ciphertext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH]);
 end
 endgenerate
 
