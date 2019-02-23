@@ -1,4 +1,4 @@
-obj-m := xilinxdmatest.o
+obj-m := zynq-aes.o
 
 SRC := $(shell pwd)
 
