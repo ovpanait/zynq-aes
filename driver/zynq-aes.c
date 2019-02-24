@@ -24,7 +24,6 @@ static const u32 zynqaes_set_key_cmd = 0x10;
  
 static struct dma_chan *tx_chan;
 static struct dma_chan *rx_chan;
-static struct completion tx_cmp;
 static struct completion rx_cmp;
 static dma_cookie_t tx_cookie;
 static dma_cookie_t rx_cookie;
@@ -42,58 +41,14 @@ static void axidma_sync_callback(void *completion)
 	complete(completion);
 }
 
-static dma_cookie_t axidma_prep_buffer(struct dma_chan *chan, dma_addr_t buf, size_t len, 
-					enum dma_transfer_direction dir, struct completion *cmp) 
-{
-	enum dma_ctrl_flags flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
-	struct dma_async_tx_descriptor *chan_desc;
-	dma_cookie_t cookie;
-
-	//printk(KERN_INFO "%d: Entering function %s\n", __LINE__, __func__);
-
-	chan_desc = dmaengine_prep_slave_single(chan, buf, len, dir, flags);
-
-	/* Make sure the operation was completed successfully
-	 */
-	if (!chan_desc) {
-		printk(KERN_ERR "dmaengine_prep_slave_single error\n");
-		cookie = -EBUSY;
-	} else {
-		chan_desc->callback = axidma_sync_callback;
-		chan_desc->callback_param = cmp;
-
-		cookie = dmaengine_submit(chan_desc);
-	
-	}
-	return cookie;
-}
-
-static void axidma_start_transfer(struct dma_chan *chan, struct completion *cmp, 
-					dma_cookie_t cookie, int wait)
-{
-	unsigned long timeout = msecs_to_jiffies(5000);
-	enum dma_status status;
-
-	//printk(KERN_INFO "%s:%d: Entering function %s\n", __FILE__, __LINE__, __func__);
-
-	init_completion(cmp);
-	dma_async_issue_pending(chan);
-
-	if (wait) {
-		timeout = wait_for_completion_timeout(cmp, timeout);
-		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
-
-		if (timeout == 0)  {
-			printk(KERN_ERR "DMA timed out\n");
-		} else if (status != DMA_COMPLETE) {
-			printk(KERN_ERR "DMA returned completion callback status of: %s\n",
-			       status == DMA_ERROR ? "error" : "in progress");
-		}
-	}
-}
-
 static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer)
 {
+	unsigned long timeout = msecs_to_jiffies(5000);
+	struct dma_async_tx_descriptor *tx_chan_desc;
+	struct dma_async_tx_descriptor *rx_chan_desc;
+	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
+	enum dma_status status;
+
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 
 	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, AES_KEYSIZE_128);
@@ -101,25 +56,57 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 	rx_dma_handle = dma_map_single(rx_chan->device->dev, dest_dma_buffer, dest_dma_length, DMA_FROM_DEVICE);
 	tx_dma_handle = dma_map_single(tx_chan->device->dev, src_dma_buffer, src_dma_length, DMA_TO_DEVICE);
 
-	rx_cookie = axidma_prep_buffer(rx_chan, rx_dma_handle, dest_dma_length, DMA_DEV_TO_MEM, &rx_cmp);
-	if (dma_submit_error(rx_cookie)) {
-		printk(KERN_ERR "rx_cookie: xdma_prep_buffer error\n");
-		return -1;
+	/* Tx Channel */
+	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, src_dma_length, DMA_MEM_TO_DEV, flags);
+	if (!tx_chan_desc) {
+		printk(KERN_ERR "dmaengine_prep_slave_single error\n");
+		goto err;
 	}
-	tx_cookie = axidma_prep_buffer(tx_chan, tx_dma_handle, src_dma_length, DMA_MEM_TO_DEV, &tx_cmp);
-
+	tx_cookie = dmaengine_submit(tx_chan_desc);
 	if (dma_submit_error(tx_cookie)) {
 		printk(KERN_ERR "tx_cookie: xdma_prep_buffer error\n");
-		return -1;
+		goto err;
 	}
 
-	axidma_start_transfer(tx_chan, &tx_cmp, tx_cookie, NO_WAIT);
-	axidma_start_transfer(rx_chan, &rx_cmp, rx_cookie, WAIT);
+	/* Rx Channel */
+	flags |= DMA_PREP_INTERRUPT;
+	rx_chan_desc = dmaengine_prep_slave_single(rx_chan, rx_dma_handle, dest_dma_length, DMA_DEV_TO_MEM, flags);
+	if (!rx_chan_desc) {
+		printk(KERN_ERR "dmaengine_prep_slave_single error\n");
+		goto err;
+	}
+	rx_chan_desc->callback = axidma_sync_callback;
+	rx_chan_desc->callback_param = &rx_cmp;
+	rx_cookie = dmaengine_submit(rx_chan_desc);
+	if (dma_submit_error(rx_cookie)) {
+		printk(KERN_ERR "rx_cookie: xdma_prep_buffer error\n");
+		goto err;
+	}
+
+	init_completion(&rx_cmp);
+	dma_async_issue_pending(tx_chan);
+	dma_async_issue_pending(rx_chan);
+
+	status = dma_async_is_tx_complete(rx_chan, rx_cookie, NULL, NULL);
+	if (status != DMA_COMPLETE) {
+		timeout = wait_for_completion_timeout(&rx_cmp, timeout);
+		status = dma_async_is_tx_complete(rx_chan, rx_cookie, NULL, NULL);
+
+		if (timeout == 0)  {
+			printk(KERN_ERR "DMA timed out\n");
+		} else if (status != DMA_COMPLETE) {
+			printk(KERN_ERR "DMA returned completion callback status of: %s\n",
+			status == DMA_ERROR ? "error" : "in progress");
+		}
+	}
 
 	dma_unmap_single(rx_chan->device->dev, rx_dma_handle, dest_dma_length, DMA_FROM_DEVICE);
 	dma_unmap_single(tx_chan->device->dev, tx_dma_handle, src_dma_length, DMA_TO_DEVICE);
 
 	return 0;
+
+err:
+	return -EBUSY;
 }
 
 static int zynqaes_dma_buf_init(void)
