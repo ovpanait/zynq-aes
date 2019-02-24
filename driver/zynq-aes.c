@@ -104,16 +104,7 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 	//print_hex_dump(KERN_INFO, "dest before: ", DUMP_PREFIX_NONE, 32, 1, dest_dma_buffer, dest_dma_length, false);
 
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
-	if (!rx_chan || !rx_chan->device || !rx_chan->device->dev) {
-		printk(KERN_INFO "pula rx: %s:%d\n", __func__, __LINE__);
-		return 0;
-	}
-	
-	if (!tx_chan || !tx_chan->device || !tx_chan->device->dev) {
-		printk(KERN_INFO "pula tx: %s:%d\n", __func__, __LINE__);
-		return 0;
-	}
-	
+
 	rx_dma_handle = dma_map_single(rx_chan->device->dev, dest_dma_buffer, dest_dma_length, DMA_FROM_DEVICE);
 	tx_dma_handle = dma_map_single(tx_chan->device->dev, src_dma_buffer, src_dma_length, DMA_TO_DEVICE);
 
@@ -245,13 +236,14 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 	printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
 
-	tx_chan = dma_request_slave_channel(&pdev->dev, "axidma0");
+	tx_chan = dma_request_chan(&pdev->dev, "axidma0");
 	if (IS_ERR(tx_chan)) {
+		err = PTR_ERR(tx_chan);
 		pr_err("xilinx_dmatest: No Tx channel\n");
-		return PTR_ERR(tx_chan);
+		goto out_err;
 	}
 
-	rx_chan = dma_request_slave_channel(&pdev->dev, "axidma1");
+	rx_chan = dma_request_chan(&pdev->dev, "axidma1");
 	if (IS_ERR(rx_chan)) {
 		err = PTR_ERR(rx_chan);
 		pr_err("xilinx_dmatest: No Rx channel\n");
@@ -268,13 +260,14 @@ static int zynqaes_probe(struct platform_device *pdev)
 	printk(KERN_INFO "%s: %d: Probing successful \n", __func__, __LINE__);
 	return 0;
 
-	printk(KERN_INFO "%s: %d: Probing failed \n", __func__, __LINE__);
-
 free_rx:
 	dma_release_channel(rx_chan);
-	printk(KERN_INFO "%s:%d: Release rx\n", __func__, __LINE__);
+
 free_tx:
 	dma_release_channel(tx_chan);
+
+out_err:
+	dev_err(&pdev->dev, "Probe failed with error: %d", err);
 
 	return err;
 }
@@ -284,6 +277,9 @@ static int zynqaes_remove(struct platform_device *pdev)
 	printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
+
+	dma_release_channel(rx_chan);
+	dma_release_channel(tx_chan);
 
 	return 0;
 }
