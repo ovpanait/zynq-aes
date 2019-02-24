@@ -161,7 +161,7 @@ err_mem:
 	return -ENOMEM;
 }
 
-static int zynqaes_setkey(struct crypto_tfm *tfm, const u8 *in_key,
+static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
 			    unsigned int key_len)
 {
 	//printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
@@ -171,26 +171,46 @@ static int zynqaes_setkey(struct crypto_tfm *tfm, const u8 *in_key,
 	return 0;
 }
 
-static int zynqaes_ecb_encrypt(struct blkcipher_desc *desc,
-			     struct scatterlist *dst, struct scatterlist *src,
-			     unsigned int nbytes)
+static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 {
-	int rv;
-	struct blkcipher_walk walk;
+	struct ablkcipher_walk walk;
+	unsigned long src_paddr;
+	unsigned long dst_paddr;
+	int ret;
+	int nbytes;
+	u8 *in_ptr;
+	u8 *out_ptr;
 
 	//printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
 
-	blkcipher_walk_init(&walk, dst, src, nbytes);
-	rv = blkcipher_walk_virt(desc, &walk);
+	ablkcipher_walk_init(&walk, areq->dst, areq->src, areq->nbytes);
+	ret = ablkcipher_walk_phys(areq, &walk);
 
-	while ((walk.nbytes)) {
-		zynqaes_dma_op(walk.src.virt.addr, encrypt_buf, cipher_buf);
-		memcpy(walk.dst.virt.addr, cipher_buf, AES_BLOCK_SIZE);
-
-		rv = blkcipher_walk_done(desc, &walk, walk.nbytes - AES_BLOCK_SIZE);
+	if (ret) {
+		printk(KERN_ERR "[%s]: ablkcipher_walk_phys() failed!",
+			__func__);
+		goto out;
 	}
 
-	return rv;
+	while ((nbytes = walk.nbytes) > 0) {
+		src_paddr = (page_to_phys(walk.src.page) + walk.src.offset);
+		in_ptr = phys_to_virt(src_paddr);
+
+		dst_paddr = (page_to_phys(walk.dst.page) + walk.dst.offset);
+		out_ptr = phys_to_virt(dst_paddr);
+
+		zynqaes_dma_op(in_ptr, encrypt_buf, cipher_buf);
+		memcpy(out_ptr, cipher_buf, AES_BLOCK_SIZE);
+
+		nbytes -= AES_BLOCK_SIZE;
+		ret = ablkcipher_walk_done(areq, &walk, nbytes);
+		if (ret)
+			goto out;
+	}
+	ablkcipher_walk_complete(&walk);
+
+out:
+	return ret;
 }
 
 /*static int zynqaes_ecb_decrypt(struct blkcipher_desc *desc,
@@ -217,12 +237,12 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(myaes)",
 	.cra_driver_name	=	"zynqaes-ecb",
 	.cra_priority		=	100,
-	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER | CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_type		=	&crypto_blkcipher_type,
+	.cra_type		=	&crypto_ablkcipher_type,
 	.cra_module		=	THIS_MODULE,
 	.cra_u			=	{
-		.blkcipher = {
+		.ablkcipher = {
 			.min_keysize		=	AES_KEYSIZE_128,
 			.max_keysize		=	AES_KEYSIZE_128,
 			.setkey	   		= 	zynqaes_setkey,
