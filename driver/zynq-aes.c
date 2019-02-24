@@ -39,23 +39,13 @@ static char *encrypt_buf;
 static char *key_buf;
 static char *cipher_buf;
 
-/* Handle a callback and indicate the DMA transfer is complete to another
- * thread of control
- */
 static void axidma_sync_callback(void *completion)
 {
-	/* Step 9, indicate the DMA transaction completed to allow the other
-	 * thread of control to finish processing
-	 */ 
 	//dump_stack();
 	complete(completion);
 
 }
 
-/* Prepare a DMA buffer to be used in a DMA transaction, submit it to the DMA engine 
- * to queued and return a cookie that can be used to track that status of the 
- * transaction
- */
 static dma_cookie_t axidma_prep_buffer(struct dma_chan *chan, dma_addr_t buf, size_t len, 
 					enum dma_transfer_direction dir, struct completion *cmp) 
 {
@@ -63,10 +53,6 @@ static dma_cookie_t axidma_prep_buffer(struct dma_chan *chan, dma_addr_t buf, si
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
 	struct dma_async_tx_descriptor *chan_desc;
 	dma_cookie_t cookie;
-
-	/* Step 5, create a buffer (channel)  descriptor for the buffer since only a  
-	 * single buffer is being used for this transfer
-	 */
 
 	chan_desc = dmaengine_prep_slave_single(chan, buf, len, dir, flags);
 
@@ -79,19 +65,12 @@ static dma_cookie_t axidma_prep_buffer(struct dma_chan *chan, dma_addr_t buf, si
 		chan_desc->callback = axidma_sync_callback;
 		chan_desc->callback_param = cmp;
 
-		/* Step 6, submit the transaction to the DMA engine so that it's queued
-		 * up to be processed later and get a cookie to track it's status
-		 */
-
 		cookie = dmaengine_submit(chan_desc);
 	
 	}
 	return cookie;
 }
 
-/* Start a DMA transfer that was previously submitted to the DMA engine and then
- * wait for it complete, timeout or have an error
- */
 static void axidma_start_transfer(struct dma_chan *chan, struct completion *cmp, 
 					dma_cookie_t cookie, int wait)
 {
@@ -99,26 +78,15 @@ static void axidma_start_transfer(struct dma_chan *chan, struct completion *cmp,
 	unsigned long timeout = msecs_to_jiffies(5000);
 	enum dma_status status;
 
-	/* Step 7, initialize the completion before using it and then start the 
-	 * DMA transaction which was previously queued up in the DMA engine
-	 */
-
 	init_completion(cmp);
 	dma_async_issue_pending(chan);
 
 	if (wait) {
 		//printk("Waiting for DMA to complete...\n");
 
-		/* Step 8, wait for the transaction to complete, timeout, or get
-		 * get an error
-		 */
-
 		timeout = wait_for_completion_timeout(cmp, timeout);
 		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
 
-		/* Determine if the transaction completed without a timeout and
-		 * withtout any errors
-		 */
 		if (timeout == 0)  {
 			printk(KERN_ERR "DMA timed out\n");
 		} else if (status != DMA_COMPLETE) {
