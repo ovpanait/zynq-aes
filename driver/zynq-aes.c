@@ -41,18 +41,17 @@ static char *cipher_buf;
 
 static void axidma_sync_callback(void *completion)
 {
-	//dump_stack();
 	complete(completion);
-
 }
 
 static dma_cookie_t axidma_prep_buffer(struct dma_chan *chan, dma_addr_t buf, size_t len, 
 					enum dma_transfer_direction dir, struct completion *cmp) 
 {
-	//printk(KERN_INFO "%d: Entering function %s\n", __LINE__, __func__);
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
 	struct dma_async_tx_descriptor *chan_desc;
 	dma_cookie_t cookie;
+
+	//printk(KERN_INFO "%d: Entering function %s\n", __LINE__, __func__);
 
 	chan_desc = dmaengine_prep_slave_single(chan, buf, len, dir, flags);
 
@@ -74,16 +73,15 @@ static dma_cookie_t axidma_prep_buffer(struct dma_chan *chan, dma_addr_t buf, si
 static void axidma_start_transfer(struct dma_chan *chan, struct completion *cmp, 
 					dma_cookie_t cookie, int wait)
 {
-	//printk(KERN_INFO "%s:%d: Entering function %s\n", __FILE__, __LINE__, __func__);
 	unsigned long timeout = msecs_to_jiffies(5000);
 	enum dma_status status;
+
+	//printk(KERN_INFO "%s:%d: Entering function %s\n", __FILE__, __LINE__, __func__);
 
 	init_completion(cmp);
 	dma_async_issue_pending(chan);
 
 	if (wait) {
-		//printk("Waiting for DMA to complete...\n");
-
 		timeout = wait_for_completion_timeout(cmp, timeout);
 		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
 
@@ -98,17 +96,13 @@ static void axidma_start_transfer(struct dma_chan *chan, struct completion *cmp,
 
 static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer)
 {
-	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, AES_KEYSIZE_128);
-	//print_hex_dump(KERN_INFO, "source: ", DUMP_PREFIX_NONE, 32, 1, src_dma_buffer, src_dma_length, false);
-
-	//print_hex_dump(KERN_INFO, "dest before: ", DUMP_PREFIX_NONE, 32, 1, dest_dma_buffer, dest_dma_length, false);
-
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
+
+	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, AES_KEYSIZE_128);
 
 	rx_dma_handle = dma_map_single(rx_chan->device->dev, dest_dma_buffer, dest_dma_length, DMA_FROM_DEVICE);
 	tx_dma_handle = dma_map_single(tx_chan->device->dev, src_dma_buffer, src_dma_length, DMA_TO_DEVICE);
 
-	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 	rx_cookie = axidma_prep_buffer(rx_chan, rx_dma_handle, dest_dma_length, DMA_DEV_TO_MEM, &rx_cmp);
 	if (dma_submit_error(rx_cookie)) {
 		printk(KERN_ERR "rx_cookie: xdma_prep_buffer error\n");
@@ -116,7 +110,6 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 	}
 	tx_cookie = axidma_prep_buffer(tx_chan, tx_dma_handle, src_dma_length, DMA_MEM_TO_DEV, &tx_cmp);
 
-	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 	if (dma_submit_error(tx_cookie)) {
 		printk(KERN_ERR "tx_cookie: xdma_prep_buffer error\n");
 		return -1;
@@ -127,8 +120,6 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 
 	dma_unmap_single(rx_chan->device->dev, rx_dma_handle, dest_dma_length, DMA_FROM_DEVICE);
 	dma_unmap_single(tx_chan->device->dev, tx_dma_handle, src_dma_length, DMA_TO_DEVICE);
-	
-	//print_hex_dump(KERN_INFO, "dest after: ", DUMP_PREFIX_NONE, 32, 1, dest_dma_buffer, dest_dma_length, false);
 
 	return 0;
 }
