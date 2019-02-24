@@ -19,8 +19,6 @@
 
 #define ZYNQAES_CMD_LEN 4
 
-#define ZYNQAES_128_BLKS 16
-
 static const u32 zynqaes_encrypt_cmd = 0x20;
 static const u32 zynqaes_set_key_cmd = 0x10;
  
@@ -33,8 +31,8 @@ static dma_cookie_t rx_cookie;
 static dma_addr_t tx_dma_handle;
 static dma_addr_t rx_dma_handle;
 
-static const int src_dma_length = ZYNQAES_CMD_LEN + ZYNQAES_128_BLKS; 
-static const int dest_dma_length = ZYNQAES_128_BLKS;
+static const int src_dma_length = ZYNQAES_CMD_LEN + AES_BLOCK_SIZE;
+static const int dest_dma_length = AES_BLOCK_SIZE;
 static char *encrypt_buf;
 static char *key_buf;
 static char *cipher_buf;
