@@ -110,17 +110,19 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 	rx_cookie = axidma_prep_buffer(rx_chan, rx_dma_handle, dest_dma_length, DMA_DEV_TO_MEM, &rx_cmp);
+	if (dma_submit_error(rx_cookie)) {
+		printk(KERN_ERR "rx_cookie: xdma_prep_buffer error\n");
+		return -1;
+	}
 	tx_cookie = axidma_prep_buffer(tx_chan, tx_dma_handle, src_dma_length, DMA_MEM_TO_DEV, &tx_cmp);
-	
+
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 	if (dma_submit_error(tx_cookie)) {
-		printk(KERN_ERR "xdma_prep_buffer error\n");
-		kfree(src_dma_buffer);
-		kfree(dest_dma_buffer);	
+		printk(KERN_ERR "tx_cookie: xdma_prep_buffer error\n");
 		return -1;
 	}
 
-	axidma_start_transfer(tx_chan, &tx_cmp, tx_cookie, WAIT);
+	axidma_start_transfer(tx_chan, &tx_cmp, tx_cookie, NO_WAIT);
 	axidma_start_transfer(rx_chan, &rx_cmp, rx_cookie, WAIT);
 
 	dma_unmap_single(rx_chan->device->dev, rx_dma_handle, dest_dma_length, DMA_FROM_DEVICE);
