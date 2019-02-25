@@ -7,15 +7,10 @@
 #include <linux/of_platform.h>
 
 #include <linux/dmaengine.h>
-#include <linux/module.h>
 #include <linux/version.h>
-#include <linux/kernel.h>
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
-
-#define WAIT 	1
-#define NO_WAIT 0
 
 #define ZYNQAES_CMD_LEN 4
 
