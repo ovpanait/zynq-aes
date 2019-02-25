@@ -109,34 +109,6 @@ err:
 	return -EBUSY;
 }
 
-static int zynqaes_dma_buf_init(void)
-{
-	encrypt_buf = kzalloc(src_dma_length, GFP_KERNEL);
-	if (!encrypt_buf) {
-		printk(KERN_ERR "encrypt_buf: Allocating DMA memory failed\n");
-		goto err_mem;
-	}
-	memcpy(encrypt_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
-
-	key_buf = kzalloc(src_dma_length, GFP_KERNEL);
-	if (!key_buf) {
-		printk(KERN_ERR "key_buf: Allocating DMA memory failed\n");
-		goto err_mem;
-	}
-	memcpy(key_buf, &zynqaes_set_key_cmd, ZYNQAES_CMD_LEN);
-
-	cipher_buf = kzalloc(dest_dma_length, GFP_KERNEL);
-	if (!cipher_buf) {
-		printk(KERN_ERR "cipher_buf: Allocating DMA memory failed\n");
-		goto err_mem;
-	}
-
-	return 0;
-
-err_mem:
-	return -ENOMEM;
-}
-
 static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
 			    unsigned int key_len)
 {
@@ -228,6 +200,47 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	}
 };
 
+static int zynqaes_dma_buf_alloc(void)
+{
+	encrypt_buf = kzalloc(src_dma_length, GFP_KERNEL);
+	if (!encrypt_buf) {
+		printk(KERN_ERR "encrypt_buf: Allocating DMA memory failed\n");
+		goto err_mem;
+	}
+	memcpy(encrypt_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
+
+	key_buf = kzalloc(src_dma_length, GFP_KERNEL);
+	if (!key_buf) {
+		printk(KERN_ERR "key_buf: Allocating DMA memory failed\n");
+		goto free_encrypt;
+	}
+	memcpy(key_buf, &zynqaes_set_key_cmd, ZYNQAES_CMD_LEN);
+
+	cipher_buf = kzalloc(dest_dma_length, GFP_KERNEL);
+	if (!cipher_buf) {
+		printk(KERN_ERR "cipher_buf: Allocating DMA memory failed\n");
+		goto free_key;
+	}
+
+	return 0;
+
+free_key:
+	kfree(key_buf);
+
+free_encrypt:
+	kfree(encrypt_buf);
+
+err_mem:
+	return -ENOMEM;
+}
+
+static void zynqaes_dma_buf_free(void)
+{
+	kfree(encrypt_buf);
+	kfree(key_buf);
+	kfree(cipher_buf);
+}
+
 static int zynqaes_probe(struct platform_device *pdev)
 {
 	int err;
@@ -248,7 +261,7 @@ static int zynqaes_probe(struct platform_device *pdev)
 		goto free_tx;
 	}
 
-	err = zynqaes_dma_buf_init();
+	err = zynqaes_dma_buf_alloc();
 	if (err == -ENOMEM)
 		goto free_rx;
 
@@ -275,6 +288,8 @@ static int zynqaes_remove(struct platform_device *pdev)
 	printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
+
+	zynqaes_dma_buf_free();
 
 	dma_release_channel(rx_chan);
 	dma_release_channel(tx_chan);
