@@ -9,6 +9,7 @@
 #include <linux/dmaengine.h>
 #include <linux/version.h>
 #include <linux/dma-mapping.h>
+#include <linux/dmapool.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 
@@ -16,7 +17,12 @@
 
 static const u32 zynqaes_encrypt_cmd = 0x20;
 static const u32 zynqaes_set_key_cmd = 0x10;
- 
+
+static struct dma_pool *cmd_pool;
+static struct dma_pool *ciphertext_pool;
+static char *cmd_cpu_buf;
+static char *ciphertext_cpu_buf;
+
 static struct dma_chan *tx_chan;
 static struct dma_chan *rx_chan;
 static struct completion rx_cmp;
@@ -27,9 +33,6 @@ static dma_addr_t rx_dma_handle;
 
 static const int src_dma_length = ZYNQAES_CMD_LEN + AES_BLOCK_SIZE;
 static const int dest_dma_length = AES_BLOCK_SIZE;
-static char *encrypt_buf;
-static char *key_buf;
-static char *cipher_buf;
 
 static void axidma_sync_callback(void *completion)
 {
@@ -47,9 +50,6 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 
 	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, AES_KEYSIZE_128);
-
-	rx_dma_handle = dma_map_single(rx_chan->device->dev, dest_dma_buffer, dest_dma_length, DMA_FROM_DEVICE);
-	tx_dma_handle = dma_map_single(tx_chan->device->dev, src_dma_buffer, src_dma_length, DMA_TO_DEVICE);
 
 	/* Tx Channel */
 	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, src_dma_length, DMA_MEM_TO_DEV, flags);
@@ -95,9 +95,6 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 		}
 	}
 
-	dma_unmap_single(rx_chan->device->dev, rx_dma_handle, dest_dma_length, DMA_FROM_DEVICE);
-	dma_unmap_single(tx_chan->device->dev, tx_dma_handle, src_dma_length, DMA_TO_DEVICE);
-
 	return 0;
 
 err:
@@ -109,7 +106,8 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
 {
 	//printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
 
-	zynqaes_dma_op(in_key, key_buf, cipher_buf);
+	memcpy(cmd_cpu_buf, &zynqaes_set_key_cmd, ZYNQAES_CMD_LEN);
+	zynqaes_dma_op(in_key, cmd_cpu_buf, ciphertext_cpu_buf);
 
 	return 0;
 }
@@ -142,8 +140,9 @@ static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 		dst_paddr = (page_to_phys(walk.dst.page) + walk.dst.offset);
 		out_ptr = phys_to_virt(dst_paddr);
 
-		zynqaes_dma_op(in_ptr, encrypt_buf, cipher_buf);
-		memcpy(out_ptr, cipher_buf, AES_BLOCK_SIZE);
+		memcpy(cmd_cpu_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
+		zynqaes_dma_op(in_ptr, cmd_cpu_buf, ciphertext_cpu_buf);
+		memcpy(out_ptr, ciphertext_cpu_buf, AES_BLOCK_SIZE);
 
 		nbytes -= AES_BLOCK_SIZE;
 		ret = ablkcipher_walk_done(areq, &walk, nbytes);
@@ -175,45 +174,56 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	}
 };
 
-static int zynqaes_dma_buf_alloc(void)
+static int zynqaes_dma_buf_alloc(struct device *dev)
 {
-	encrypt_buf = kzalloc(src_dma_length, GFP_KERNEL);
-	if (!encrypt_buf) {
-		printk(KERN_ERR "encrypt_buf: Allocating DMA memory failed\n");
-		goto err_mem;
-	}
-	memcpy(encrypt_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
+	int ret = -ENOMEM;
 
-	key_buf = kzalloc(src_dma_length, GFP_KERNEL);
-	if (!key_buf) {
-		printk(KERN_ERR "key_buf: Allocating DMA memory failed\n");
-		goto free_encrypt;
+	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, src_dma_length, 1, 0);
+	if (cmd_pool == NULL) {
+		printk(KERN_ERR "zynqaes_cmd_pool: Allocating DMA pool failed\n");
+		goto err_alloc_cmd_pool;
 	}
-	memcpy(key_buf, &zynqaes_set_key_cmd, ZYNQAES_CMD_LEN);
 
-	cipher_buf = kzalloc(dest_dma_length, GFP_KERNEL);
-	if (!cipher_buf) {
-		printk(KERN_ERR "cipher_buf: Allocating DMA memory failed\n");
-		goto free_key;
+	cmd_cpu_buf = dma_pool_alloc(cmd_pool, GFP_KERNEL, &tx_dma_handle);
+	if (cmd_cpu_buf == NULL) {
+		printk(KERN_ERR "cmd_cpu_buf: Allocating DMA memory failed\n");
+		goto err_alloc_cmd_buf;
+	}
+
+	ciphertext_pool = dma_pool_create("zynqaes_ciphertext_pool", dev, dest_dma_length, 1, 0);
+	if (ciphertext_pool == NULL) {
+		printk(KERN_ERR "zynqaes_ciphertext_pool: Allocating DMA pool failed\n");
+		goto err_alloc_ciphertext_pool;
+	}
+
+	ciphertext_cpu_buf = dma_pool_alloc(ciphertext_pool, GFP_KERNEL, &rx_dma_handle);
+	if (ciphertext_cpu_buf == NULL) {
+		printk(KERN_ERR "ciphertext_cpu_buf: Allocating DMA memory failed\n");
+		goto err_alloc_ciphertext_buf;
 	}
 
 	return 0;
 
-free_key:
-	kfree(key_buf);
+err_alloc_ciphertext_buf:
+	dma_pool_destroy(ciphertext_pool);
 
-free_encrypt:
-	kfree(encrypt_buf);
+err_alloc_ciphertext_pool:
+	dma_pool_free(cmd_pool, cmd_cpu_buf, tx_dma_handle);
 
-err_mem:
-	return -ENOMEM;
+err_alloc_cmd_buf:
+	dma_pool_destroy(cmd_pool);
+
+err_alloc_cmd_pool:
+	return ret;
 }
 
 static void zynqaes_dma_buf_free(void)
 {
-	kfree(encrypt_buf);
-	kfree(key_buf);
-	kfree(cipher_buf);
+	dma_pool_free(cmd_pool, cmd_cpu_buf, tx_dma_handle);
+	dma_pool_destroy(cmd_pool);
+
+	dma_pool_free(ciphertext_pool, ciphertext_cpu_buf, rx_dma_handle);
+	dma_pool_destroy(ciphertext_pool);
 }
 
 static int zynqaes_probe(struct platform_device *pdev)
@@ -236,7 +246,7 @@ static int zynqaes_probe(struct platform_device *pdev)
 		goto free_tx;
 	}
 
-	err = zynqaes_dma_buf_alloc();
+	err = zynqaes_dma_buf_alloc(&pdev->dev);
 	if (err == -ENOMEM)
 		goto free_rx;
 
