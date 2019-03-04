@@ -177,7 +177,7 @@ out:
 }*/
 
 static struct crypto_alg zynqaes_ecb_alg = {
-	.cra_name		=	"ecb(myaes)",
+	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
 	.cra_priority		=	100,
 	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER | CRYPTO_ALG_ASYNC,
