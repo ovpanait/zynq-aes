@@ -156,26 +156,6 @@ out:
 	return ret;
 }
 
-/*static int zynqaes_ecb_decrypt(struct blkcipher_desc *desc,
-			     struct scatterlist *dst, struct scatterlist *src,
-			     unsigned int nbytes)
-{
-	int rv;
-	struct blkcipher_walk walk;
-
-	blkcipher_walk_init(&walk, dst, src, nbytes);
-	rv = blkcipher_walk_virt(desc, &walk);
-
-	while ((walk.nbytes)) {
-		//zynqaes_write(walk.src.virt.addr, AES_MODE_DECRYPT);
-		//zynqaes_read(walk.dst.virt.addr);
-
-		rv = blkcipher_walk_done(desc, &walk, walk.nbytes - AES_BLOCK_SIZE);
-	}
-
-	return rv;
-}*/
-
 static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
