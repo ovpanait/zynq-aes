@@ -98,7 +98,6 @@ reg                              writes_done;
 reg                              processing_done;
 wire                             start_processing;
 
-reg [C_S_AXIS_TDATA_WIDTH-1:0] in_stream_data_fifo [0 : NUMBER_OF_INPUT_WORDS-1];
 reg [`WORD_S-1:0] transaction_cnt;
 
 // Control state machine implementation
@@ -170,6 +169,7 @@ always @(posedge m00_axis_aclk) begin
 
                 if (tx_en) begin
                         if (read_pointer == transaction_cnt - 1'b1) begin // Subtract 1 word wich represents the command code
+                                in_aes_blk_cnt <= 1'b0;
                                 read_pointer <= 1'b0;
                                 tx_done <= 1'b1;
                         end
@@ -204,28 +204,74 @@ end
 /*
 * Slave side I/O Connections assignments
 */
+localparam IN_SRAM_ADDR_WIDTH = 9;
+localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
+localparam IN_SRAM_DEPTH = 512;
+
+reg [IN_SRAM_DATA_WIDTH-1:0] in_stream_aes_blk;
+reg [IN_SRAM_ADDR_WIDTH-1:0] in_aes_blk_cnt;
+reg [1:0] word_cnt;
+
+// SRAM signals
+wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_i_data;
+wire [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr;
+reg in_sram_w_e;
+reg in_sram_r_e;
+wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_out_data;
+
+
+//AXI
+reg [`WORD_S-1:0] cmd;
+reg cmd_flag;
+
+assign in_sram_i_data = in_stream_aes_blk;
+assign in_ram_addr = in_aes_blk_cnt;
+
+in_fifo_sram in_sram #(
+        .ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
+        .DATA_WIDTH(IN_SRAM_DATA_WIDTH),
+        .DEPTH(IN_SRAM_DEPTH)
+)
+(
+        .clk(s00_axis_aclk),
+
+        .addr(in_sram_addr),
+        .i_data(in_sram_i_data),
+        .w_e(in_sram_w_e),
+
+        .o_data(in_sram_out_data),
+        .r_e(in_sram_r_e)
+);
+
 assign s00_axis_tready = axis_tready;
 assign axis_tready = ((state == WRITE_FIFO) && !writes_done);
 
 always @(posedge s00_axis_aclk) begin
         if(!s00_axis_aresetn) begin
-                write_pointer <= 1'b0;
+                word_cnt <= 1'b0;
                 writes_done <= 1'b0;
+                cmd_flag <= 1'b0;
         end
         else begin
-                if (fifo_wren) begin
-                        if ((write_pointer == NUMBER_OF_INPUT_WORDS-1) ||
-                        s00_axis_tlast) begin
-                                writes_done <= 1'b1;
-                                transaction_cnt <= write_pointer;
-                        end
-                        else begin
-                                write_pointer <= write_pointer + 1'b1;
+                in_sram_w_e <= 1'b0;
+
+                if (fifo_wren && cmd_flag) begin
+                        word_cnt <= word_cnt + 1'b1;
+
+                        if (word_cnt == `Nb - 1'b1) begin
+                                in_aes_blk_cnt <= in_aes_blk_cnt + 1'b1;
+                                in_sram_w_e <= 1'b1;
+                                word_cnt <= 1'b0;
+
+                                if ((in_aes_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
+                                        writes_done <= 1'b1;
+                                        cmd_flag <= 1'b0;
+                                end
+
                         end
                 end
 
                 if (processing_done) begin
-                        write_pointer <= 1'b0;
                         writes_done <= 1'b0;
                 end
         end
@@ -236,7 +282,14 @@ assign fifo_wren = s00_axis_tvalid && axis_tready;
 always @(posedge s00_axis_aclk) begin
         if (fifo_wren)// && S_AXIS_TSTRB[byte_index])
         begin
-                in_stream_data_fifo[write_pointer] <= s00_axis_tdata;
+                if (!cmd_flag) begin
+                        //first received word is the command
+                        cmd <= s00_axis_tdata;
+                        cmd_flag <= 1'b1;
+                end 
+                else begin
+                        in_stream_aes_block <= (in_stream_aes_block << `WORD_S) | s00_axis_tdata;
+                end
         end
 end
 
@@ -275,14 +328,9 @@ assign aes_start = start_processing;
 // AES stuff
 genvar i;
 
-assign aes_cmd = in_stream_data_fifo[0];
+assign aes_cmd = cmd;
 
-wire [NUMBER_OF_INPUT_WORDS * `WORD_S - 1 : 0] in_fifo;
 wire [NUMBER_OF_OUTPUT_WORDS * `WORD_S - 1 : 0] out_fifo;
-generate for (i = 0; i < NUMBER_OF_INPUT_WORDS-1; i=i+1) begin // The first word contains the command, do not take it
-        assign in_fifo[i*`WORD_S +: `WORD_S] = in_stream_data_fifo[i+1];
-end
-endgenerate
 
 generate for (i = 0; i < NUMBER_OF_OUTPUT_WORDS; i=i+1) begin
         assign out_stream_data_fifo[i] = out_fifo[i*`WORD_S +: `WORD_S];
@@ -295,8 +343,8 @@ aes_controller controller(
         .en(aes_start),
         .aes_cmd(aes_cmd),
 
-        .in_fifo(in_fifo),
-        .in_fifo_last(transaction_cnt),
+        .in_fifo_r_e(in_sram_r_e),
+        .in_fifo_blk_cnt(in_aes_blk_cnt),
         .out_fifo(out_fifo),
 
         .en_o(aes_done)
