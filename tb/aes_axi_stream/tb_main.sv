@@ -161,11 +161,8 @@ initial begin
 
         tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
         tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
+        gen_transaction(data_tmp);
 
-        wait(comparison_cnt == 8);
-
-        // Test 2
         aes_plaintext = {
                 8'h12, 8'h34, 8'h56, 8'h78,
                 8'h91, 8'h11, 8'h23, 8'h45,
@@ -173,10 +170,6 @@ initial begin
                 8'h45, 8'h67, 8'h89, 8'h01
         };
         aes_plaintext = swap_blk(aes_plaintext);
-
-        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
 
         tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
         tester::print_unpacked(data_tmp);
