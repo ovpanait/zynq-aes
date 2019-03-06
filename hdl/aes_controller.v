@@ -12,8 +12,8 @@ module aes_controller #
         input en,
 
         input [0:`WORD_S-1]                       aes_cmd,
-        input [IN_FIFO_DEPTH * `WORD_S - 1 :0]    in_fifo,
-        input [`WORD_S-1:0]                       in_fifo_last,
+        input                                     in_fifo_r_e,
+        input [`WORD_S-1:0]                       in_fifo_blk_cnt,
 
         output [OUT_FIFO_DEPTH * `WORD_S - 1 : 0] out_fifo,
         output reg                                en_o
@@ -31,7 +31,8 @@ localparam ENCRYPT_CMD = 32'h20;
 localparam SET_KEY_CMD = 32'h10;
 
 reg [1:0]               state;
-reg [`WORD_S-1:0]       rw_ptr;
+reg [`WORD_S-1:0]       read_ptr;
+reg [`WORD_S-1:0]       write_ptr;
 
 wire [0:`BLK_S-1]       aes_ciphertext;
 wire                    aes_done;
@@ -117,7 +118,7 @@ always @(posedge clk) begin
 
                                 aes_start <= 1'b1;
 
-                                if (rw_ptr == in_fifo_last) begin
+                                if (read_ptr == in_fifo_blk_cnt) begin
                                         aes_start <= 1'b0;
                                         state <= IDLE;
                                         en_o <= 1'b1;
@@ -136,7 +137,8 @@ always @(posedge clk) begin
                                         out_fifo_arr[rw_ptr + 2] <= swap_bytes(aes_ciphertext[2*`WORD_S +: `WORD_S]);
                                         out_fifo_arr[rw_ptr + 3] <= swap_bytes(aes_ciphertext[3*`WORD_S +: `WORD_S]);
 
-                                        rw_ptr <= rw_ptr + `Nb;
+                                        read_ptr <= read_ptr + 1'b1;
+                                        write_ptr <= write_ptr + `Nb;
 
                                         state <= AES_START;
                                 end
