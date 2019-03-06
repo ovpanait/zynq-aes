@@ -150,7 +150,7 @@ initial begin
 
         tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
         tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
+        gen_transaction(data_tmp, 1);
 
         slv_gen_tready();
 
@@ -161,7 +161,7 @@ initial begin
 
         tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
         tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
+        gen_transaction(data_tmp, 1);
 
         wait(comparison_cnt == 8);
 
@@ -180,7 +180,7 @@ initial begin
 
         tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
         tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
+        gen_transaction(data_tmp, 1);
 
         wait(comparison_cnt == 12);
 

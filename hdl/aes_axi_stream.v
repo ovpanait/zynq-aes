@@ -50,9 +50,9 @@ function integer clogb2 (input integer bit_depth);
 endfunction
 
 // Input FIFO size (slave side)
-localparam NUMBER_OF_INPUT_WORDS  = 5;
+localparam NUMBER_OF_INPUT_WORDS  = 2048;
 // Output FIFO size (master side)
-localparam NUMBER_OF_OUTPUT_WORDS = 4;
+localparam NUMBER_OF_OUTPUT_WORDS = 2048;
 
 // bit_num gives the minimum number of bits needed to address 'NUMBER_OF_INPUT_WORDS' size of FIFO.
 localparam bit_num  = clogb2(NUMBER_OF_INPUT_WORDS-1);
@@ -92,11 +92,14 @@ reg                              tx_done;
 wire                             axis_tready;
 genvar                           byte_index;
 wire                             fifo_wren;
-reg [bit_num-1:0]                write_pointer;
+reg [`WORD_S-1:0]                write_pointer;
 reg                              writes_done;
 
 reg                              processing_done;
 wire                             start_processing;
+
+reg [C_S_AXIS_TDATA_WIDTH-1:0] in_stream_data_fifo [0 : NUMBER_OF_INPUT_WORDS-1];
+reg [`WORD_S-1:0] transaction_cnt;
 
 // Control state machine implementation
 reg [1:0]                        state;
@@ -166,7 +169,7 @@ always @(posedge m00_axis_aclk) begin
                 tx_done <= 1'b0;
 
                 if (tx_en) begin
-                        if (read_pointer == NUMBER_OF_OUTPUT_WORDS-1) begin
+                        if (read_pointer == transaction_cnt - 1'b1) begin // Subtract 1 word wich represents the command code
                                 read_pointer <= 1'b0;
                                 tx_done <= 1'b1;
                         end
@@ -188,7 +191,7 @@ always @(posedge m00_axis_aclk) begin
                 stream_data_out <= out_stream_data_fifo[read_pointer];
                 if (tx_en) begin
                         stream_data_out <= out_stream_data_fifo[read_pointer + 1'b1];
-                end	
+                end
         end
 end
 
@@ -214,6 +217,7 @@ always @(posedge s00_axis_aclk) begin
                         if ((write_pointer == NUMBER_OF_INPUT_WORDS-1) ||
                         s00_axis_tlast) begin
                                 writes_done <= 1'b1;
+                                transaction_cnt <= write_pointer;
                         end
                         else begin
                                 write_pointer <= write_pointer + 1'b1;
@@ -228,8 +232,6 @@ always @(posedge s00_axis_aclk) begin
 end
 
 assign fifo_wren = s00_axis_tvalid && axis_tready;
-
-reg  [C_S_AXIS_TDATA_WIDTH-1:0] in_stream_data_fifo [0 : NUMBER_OF_INPUT_WORDS-1];
 
 always @(posedge s00_axis_aclk) begin
         if (fifo_wren)// && S_AXIS_TSTRB[byte_index])
@@ -252,12 +254,9 @@ end
 /*
 * AES specific stuff
 */
-wire [0:`BLK_S-1]       aes_ciphertext;
 wire                    aes_done;
 
 wire                    aes_start;
-wire [0:`BLK_S-1]       aes_plaintext;
-wire [0:`KEY_S-1]       aes_key;
 wire [0:`WORD_S-1]      aes_cmd;
 
 // Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
@@ -273,42 +272,33 @@ endfunction
 assign __processing_done = aes_done;
 assign aes_start = start_processing;
 
-// Map FIFO to output signals
+// AES stuff
 genvar i;
 
 assign aes_cmd = in_stream_data_fifo[0];
 
-// aes plaintext
-generate for (i = 0; i < `Nb; i=i+1) begin
-        assign aes_plaintext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = 
-                (aes_cmd == `ENCRYPT) ? swap_bytes(in_stream_data_fifo[i+1]) : 32'h0;
+wire [NUMBER_OF_INPUT_WORDS * `WORD_S - 1 : 0] in_fifo;
+wire [NUMBER_OF_OUTPUT_WORDS * `WORD_S - 1 : 0] out_fifo;
+generate for (i = 0; i < NUMBER_OF_INPUT_WORDS-1; i=i+1) begin // The first word contains the command, do not take it
+        assign in_fifo[i*`WORD_S +: `WORD_S] = in_stream_data_fifo[i+1];
 end
 endgenerate
 
-// aes key
-generate for (i = 0; i < `Nk; i=i+1) begin
-        assign aes_key[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH] = 
-                (aes_cmd == `SET_KEY) ? swap_bytes(in_stream_data_fifo[i+1]) : 32'h0;
-end
-endgenerate
-
-// aes ciphertext
 generate for (i = 0; i < NUMBER_OF_OUTPUT_WORDS; i=i+1) begin
-        assign out_stream_data_fifo[i] = 
-                swap_bytes(aes_ciphertext[i*C_S_AXIS_TDATA_WIDTH +: C_S_AXIS_TDATA_WIDTH]);
+        assign out_stream_data_fifo[i] = out_fifo[i*`WORD_S +: `WORD_S];
 end
 endgenerate
 
-aes_top aes_mod(
+aes_controller controller(
         .clk(s00_axis_aclk),
         .reset(!s00_axis_aresetn),
         .en(aes_start),
-
         .aes_cmd(aes_cmd),
-        .aes_key(aes_key),
-        .aes_plaintext(aes_plaintext),
 
-        .aes_ciphertext(aes_ciphertext),
+        .in_fifo(in_fifo),
+        .in_fifo_last(transaction_cnt),
+        .out_fifo(out_fifo),
+
         .en_o(aes_done)
 );
 
