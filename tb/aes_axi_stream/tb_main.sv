@@ -292,21 +292,5 @@ function print_data(string msg, xil_axi4stream_data_byte data[4]);
         end
 endfunction;
 
-// Debugging
-/*always @(DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.en) begin
-        $display("xxx1 en: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.en);
-        $display("xxx1 aes_plaintext: %H", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_plaintext);
-        $display("xxx1 aes_key: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.aes_mod.aes_key);
-
-end
-always @(DUT.design_1_i.aes_axi_stream_0.inst.writes_done) begin
-        $display("xxx2 writes_done: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.writes_done);
-end
-
-always @(DUT.design_1_i.aes_axi_stream_0.inst.s00_axis_tlast) begin
-        $display("xxx3 axis_tlast: %H\n", DUT.design_1_i.aes_axi_stream_0.inst.s00_axis_tlast);
-end
-*/
-
 endmodule
 
