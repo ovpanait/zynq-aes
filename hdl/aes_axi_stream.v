@@ -92,13 +92,9 @@ reg                              tx_done;
 wire                             axis_tready;
 genvar                           byte_index;
 wire                             fifo_wren;
-reg [`WORD_S-1:0]                write_pointer;
-reg                              writes_done;
 
 reg                              processing_done;
 wire                             start_processing;
-
-reg [`WORD_S-1:0] transaction_cnt;
 
 // Control state machine implementation
 reg [1:0]                        state;
@@ -118,7 +114,7 @@ begin
                                 state <= IDLE;
                         end
                         WRITE_FIFO:
-                        if (writes_done) begin
+                        if (axis_slave_in_fifo_writes_done) begin
                                 state <= PROCESS_STUFF;
                         end
                         else begin
@@ -214,8 +210,7 @@ localparam IN_SRAM_DEPTH = 512;
 wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_o_data;
 wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_i_data;
 wire [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr;
-reg [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr_reg;
-reg in_sram_w_e;
+wire in_sram_w_e;
 wire in_sram_r_e;
 
 in_fifo_sram #(
@@ -244,48 +239,51 @@ in_fifo_sram #(
 //AXI signals
 reg [IN_SRAM_DATA_WIDTH-1:0] axis_slave_in_fifo_blk;      // input FIFO block
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_blk_cnt; // number of 128-bit blocks in the input FIFO
-reg [1:0] word_cnt;
-
-reg [`WORD_S-1:0] cmd;
-reg cmd_flag;
+reg [1:0]                    axis_slave_in_fifo_word_cnt;
+reg [`WORD_S-1:0]            axis_slave_in_fifo_cmd;
+reg                          axis_slave_in_fifo_cmd_flag;
+reg                          axis_slave_in_fifo_w_e;
+reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
+reg                          axis_slave_in_fifo_writes_done;
 
 assign in_sram_i_data = axis_slave_in_fifo_blk;
+assign in_sram_w_e = axis_slave_in_fifo_w_e;
 
 assign s00_axis_tready = axis_tready;
-assign axis_tready = ((state == WRITE_FIFO) && !writes_done);
+assign axis_tready = ((state == WRITE_FIFO) && !axis_slave_in_fifo_writes_done);
 
 always @(posedge s00_axis_aclk) begin
         if(!s00_axis_aresetn) begin
                 axis_slave_in_fifo_blk <= 1'b0;
                 axis_slave_in_fifo_blk_cnt <= 1'b0;
-                in_sram_w_e <= 1'b0;
-                word_cnt <= 1'b0;
-                writes_done <= 1'b0;
-                cmd <= 1'b0;
-                cmd_flag <= 1'b0;
-                in_sram_addr_reg <= 1'b0;
+                axis_slave_in_fifo_w_e <= 1'b0;
+                axis_slave_in_fifo_word_cnt <= 1'b0;
+                axis_slave_in_fifo_writes_done <= 1'b0;
+                axis_slave_in_fifo_cmd <= 1'b0;
+                axis_slave_in_fifo_cmd_flag <= 1'b0;
+                axis_slave_in_fifo_addr_reg <= 1'b0;
         end
         else begin
-                in_sram_w_e <= 1'b0;
-                if (fifo_wren && cmd_flag) begin
-                        word_cnt <= word_cnt + 1'b1;
+                axis_slave_in_fifo_w_e <= 1'b0;
+                if (fifo_wren && axis_slave_in_fifo_cmd_flag) begin
+                        axis_slave_in_fifo_word_cnt <= axis_slave_in_fifo_word_cnt + 1'b1;
 
-                        if (word_cnt == `Nb - 1'b1) begin
-                                in_sram_addr_reg <= axis_slave_in_fifo_blk_cnt;
+                        if (axis_slave_in_fifo_word_cnt == `Nb - 1'b1) begin
+                                axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
                                 axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
-                                in_sram_w_e <= 1'b1;
-                                word_cnt <= 1'b0;
+                                axis_slave_in_fifo_w_e <= 1'b1;
+                                axis_slave_in_fifo_word_cnt <= 1'b0;
 
                                 if ((axis_slave_in_fifo_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
-                                        writes_done <= 1'b1;
-                                        cmd_flag <= 1'b0;
+                                        axis_slave_in_fifo_writes_done <= 1'b1;
+                                        axis_slave_in_fifo_cmd_flag <= 1'b0;
                                 end
 
                         end
                 end
 
                 if (processing_done) begin
-                        writes_done <= 1'b0;
+                        axis_slave_in_fifo_writes_done <= 1'b0;
                 end
         end
 end
@@ -295,10 +293,10 @@ assign fifo_wren = s00_axis_tvalid && axis_tready;
 always @(posedge s00_axis_aclk) begin
         if (fifo_wren)// && S_AXIS_TSTRB[byte_index])
         begin
-                if (!cmd_flag) begin
+                if (!axis_slave_in_fifo_cmd_flag) begin
                         //first received word is the command
-                        cmd <= s00_axis_tdata;
-                        cmd_flag <= 1'b1;
+                        axis_slave_in_fifo_cmd <= s00_axis_tdata;
+                        axis_slave_in_fifo_cmd_flag <= 1'b1;
                 end 
                 else begin
                         axis_slave_in_fifo_blk <= (axis_slave_in_fifo_blk << `WORD_S) | s00_axis_tdata;
@@ -307,7 +305,7 @@ always @(posedge s00_axis_aclk) begin
 end
 
 // One clock enable
-assign start_processing = (state == WRITE_FIFO && writes_done == 1'b1 && !processing_done);
+assign start_processing = (state == WRITE_FIFO && axis_slave_in_fifo_writes_done == 1'b1 && !processing_done);
 
 /* 
 * Delay processing module "done" strobe by one clock to match fsm implementation
@@ -333,8 +331,8 @@ wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_blk_cnt;
 assign aes_controller_in_fifo_data = in_sram_o_data;
 assign aes_controller_in_fifo_blk_cnt = axis_slave_in_fifo_blk_cnt;
 assign in_sram_r_e = aes_controller_in_fifo_r_e;
-assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : in_sram_addr_reg;
-assign aes_controller_cmd = cmd;
+assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : axis_slave_in_fifo_addr_reg;
+assign aes_controller_cmd = axis_slave_in_fifo_cmd;
 
 assign __processing_done = aes_controller_done;
 assign aes_controller_start = start_processing;
