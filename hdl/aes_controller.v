@@ -2,9 +2,9 @@
 
 module aes_controller #
 (
-        /* Defaults: 8192 bytes */
-        IN_FIFO_DEPTH = 2048,
-        OUT_FIFO_DEPTH = 2048
+        IN_FIFO_ADDR_WIDTH = 9,
+        IN_FIFO_DATA_WIDTH = 128,
+        OUT_FIFO_DEPTH = 512
 )
 (
         input clk,
@@ -15,10 +15,10 @@ module aes_controller #
         input [0:`WORD_S-1]                       aes_cmd,
 
         // input FIFO signals
-        input [0:IN_SRAM_DATA_WIDTH-1]            in_fifo_data,
-        input [IN_SRAM_ADDR_WIDTH-1:0]            in_fifo_blk_cnt,
+        input [0:IN_FIFO_DATA_WIDTH-1]            in_fifo_data,
+        input [IN_FIFO_ADDR_WIDTH-1:0]            in_fifo_blk_cnt,
         output reg                                in_fifo_r_e,
-        output [IN_SRAM_ADDR_WIDTH-1:0]           in_fifo_addr,
+        output [IN_FIFO_ADDR_WIDTH-1:0]           in_fifo_addr,
 
         // output FIFO
         output [OUT_FIFO_DEPTH * `WORD_S - 1 : 0] out_fifo,
@@ -26,10 +26,6 @@ module aes_controller #
         output reg                                en_o
 
 );
-
-localparam IN_SRAM_ADDR_WIDTH = 9;
-localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam IN_SRAM_DEPTH = 512;
 
 localparam [1:0] IDLE = 2'b0; // Initial/idle state
 localparam [1:0] AES_START  = 2'b1;
@@ -58,10 +54,10 @@ function [0:`WORD_S-1] swap_bytes32(input [0:`WORD_S-1] data);
         end
 endfunction
 
-function [0:IN_SRAM_DATA_WIDTH-1] swap_bytes128(input [0:IN_SRAM_DATA_WIDTH-1] data);
+function [0:IN_FIFO_DATA_WIDTH-1] swap_bytes128(input [0:IN_FIFO_DATA_WIDTH-1] data);
         integer i;
         begin
-                for (i = 0; i < IN_SRAM_DATA_WIDTH / `WORD_S; i=i+1)
+                for (i = 0; i < IN_FIFO_DATA_WIDTH / `WORD_S; i=i+1)
                         swap_bytes128[i*`WORD_S +: `WORD_S] = swap_bytes32(data[i*`WORD_S +: `WORD_S]);
         end
 endfunction
@@ -82,7 +78,7 @@ aes_top aes_mod(
 // Unpack FIFOs
 reg  [0:`WORD_S-1] out_fifo_arr [OUT_FIFO_DEPTH-1 : 0];
 
-generate for (i = 0; i < IN_FIFO_DEPTH; i=i+1)
+generate for (i = 0; i < OUT_FIFO_DEPTH; i=i+1)
         assign out_fifo[i*`WORD_S +: `WORD_S] = out_fifo_arr[i];
 endgenerate
 
