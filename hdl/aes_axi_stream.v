@@ -168,8 +168,8 @@ always @(posedge m00_axis_aclk) begin
                 tx_done <= 1'b0;
 
                 if (tx_en) begin
-                        if (read_pointer == transaction_cnt - 1'b1) begin // Subtract 1 word wich represents the command code
-                                in_aes_blk_cnt <= 1'b0;
+                        if (read_pointer == axis_slave_in_fifo_blk_cnt * 3'h4 - 1'b1) begin // keep this workaround until output FIFO gets updated too
+                                axis_slave_in_fifo_blk_cnt <= 1'b0;
                                 read_pointer <= 1'b0;
                                 tx_done <= 1'b1;
                         end
@@ -198,72 +198,85 @@ end
 // =====================================================================
 
 /*
-* Slave side logic
-*/
-
-/*
-* Slave side I/O Connections assignments
+* AXI slave side
 */
 localparam IN_SRAM_ADDR_WIDTH = 9;
 localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam IN_SRAM_DEPTH = 512;
 
-reg [IN_SRAM_DATA_WIDTH-1:0] in_stream_aes_blk;
-reg [IN_SRAM_ADDR_WIDTH-1:0] in_aes_blk_cnt;
-reg [1:0] word_cnt;
+/*
+ * The input FIFO is implemented as 128-bit Block RAM:
+ * - AXI slave logic writes to it
+ * - AES controller reads from it
+ */
 
 // SRAM signals
+wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_o_data;
 wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_i_data;
 wire [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr;
+reg [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr_reg;
 reg in_sram_w_e;
-reg in_sram_r_e;
-wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_out_data;
+wire in_sram_r_e;
 
-
-//AXI
-reg [`WORD_S-1:0] cmd;
-reg cmd_flag;
-
-assign in_sram_i_data = in_stream_aes_blk;
-assign in_ram_addr = in_aes_blk_cnt;
-
-in_fifo_sram in_sram #(
+in_fifo_sram #(
         .ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
         .DATA_WIDTH(IN_SRAM_DATA_WIDTH),
         .DEPTH(IN_SRAM_DEPTH)
-)
-(
+) in_sram(
         .clk(s00_axis_aclk),
 
         .addr(in_sram_addr),
         .i_data(in_sram_i_data),
         .w_e(in_sram_w_e),
 
-        .o_data(in_sram_out_data),
+        .o_data(in_sram_o_data),
         .r_e(in_sram_r_e)
 );
+
+// AXI slave implementation
+/*
+ * The AXI slave logic is:
+ * - Take 4 x 32bit words from the AXI bus and fill the axis_slave_in_fifo_blk variable
+ * - Store axis_slave_in_fifo_blk as 1 x 128bit word in the in_fifo_sram block RAM
+ *       so it can be retrieved later by the AES controller
+ */
+
+//AXI signals
+reg [IN_SRAM_DATA_WIDTH-1:0] axis_slave_in_fifo_blk;      // input FIFO block
+reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_blk_cnt; // number of 128-bit blocks in the input FIFO
+reg [1:0] word_cnt;
+
+reg [`WORD_S-1:0] cmd;
+reg cmd_flag;
+
+assign in_sram_i_data = axis_slave_in_fifo_blk;
 
 assign s00_axis_tready = axis_tready;
 assign axis_tready = ((state == WRITE_FIFO) && !writes_done);
 
 always @(posedge s00_axis_aclk) begin
         if(!s00_axis_aresetn) begin
+                axis_slave_in_fifo_blk <= 1'b0;
+                axis_slave_in_fifo_blk_cnt <= 1'b0;
+                in_sram_w_e <= 1'b0;
                 word_cnt <= 1'b0;
                 writes_done <= 1'b0;
+                cmd <= 1'b0;
                 cmd_flag <= 1'b0;
+                in_sram_addr_reg <= 1'b0;
         end
         else begin
                 in_sram_w_e <= 1'b0;
-
                 if (fifo_wren && cmd_flag) begin
                         word_cnt <= word_cnt + 1'b1;
 
                         if (word_cnt == `Nb - 1'b1) begin
-                                in_aes_blk_cnt <= in_aes_blk_cnt + 1'b1;
+                                in_sram_addr_reg <= axis_slave_in_fifo_blk_cnt;
+                                axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
                                 in_sram_w_e <= 1'b1;
                                 word_cnt <= 1'b0;
 
-                                if ((in_aes_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
+                                if ((axis_slave_in_fifo_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
                                         writes_done <= 1'b1;
                                         cmd_flag <= 1'b0;
                                 end
@@ -288,7 +301,7 @@ always @(posedge s00_axis_aclk) begin
                         cmd_flag <= 1'b1;
                 end 
                 else begin
-                        in_stream_aes_block <= (in_stream_aes_block << `WORD_S) | s00_axis_tdata;
+                        axis_slave_in_fifo_blk <= (axis_slave_in_fifo_blk << `WORD_S) | s00_axis_tdata;
                 end
         end
 end
@@ -307,28 +320,24 @@ end
 /*
 * AES specific stuff
 */
-wire                    aes_done;
-
-wire                    aes_start;
-wire [0:`WORD_S-1]      aes_cmd;
-
-// Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
-// buffer.
-function [0:`WORD_S-1] swap_bytes(input [0:`WORD_S-1] data);
-        integer i;
-        begin
-                for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
-                        swap_bytes[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
-        end
-endfunction
-
-assign __processing_done = aes_done;
-assign aes_start = start_processing;
-
-// AES stuff
 genvar i;
 
-assign aes_cmd = cmd;
+wire                          aes_controller_done;
+wire                          aes_controller_start;
+wire [0:`WORD_S-1]            aes_controller_cmd;
+wire                          aes_controller_in_fifo_r_e;
+wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_addr;
+wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
+wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_blk_cnt;
+
+assign aes_controller_in_fifo_data = in_sram_o_data;
+assign aes_controller_in_fifo_blk_cnt = axis_slave_in_fifo_blk_cnt;
+assign in_sram_r_e = aes_controller_in_fifo_r_e;
+assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : in_sram_addr_reg;
+assign aes_controller_cmd = cmd;
+
+assign __processing_done = aes_controller_done;
+assign aes_controller_start = start_processing;
 
 wire [NUMBER_OF_OUTPUT_WORDS * `WORD_S - 1 : 0] out_fifo;
 
@@ -340,14 +349,17 @@ endgenerate
 aes_controller controller(
         .clk(s00_axis_aclk),
         .reset(!s00_axis_aresetn),
-        .en(aes_start),
-        .aes_cmd(aes_cmd),
+        .en(aes_controller_start),
 
-        .in_fifo_r_e(in_sram_r_e),
-        .in_fifo_blk_cnt(in_aes_blk_cnt),
+        .aes_cmd(aes_controller_cmd),
+        .in_fifo_r_e(aes_controller_in_fifo_r_e),
+        .in_fifo_addr(aes_controller_in_fifo_addr),
+        .in_fifo_data(aes_controller_in_fifo_data),
+        .in_fifo_blk_cnt(aes_controller_in_fifo_blk_cnt),
+
         .out_fifo(out_fifo),
 
-        .en_o(aes_done)
+        .en_o(aes_controller_done)
 );
 
 endmodule
