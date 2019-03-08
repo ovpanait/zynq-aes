@@ -1,8 +1,8 @@
-module key_sram #
+module block_ram #
   (
-   parameter integer ADDR_WIDTH = 4,
+   parameter integer ADDR_WIDTH = 9,
    parameter integer DATA_WIDTH = 128, 
-   parameter integer DEPTH = 256
+   parameter integer DEPTH = 512          // 8192 bytes
    ) 
    (
     input 			clk,

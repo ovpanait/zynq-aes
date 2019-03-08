@@ -213,11 +213,11 @@ wire [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr;
 wire in_sram_w_e;
 wire in_sram_r_e;
 
-in_fifo_sram #(
+block_ram #(
         .ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
         .DATA_WIDTH(IN_SRAM_DATA_WIDTH),
         .DEPTH(IN_SRAM_DEPTH)
-) in_sram(
+) in_fifo(
         .clk(s00_axis_aclk),
 
         .addr(in_sram_addr),
