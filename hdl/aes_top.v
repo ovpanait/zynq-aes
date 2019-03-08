@@ -50,7 +50,10 @@ round_key round_key_gen(
 // round keys SRAM block
 assign addr = w_e ? key_round_no : encrypt_round_no;
 
-key_sram sram(
+block_ram #(
+        .ADDR_WIDTH(4),
+        .DATA_WIDTH(128)
+) key_sram(
         .clk(clk),
 
         .addr(addr),
