@@ -307,10 +307,6 @@ end
 // One clock enable
 assign start_processing = (state == WRITE_FIFO && axis_slave_in_fifo_writes_done == 1'b1 && !processing_done);
 
-/* 
-* Delay processing module "done" strobe by one clock to match fsm implementation
-*/
-
 always @(posedge s00_axis_aclk) begin
         processing_done <= __processing_done;
 end
@@ -334,6 +330,9 @@ assign in_sram_r_e = aes_controller_in_fifo_r_e;
 assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : axis_slave_in_fifo_addr_reg;
 assign aes_controller_cmd = axis_slave_in_fifo_cmd;
 
+/*
+* Delay processing module "done" strobe by one clock to match fsm implementation
+*/
 assign __processing_done = aes_controller_done;
 assign aes_controller_start = start_processing;
 
