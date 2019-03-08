@@ -66,11 +66,9 @@ endfunction
 
 function [0:IN_SRAM_DATA_WIDTH-1] swap_bytes128(input [0:IN_SRAM_DATA_WIDTH-1] data);
         integer i;
-        integer j;
         begin
-                for (j = 0; j < IN_SRAM_DATA_WIDTH / `WORD_S; j=j+1)
-                        for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
-                                swap_bytes128[j*`WORD_S + i*`BYTE_S +: `BYTE_S] = data[j*`WORD_S + (`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
+                for (i = 0; i < IN_SRAM_DATA_WIDTH / `WORD_S; i=i+1)
+                        swap_bytes128[i*`WORD_S +: `WORD_S] = swap_bytes32(data[i*`WORD_S +: `WORD_S]);
         end
 endfunction
 
