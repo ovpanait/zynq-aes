@@ -344,7 +344,11 @@ generate for (i = 0; i < NUMBER_OF_OUTPUT_WORDS; i=i+1) begin
 end
 endgenerate
 
-aes_controller controller(
+aes_controller #(
+        .IN_FIFO_ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
+        .IN_FIFO_DATA_WIDTH(IN_SRAM_DATA_WIDTH),
+        .OUT_FIFO_DEPTH(2048)
+) controller(
         .clk(s00_axis_aclk),
         .reset(!s00_axis_aresetn),
         .en(aes_controller_start),
