@@ -31,15 +31,9 @@ localparam IN_SRAM_ADDR_WIDTH = 9;
 localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam IN_SRAM_DEPTH = 512;
 
-localparam IN_FIFO_BITLEN = IN_FIFO_DEPTH * `WORD_S;
-localparam OUT_FIFO_BITLEN = OUT_FIFO_DEPTH * `WORD_S;
-
 localparam [1:0] IDLE = 2'b0; // Initial/idle state
 localparam [1:0] AES_START  = 2'b1;
 localparam [1:0] AES_WAIT = 2'b11;
-
-localparam ENCRYPT_CMD = 32'h20;
-localparam SET_KEY_CMD = 32'h10;
 
 reg [1:0]               state;
 reg [`WORD_S-1:0]       read_ptr;
