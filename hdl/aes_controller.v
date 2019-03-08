@@ -94,17 +94,17 @@ always @(posedge clk) begin
                 en_o <= 1'b0;
         end 
         else begin
+                en_o <= 1'b0;
+                in_fifo_r_e <= 1'b0;
+
                 case (state)
                         IDLE:
                         begin
-                                en_o <= 1'b0;
                                 state <= IDLE;
 
                                 aes_start <= 1'b0;
                                 read_ptr <= 1'b0;
                                 write_ptr <= 1'b0;
-
-                                in_fifo_r_e <= 1'b0;
 
                                 if (en == 1'b1) begin
                                         state <= AES_START;
@@ -113,11 +113,8 @@ always @(posedge clk) begin
                         end
                         AES_START:
                         begin
-                                en_o <= 1'b0;
                                 state <= AES_WAIT;
-
                                 aes_start <= 1'b1;
-                                in_fifo_r_e <= 1'b0;
 
                                 if (read_ptr == in_fifo_blk_cnt) begin
                                         aes_start <= 1'b0;
@@ -128,11 +125,9 @@ always @(posedge clk) begin
                         end
                         AES_WAIT:
                         begin
-                                en_o <= 1'b0;
                                 state <= AES_WAIT;
 
                                 aes_start <= 1'b0;
-                                in_fifo_r_e <= 1'b0;
 
                                 if (aes_done == 1'b1) begin
                                         // output FIFO
