@@ -4,7 +4,8 @@ module aes_controller #
 (
         IN_FIFO_ADDR_WIDTH = 9,
         IN_FIFO_DATA_WIDTH = 128,
-        OUT_FIFO_DEPTH = 512
+        OUT_FIFO_ADDR_WIDTH = 9,
+        OUT_FIFO_DATA_WIDTH = 128
 )
 (
         input clk,
@@ -21,7 +22,10 @@ module aes_controller #
         output [IN_FIFO_ADDR_WIDTH-1:0]           in_fifo_addr,
 
         // output FIFO
-        output [OUT_FIFO_DEPTH * `WORD_S - 1 : 0] out_fifo,
+        input [OUT_FIFO_ADDR_WIDTH-1:0]            out_fifo_blk_cnt,
+        output reg [0:OUT_FIFO_DATA_WIDTH-1]       out_fifo_data,
+        output reg                                 out_fifo_w_e,
+        output reg [OUT_FIFO_ADDR_WIDTH-1:0]       out_fifo_addr,
 
         output reg                                en_o
 
@@ -75,13 +79,6 @@ aes_top aes_mod(
         .en_o(aes_done)
 );
 
-// Unpack FIFOs
-reg  [0:`WORD_S-1] out_fifo_arr [OUT_FIFO_DEPTH-1 : 0];
-
-generate for (i = 0; i < OUT_FIFO_DEPTH; i=i+1)
-        assign out_fifo[i*`WORD_S +: `WORD_S] = out_fifo_arr[i];
-endgenerate
-
 assign in_fifo_addr = read_ptr;
 
 assign aes_plaintext = (aes_cmd == `ENCRYPT) ? swap_bytes128(in_fifo_data) : 32'h0;
@@ -96,6 +93,7 @@ always @(posedge clk) begin
         else begin
                 en_o <= 1'b0;
                 in_fifo_r_e <= 1'b0;
+                out_fifo_w_e <= 1'b0;
 
                 case (state)
                         IDLE:
@@ -131,11 +129,10 @@ always @(posedge clk) begin
 
                                 if (aes_done == 1'b1) begin
                                         // output FIFO
-                                        write_ptr <= write_ptr + `Nb;
-                                        out_fifo_arr[write_ptr + 0] <= swap_bytes32(aes_ciphertext[0*`WORD_S +: `WORD_S]);
-                                        out_fifo_arr[write_ptr + 1] <= swap_bytes32(aes_ciphertext[1*`WORD_S +: `WORD_S]);
-                                        out_fifo_arr[write_ptr + 2] <= swap_bytes32(aes_ciphertext[2*`WORD_S +: `WORD_S]);
-                                        out_fifo_arr[write_ptr + 3] <= swap_bytes32(aes_ciphertext[3*`WORD_S +: `WORD_S]);
+                                        out_fifo_w_e <= 1'b1;
+                                        out_fifo_addr <= write_ptr;
+                                        out_fifo_data <= swap_bytes128(aes_ciphertext);
+                                        write_ptr <= write_ptr + 1'b1;
 
                                         // input FIFO
                                         read_ptr <= read_ptr + 1'b1;
