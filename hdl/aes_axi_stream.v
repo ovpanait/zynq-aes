@@ -49,14 +49,6 @@ function integer clogb2 (input integer bit_depth);
         end
 endfunction
 
-// Input FIFO size (slave side)
-localparam NUMBER_OF_INPUT_WORDS  = 2048;
-// Output FIFO size (master side)
-localparam NUMBER_OF_OUTPUT_WORDS = 2048;
-
-// bit_num gives the minimum number of bits needed to address 'NUMBER_OF_INPUT_WORDS' size of FIFO.
-localparam bit_num  = clogb2(NUMBER_OF_INPUT_WORDS-1);
-
 // Control state machine states
 parameter [1:0] IDLE = 1'b0, // Initial/idle state
 
@@ -71,20 +63,11 @@ MASTER_SEND = 2'b10; // Master is sending processed data
 /*
 * Master side signals
 */
-reg [bit_num-1:0] read_pointer;
-
-// AXI Stream internal signals
 wire              axis_tvalid;
 wire              axis_tlast;
 
 reg               axis_tvalid_delay;
 reg               axis_tlast_delay;
-
-wire [C_M_AXIS_TDATA_WIDTH-1 : 0] out_stream_data_fifo [0 : NUMBER_OF_OUTPUT_WORDS - 1];
-reg [C_M_AXIS_TDATA_WIDTH-1 : 0] stream_data_out;
-wire                             tx_en;
-
-reg                              tx_done;
 
 /*
 * Slave side signals
@@ -128,7 +111,7 @@ begin
                                 state <= PROCESS_STUFF;
                         end
                         MASTER_SEND:
-                        if (tx_done) begin
+                        if (axis_out_fifo_tx_done) begin
                                 state <= IDLE;
                         end
                         else begin
@@ -143,53 +126,94 @@ end
 /*
 * Master side logic
 */
+localparam OUT_SRAM_ADDR_WIDTH = 9;
+localparam OUT_SRAM_DATA_WIDTH = `Nb * `WORD_S;
+localparam OUT_SRAM_DEPTH = 512;
 
 /*
-* Master side I/O Connections assignments
-*/
+ * The output FIFO is implemented as 128-bit Block RAM:
+ * - AES controller writes ciphertexts to it
+ * - AXI master reads from it
+ */
+
+// SRAM signals
+wire [OUT_SRAM_DATA_WIDTH-1:0] out_sram_o_data;
+wire [OUT_SRAM_DATA_WIDTH-1:0] out_sram_i_data;
+wire [OUT_SRAM_ADDR_WIDTH-1:0] out_sram_addr;
+wire out_sram_w_e;
+wire out_sram_r_e;
+
+block_ram #(
+        .ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
+        .DATA_WIDTH(OUT_SRAM_DATA_WIDTH),
+        .DEPTH(OUT_SRAM_DEPTH)
+) out_fifo(
+        .clk(m00_axis_aclk),
+
+        .addr(out_sram_addr),
+        .i_data(out_sram_i_data),
+        .w_e(out_sram_w_e),
+
+        .o_data(out_sram_o_data),
+        .r_e(out_sram_r_e)
+);
+
+// AXI master implementation
+/*
+ * The AXI master control logic is:
+ * - Read 1 x 128bit ciphertext from out_fifo
+ * - Split it in 4 x 32bit words and push them on the AXI bus
+ */
+
+wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_shift;
+wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk;
+reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_cnt;
+reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_word_cnt;
+wire                           axis_out_fifo_tx_en;
+reg                            axis_out_fifo_tx_done;
+
+// start reading from SRAM before state is MASTER_SEND, while processing_done is active
+assign out_sram_r_e = (state == MASTER_SEND) | processing_done; 
+assign axis_out_fifo_blk = out_sram_o_data;
+
 assign m00_axis_tvalid       = axis_tvalid;
-assign m00_axis_tdata        = stream_data_out;
+assign m00_axis_tdata        = axis_out_fifo_blk_shift[OUT_SRAM_DATA_WIDTH-`WORD_S +: `WORD_S];
 assign m00_axis_tlast        = axis_tlast;
 assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 
-assign axis_tlast = (read_pointer == NUMBER_OF_OUTPUT_WORDS-1);
-assign axis_tvalid = (state == MASTER_SEND) && !tx_done;
+assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
+assign axis_tlast = (axis_out_fifo_blk_cnt == axis_slave_in_fifo_blk_cnt - 1'b1) && 
+                                (axis_out_fifo_word_cnt == `Nb - 1'b1);
+assign axis_tvalid = (state == MASTER_SEND) && !axis_out_fifo_tx_done;
 
 always @(posedge m00_axis_aclk) begin
         if(!m00_axis_aresetn) begin
-                read_pointer <= 0;
-                tx_done <= 1'b0;
+                axis_out_fifo_word_cnt <= 1'b0;
+                axis_out_fifo_blk_cnt <= 1'b0;
+                axis_out_fifo_tx_done <= 1'b0;
         end 
         else begin
-                tx_done <= 1'b0;
+                axis_out_fifo_tx_done <= 1'b0;
 
-                if (tx_en) begin
-                        if (read_pointer == axis_slave_in_fifo_blk_cnt * 3'h4 - 1'b1) begin // keep this workaround until output FIFO gets updated too
+                if (axis_out_fifo_tx_en) begin
+                        axis_out_fifo_word_cnt <= axis_out_fifo_word_cnt + 1'b1;
+
+                        if (axis_out_fifo_word_cnt == `Nb - 1'b1) begin
+                                axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
+                                axis_out_fifo_word_cnt <= 1'b0;
+                        end
+
+                        if (axis_tlast) begin
                                 axis_slave_in_fifo_blk_cnt <= 1'b0;
-                                read_pointer <= 1'b0;
-                                tx_done <= 1'b1;
+                                axis_out_fifo_blk_cnt <= 1'b0;
+                                axis_out_fifo_word_cnt <= 1'b0;
+                                axis_out_fifo_tx_done <= 1'b1;
                         end
-                        else begin
-                                read_pointer <= read_pointer + 1'b1;
-                                tx_done <= 1'b0;
-                        end
-                end // if (tx_en)
-        end
-end
-
-assign tx_en = m00_axis_tready && axis_tvalid;
-
-always @(posedge m00_axis_aclk) begin
-        if(!m00_axis_aresetn) begin
-                stream_data_out <= 1'b0;
-        end
-        else begin
-                stream_data_out <= out_stream_data_fifo[read_pointer];
-                if (tx_en) begin
-                        stream_data_out <= out_stream_data_fifo[read_pointer + 1'b1];
                 end
         end
 end
+
+assign axis_out_fifo_tx_en = m00_axis_tready && axis_tvalid;
 
 // =====================================================================
 
@@ -230,7 +254,7 @@ block_ram #(
 
 // AXI slave implementation
 /*
- * The AXI slave logic is:
+ * The AXI slave control logic is:
  * - Take 4 x 32bit words from the AXI bus and fill the axis_slave_in_fifo_blk variable
  * - Store axis_slave_in_fifo_blk as 1 x 128bit word in the in_fifo_sram block RAM
  *       so it can be retrieved later by the AES controller
@@ -316,9 +340,14 @@ end
 */
 genvar i;
 
+// aes signals
 wire                          aes_controller_done;
 wire                          aes_controller_start;
 wire [0:`WORD_S-1]            aes_controller_cmd;
+
+assign aes_controller_cmd = axis_slave_in_fifo_cmd;
+
+// input FIFO signals
 wire                          aes_controller_in_fifo_r_e;
 wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_addr;
 wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
@@ -328,7 +357,17 @@ assign aes_controller_in_fifo_data = in_sram_o_data;
 assign aes_controller_in_fifo_blk_cnt = axis_slave_in_fifo_blk_cnt;
 assign in_sram_r_e = aes_controller_in_fifo_r_e;
 assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : axis_slave_in_fifo_addr_reg;
-assign aes_controller_cmd = axis_slave_in_fifo_cmd;
+
+// output FIFO signals
+wire                          aes_controller_out_fifo_w_e;
+wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_addr;
+wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
+wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_blk_cnt;
+
+assign aes_controller_out_fifo_blk_cnt = axis_slave_in_fifo_blk_cnt;
+assign out_sram_w_e = aes_controller_out_fifo_w_e;
+assign out_sram_addr = aes_controller_out_fifo_w_e ? aes_controller_out_fifo_addr : axis_out_fifo_blk_cnt;
+assign out_sram_i_data = aes_controller_out_fifo_data;
 
 /*
 * Delay processing module "done" strobe by one clock to match fsm implementation
@@ -336,17 +375,11 @@ assign aes_controller_cmd = axis_slave_in_fifo_cmd;
 assign __processing_done = aes_controller_done;
 assign aes_controller_start = start_processing;
 
-wire [NUMBER_OF_OUTPUT_WORDS * `WORD_S - 1 : 0] out_fifo;
-
-generate for (i = 0; i < NUMBER_OF_OUTPUT_WORDS; i=i+1) begin
-        assign out_stream_data_fifo[i] = out_fifo[i*`WORD_S +: `WORD_S];
-end
-endgenerate
-
 aes_controller #(
         .IN_FIFO_ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
         .IN_FIFO_DATA_WIDTH(IN_SRAM_DATA_WIDTH),
-        .OUT_FIFO_DEPTH(2048)
+        .OUT_FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
+        .OUT_FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
 ) controller(
         .clk(s00_axis_aclk),
         .reset(!s00_axis_aresetn),
@@ -358,7 +391,10 @@ aes_controller #(
         .in_fifo_data(aes_controller_in_fifo_data),
         .in_fifo_blk_cnt(aes_controller_in_fifo_blk_cnt),
 
-        .out_fifo(out_fifo),
+        .out_fifo_blk_cnt(aes_controller_out_fifo_blk_cnt),
+        .out_fifo_data(aes_controller_out_fifo_data),
+        .out_fifo_w_e(aes_controller_out_fifo_w_e),
+        .out_fifo_addr(aes_controller_out_fifo_addr),
 
         .en_o(aes_controller_done)
 );
