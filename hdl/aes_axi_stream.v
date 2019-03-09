@@ -168,6 +168,7 @@ block_ram #(
 wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_shift;
 wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_cnt;
+reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_addr;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_word_cnt;
 wire                           axis_out_fifo_tx_en;
 reg                            axis_out_fifo_tx_done;
@@ -182,12 +183,18 @@ assign m00_axis_tlast        = axis_tlast;
 assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 
 assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
-assign axis_tlast = (axis_out_fifo_blk_cnt == axis_slave_in_fifo_blk_cnt - 1'b1) && 
+assign axis_tlast = (axis_out_fifo_blk_cnt == axis_blk_cnt - 1'b1) && 
                                 (axis_out_fifo_word_cnt == `Nb - 1'b1);
 assign axis_tvalid = (state == MASTER_SEND) && !axis_out_fifo_tx_done;
+assign axis_out_fifo_tx_en = m00_axis_tready && axis_tvalid;
 
+/* This is hacky as hell
+ * TODO: Change this to a cleaner FSM implementation, like the one handling 
+ * AXIS slave logic.
+ */
 always @(posedge m00_axis_aclk) begin
         if(!m00_axis_aresetn) begin
+                axis_out_fifo_blk_addr <= 1'b0;
                 axis_out_fifo_word_cnt <= 1'b0;
                 axis_out_fifo_blk_cnt <= 1'b0;
                 axis_out_fifo_tx_done <= 1'b0;
@@ -198,13 +205,16 @@ always @(posedge m00_axis_aclk) begin
                 if (axis_out_fifo_tx_en) begin
                         axis_out_fifo_word_cnt <= axis_out_fifo_word_cnt + 1'b1;
 
+                        if (axis_out_fifo_word_cnt == `Nb - 2'h2 && !(axis_out_fifo_blk_cnt == axis_blk_cnt - 1'b1)) begin
+                                axis_out_fifo_blk_addr <= axis_out_fifo_blk_cnt + 1'b1;
+                        end
+
                         if (axis_out_fifo_word_cnt == `Nb - 1'b1) begin
-                                axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
                                 axis_out_fifo_word_cnt <= 1'b0;
+                                axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
                         end
 
                         if (axis_tlast) begin
-                                axis_slave_in_fifo_blk_cnt <= 1'b0;
                                 axis_out_fifo_blk_cnt <= 1'b0;
                                 axis_out_fifo_word_cnt <= 1'b0;
                                 axis_out_fifo_tx_done <= 1'b1;
@@ -212,8 +222,6 @@ always @(posedge m00_axis_aclk) begin
                 end
         end
 end
-
-assign axis_out_fifo_tx_en = m00_axis_tready && axis_tvalid;
 
 // =====================================================================
 
