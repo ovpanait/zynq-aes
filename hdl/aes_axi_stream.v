@@ -270,11 +270,18 @@ reg                          axis_slave_in_fifo_w_e;
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
 reg                          axis_slave_in_fifo_writes_done;
 
+localparam AXIS_SLAVE_GET_CMD = 1'b0;
+localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
+reg axis_slave_fsm_state;
+
 assign in_sram_i_data = axis_slave_in_fifo_blk;
 assign in_sram_w_e = axis_slave_in_fifo_w_e;
 
 assign s00_axis_tready = axis_tready;
 assign axis_tready = ((state == WRITE_FIFO) && !axis_slave_in_fifo_writes_done);
+assign fifo_wren = s00_axis_tvalid && axis_tready;
+
+reg [IN_SRAM_ADDR_WIDTH-1:0] axis_blk_cnt;
 
 always @(posedge s00_axis_aclk) begin
         if(!s00_axis_aresetn) begin
@@ -284,47 +291,50 @@ always @(posedge s00_axis_aclk) begin
                 axis_slave_in_fifo_word_cnt <= 1'b0;
                 axis_slave_in_fifo_writes_done <= 1'b0;
                 axis_slave_in_fifo_cmd <= 1'b0;
-                axis_slave_in_fifo_cmd_flag <= 1'b0;
                 axis_slave_in_fifo_addr_reg <= 1'b0;
+
+                axis_blk_cnt <= 1'b0;
+                axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
         end
         else begin
-                axis_slave_in_fifo_w_e <= 1'b0;
-                if (fifo_wren && axis_slave_in_fifo_cmd_flag) begin
-                        axis_slave_in_fifo_word_cnt <= axis_slave_in_fifo_word_cnt + 1'b1;
+                case (axis_slave_fsm_state)
+                        AXIS_SLAVE_GET_CMD:
+                        begin
+                                if (fifo_wren) begin
+                                        //first received word is the command
+                                        axis_slave_in_fifo_cmd <= s00_axis_tdata;
+                                        axis_slave_fsm_state <= AXIS_SLAVE_GET_PAYLOAD;
+                                end
+                        end
+                        AXIS_SLAVE_GET_PAYLOAD:
+                        begin
+                                axis_slave_in_fifo_w_e <= 1'b0;
 
-                        if (axis_slave_in_fifo_word_cnt == `Nb - 1'b1) begin
-                                axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
-                                axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
-                                axis_slave_in_fifo_w_e <= 1'b1;
-                                axis_slave_in_fifo_word_cnt <= 1'b0;
+                                if (fifo_wren) begin
+                                        axis_slave_in_fifo_blk <= (axis_slave_in_fifo_blk << `WORD_S) | s00_axis_tdata;
+                                        axis_slave_in_fifo_word_cnt <= axis_slave_in_fifo_word_cnt + 1'b1;
 
-                                if ((axis_slave_in_fifo_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
-                                        axis_slave_in_fifo_writes_done <= 1'b1;
-                                        axis_slave_in_fifo_cmd_flag <= 1'b0;
+                                        if (axis_slave_in_fifo_word_cnt == `Nb - 1'b1) begin
+                                                axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
+                                                axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
+                                                axis_slave_in_fifo_w_e <= 1'b1;
+                                                axis_slave_in_fifo_word_cnt <= 1'b0;
+
+                                                if ((axis_slave_in_fifo_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
+                                                        axis_slave_in_fifo_blk_cnt <= 1'b0;
+                                                        axis_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
+                                                        axis_slave_in_fifo_writes_done <= 1'b1;
+                                                end
+
+                                        end
                                 end
 
+                                if (processing_done) begin
+                                        axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
+                                        axis_slave_in_fifo_writes_done <= 1'b0;
+                                end
                         end
-                end
-
-                if (processing_done) begin
-                        axis_slave_in_fifo_writes_done <= 1'b0;
-                end
-        end
-end
-
-assign fifo_wren = s00_axis_tvalid && axis_tready;
-
-always @(posedge s00_axis_aclk) begin
-        if (fifo_wren)// && S_AXIS_TSTRB[byte_index])
-        begin
-                if (!axis_slave_in_fifo_cmd_flag) begin
-                        //first received word is the command
-                        axis_slave_in_fifo_cmd <= s00_axis_tdata;
-                        axis_slave_in_fifo_cmd_flag <= 1'b1;
-                end 
-                else begin
-                        axis_slave_in_fifo_blk <= (axis_slave_in_fifo_blk << `WORD_S) | s00_axis_tdata;
-                end
+                endcase
         end
 end
 
@@ -354,7 +364,7 @@ wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
 wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_blk_cnt;
 
 assign aes_controller_in_fifo_data = in_sram_o_data;
-assign aes_controller_in_fifo_blk_cnt = axis_slave_in_fifo_blk_cnt;
+assign aes_controller_in_fifo_blk_cnt = axis_blk_cnt;
 assign in_sram_r_e = aes_controller_in_fifo_r_e;
 assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : axis_slave_in_fifo_addr_reg;
 
@@ -364,9 +374,9 @@ wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_addr;
 wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
 wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_blk_cnt;
 
-assign aes_controller_out_fifo_blk_cnt = axis_slave_in_fifo_blk_cnt;
+assign aes_controller_out_fifo_blk_cnt = axis_blk_cnt;
 assign out_sram_w_e = aes_controller_out_fifo_w_e;
-assign out_sram_addr = aes_controller_out_fifo_w_e ? aes_controller_out_fifo_addr : axis_out_fifo_blk_cnt;
+assign out_sram_addr = aes_controller_out_fifo_w_e ? aes_controller_out_fifo_addr : axis_out_fifo_blk_addr;
 assign out_sram_i_data = aes_controller_out_fifo_data;
 
 /*
