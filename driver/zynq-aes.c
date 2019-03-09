@@ -15,6 +15,8 @@
 
 #define ZYNQAES_CMD_LEN 4
 
+#define ZYNQAES_FIFO_NBYTES 2048
+
 static const u32 zynqaes_encrypt_cmd = 0x20;
 static const u32 zynqaes_set_key_cmd = 0x10;
 
@@ -30,9 +32,6 @@ static dma_cookie_t tx_cookie;
 static dma_cookie_t rx_cookie;
 static dma_addr_t tx_dma_handle;
 static dma_addr_t rx_dma_handle;
-
-static const int src_dma_length = ZYNQAES_CMD_LEN + AES_BLOCK_SIZE;
-static const int dest_dma_length = AES_BLOCK_SIZE;
 
 static void axidma_sync_callback(void *completion)
 {
@@ -178,7 +177,7 @@ static int zynqaes_dma_buf_alloc(struct device *dev)
 {
 	int ret = -ENOMEM;
 
-	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, src_dma_length, 1, 0);
+	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, ZYNQAES_FIFO_NBYTES, 1, 0);
 	if (cmd_pool == NULL) {
 		printk(KERN_ERR "zynqaes_cmd_pool: Allocating DMA pool failed\n");
 		goto err_alloc_cmd_pool;
@@ -190,7 +189,7 @@ static int zynqaes_dma_buf_alloc(struct device *dev)
 		goto err_alloc_cmd_buf;
 	}
 
-	ciphertext_pool = dma_pool_create("zynqaes_ciphertext_pool", dev, dest_dma_length, 1, 0);
+	ciphertext_pool = dma_pool_create("zynqaes_ciphertext_pool", dev, ZYNQAES_FIFO_NBYTES, 1, 0);
 	if (ciphertext_pool == NULL) {
 		printk(KERN_ERR "zynqaes_ciphertext_pool: Allocating DMA pool failed\n");
 		goto err_alloc_ciphertext_pool;
