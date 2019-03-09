@@ -380,9 +380,7 @@ assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr :
 wire                          aes_controller_out_fifo_w_e;
 wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_addr;
 wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
-wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_blk_cnt;
 
-assign aes_controller_out_fifo_blk_cnt = axis_blk_cnt;
 assign out_sram_w_e = aes_controller_out_fifo_w_e;
 assign out_sram_addr = aes_controller_out_fifo_w_e ? aes_controller_out_fifo_addr : axis_out_fifo_blk_addr;
 assign out_sram_i_data = aes_controller_out_fifo_data;
@@ -409,7 +407,6 @@ aes_controller #(
         .in_fifo_data(aes_controller_in_fifo_data),
         .in_fifo_blk_cnt(aes_controller_in_fifo_blk_cnt),
 
-        .out_fifo_blk_cnt(aes_controller_out_fifo_blk_cnt),
         .out_fifo_data(aes_controller_out_fifo_data),
         .out_fifo_w_e(aes_controller_out_fifo_w_e),
         .out_fifo_addr(aes_controller_out_fifo_addr),

@@ -22,7 +22,6 @@ module aes_controller #
         output [IN_FIFO_ADDR_WIDTH-1:0]           in_fifo_addr,
 
         // output FIFO
-        input [OUT_FIFO_ADDR_WIDTH-1:0]            out_fifo_blk_cnt,
         output reg [0:OUT_FIFO_DATA_WIDTH-1]       out_fifo_data,
         output reg                                 out_fifo_w_e,
         output reg [OUT_FIFO_ADDR_WIDTH-1:0]       out_fifo_addr,
