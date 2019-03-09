@@ -39,7 +39,7 @@ static void axidma_sync_callback(void *completion)
 	complete(completion);
 }
 
-static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer)
+static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char *dest_dma_buffer)
 {
 	unsigned long timeout = msecs_to_jiffies(5000);
 	struct dma_async_tx_descriptor *tx_chan_desc;
@@ -49,10 +49,10 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 
 	//printk(KERN_INFO "xxx: %s:%d\n", __func__, __LINE__);
 
-	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, AES_KEYSIZE_128);
+	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, msg_nbytes);
 
 	/* Tx Channel */
-	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, src_dma_length, DMA_MEM_TO_DEV, flags);
+	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, msg_nbytes + ZYNQAES_CMD_LEN, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
 		printk(KERN_ERR "dmaengine_prep_slave_single error\n");
 		goto err;
@@ -65,7 +65,7 @@ static int zynqaes_dma_op(char *msg, char *src_dma_buffer, char *dest_dma_buffer
 
 	/* Rx Channel */
 	flags |= DMA_PREP_INTERRUPT;
-	rx_chan_desc = dmaengine_prep_slave_single(rx_chan, rx_dma_handle, dest_dma_length, DMA_DEV_TO_MEM, flags);
+	rx_chan_desc = dmaengine_prep_slave_single(rx_chan, rx_dma_handle, msg_nbytes, DMA_DEV_TO_MEM, flags);
 	if (!rx_chan_desc) {
 		printk(KERN_ERR "dmaengine_prep_slave_single error\n");
 		goto err;
@@ -107,7 +107,7 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
 	//printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
 
 	memcpy(cmd_cpu_buf, &zynqaes_set_key_cmd, ZYNQAES_CMD_LEN);
-	zynqaes_dma_op(in_key, cmd_cpu_buf, ciphertext_cpu_buf);
+	zynqaes_dma_op(in_key, AES_KEYSIZE_128, cmd_cpu_buf, ciphertext_cpu_buf);
 
 	return 0;
 }
@@ -141,7 +141,7 @@ static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 		out_ptr = phys_to_virt(dst_paddr);
 
 		memcpy(cmd_cpu_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
-		zynqaes_dma_op(in_ptr, cmd_cpu_buf, ciphertext_cpu_buf);
+		zynqaes_dma_op(in_ptr, AES_BLOCK_SIZE, cmd_cpu_buf, ciphertext_cpu_buf);
 		memcpy(out_ptr, ciphertext_cpu_buf, AES_BLOCK_SIZE);
 
 		nbytes -= AES_BLOCK_SIZE;
