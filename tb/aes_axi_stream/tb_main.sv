@@ -66,7 +66,13 @@ reg [0:`WORD_S-1] expected_results[] = '{
         32'h2914b146,
         32'h6013ba1e,
         32'h48d6d795,
-        32'he97d3e15
+        32'he97d3e15,
+
+        // Test 3
+        32'h29c3505f,
+        32'h571420f6,
+        32'h402299b3,
+        32'h1a02d73a
 };
 
 // instantiate bd
@@ -176,6 +182,24 @@ initial begin
         gen_transaction(data_tmp, 1);
 
         wait(comparison_cnt == 12);
+
+        aes_plaintext =  {
+                8'h54, 8'h77, 8'h6F, 8'h20,
+                8'h4F, 8'h6E, 8'h65, 8'h20,
+                8'h4E, 8'h69, 8'h6E, 8'h65,
+                8'h20, 8'h54, 8'h77, 8'h6F
+        };
+        aes_plaintext = swap_blk(aes_plaintext);
+
+        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
+
+        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 1);
+
+        wait(comparison_cnt == 16);
 
         if(error_cnt == 0) begin
                 $display("Regression Testing Completed Successfully");
