@@ -118,6 +118,7 @@ static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 	unsigned long dst_paddr;
 	int ret;
 	int nbytes;
+	int processed;
 	u8 *in_ptr;
 	u8 *out_ptr;
 
@@ -139,14 +140,19 @@ static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 		dst_paddr = (page_to_phys(walk.dst.page) + walk.dst.offset);
 		out_ptr = phys_to_virt(dst_paddr);
 
-		memcpy(cmd_cpu_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
-		zynqaes_dma_op(in_ptr, AES_BLOCK_SIZE, cmd_cpu_buf, ciphertext_cpu_buf);
-		memcpy(out_ptr, ciphertext_cpu_buf, AES_BLOCK_SIZE);
+		processed = (nbytes > ZYNQAES_FIFO_NBYTES) ? ZYNQAES_FIFO_NBYTES : nbytes;
 
-		nbytes -= AES_BLOCK_SIZE;
+		memcpy(cmd_cpu_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
+		zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
+		memcpy(out_ptr, ciphertext_cpu_buf, processed);
+
+		nbytes -= processed;
 		ret = ablkcipher_walk_done(areq, &walk, nbytes);
-		if (ret)
+		if (ret) {
+                        printk(KERN_ERR "[%s]: ablkcipher_walk_done() failed! error: %d",
+                                __func__, ret);
 			goto out;
+                }
 	}
 	ablkcipher_walk_complete(&walk);
 
@@ -177,7 +183,7 @@ static int zynqaes_dma_buf_alloc(struct device *dev)
 {
 	int ret = -ENOMEM;
 
-	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, ZYNQAES_FIFO_NBYTES, 1, 0);
+	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, 1, 0);
 	if (cmd_pool == NULL) {
 		printk(KERN_ERR "zynqaes_cmd_pool: Allocating DMA pool failed\n");
 		goto err_alloc_cmd_pool;
