@@ -215,6 +215,8 @@ always @(posedge m00_axis_aclk) begin
                         end
 
                         if (axis_tlast) begin
+                                // cleanup
+                                axis_out_fifo_blk_addr <= 1'b0;
                                 axis_out_fifo_blk_cnt <= 1'b0;
                                 axis_out_fifo_word_cnt <= 1'b0;
                                 axis_out_fifo_tx_done <= 1'b1;
