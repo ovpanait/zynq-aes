@@ -15,7 +15,7 @@
 
 #define ZYNQAES_CMD_LEN 4
 
-#define ZYNQAES_FIFO_NBYTES 2048
+#define ZYNQAES_FIFO_NBYTES 8192
 
 static const u32 zynqaes_encrypt_cmd = 0x20;
 static const u32 zynqaes_set_key_cmd = 0x10;
