@@ -160,6 +160,12 @@ out:
 	return ret;
 }
 
+static int zynqaes_ecb_decrypt(struct ablkcipher_request *areq)
+{
+        return 0;
+
+}
+
 static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
@@ -174,7 +180,7 @@ static struct crypto_alg zynqaes_ecb_alg = {
 			.max_keysize		=	AES_KEYSIZE_128,
 			.setkey	   		= 	zynqaes_setkey,
 			.encrypt		=	zynqaes_ecb_encrypt,
-//			.decrypt		=	zynqaes_ecb_decrypt,
+			.decrypt		=	zynqaes_ecb_decrypt,
 		}
 	}
 };
