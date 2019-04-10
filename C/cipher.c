@@ -122,13 +122,11 @@ static void mix_columns(state_t state)
 	#endif
 }
 
-void cipher(uint8_t *plaintext, uint8_t *key, uint8_t *ciphertext)
+void cipher(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *sched)
 {
 	int round;
-	uint8_t sched[(Nb * (Nr + 1)) * Nb];
 	state_t state;
 
-	key_expansion(sched, key);
 	plaintext_to_state(state, plaintext);
 
 	// cipher round 0
