@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "aes.h"
 
@@ -26,20 +27,35 @@ int main(int argc, char **argv)
 	key_expansion(sched, key);
 	cipher(plaintext, ciphertext, sched);
 
-	printf("plaintext:\n");
-	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
-		printf("%02x", plaintext[i]);
-	printf("\n\n");
-
 	printf("key:\n");
 	for (i = 0; i < AES128_KEY_BYTE_CNT; ++i)
 		printf("%02x", key[i]);
 	printf("\n\n");
 
+	printf("Encrypting..\n");
+	printf("plaintext:\n");
+	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+		printf("%02x", plaintext[i]);
+	printf("\n\n");
+
 	printf("ciphertext:\n");
 	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
 		printf("%02x", ciphertext[i]);
-	printf("\n");
+	printf("\n\n");
+
+	printf("Decrypting..\n");
+	printf("ciphertext:\n");
+	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+		printf("%02x", ciphertext[i]);
+	printf("\n\n");
+
+	memset(plaintext, 0x0, AES_BLK_BYTE_CNT);
+	decipher(ciphertext, plaintext, sched);
+
+	printf("plaintext:\n");
+	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+		printf("%02x", plaintext[i]);
+	printf("\n\n");
 
 	return 0;
 }

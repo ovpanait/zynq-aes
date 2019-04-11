@@ -10,7 +10,7 @@ endif
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-test: cipher.o key_expansion.o test.o
+test: cipher.o decipher.o key_expansion.o test.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
 .SILENT: clean
