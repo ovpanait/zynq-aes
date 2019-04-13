@@ -9,7 +9,7 @@ module cipher(
 	      input [0:`KEY_S-1]      key,
 
 	      output reg [0:`BLK_S-1] ciphertext,
-	      output reg [0:3] 	      round_no,
+	      output reg [0:`Nk-1]    round_no,
 	      output reg 	      r_e,
 	      output reg 	      en_o
 	      );
