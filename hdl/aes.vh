@@ -13,5 +13,6 @@
 
 `define SET_KEY 32'h10
 `define ENCRYPT 32'h20
+`define DECRYPT 32'h30
 
 `endif
