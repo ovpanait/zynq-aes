@@ -38,11 +38,11 @@ reg [1:0]               state;
 reg [`WORD_S-1:0]       read_ptr;
 reg [`WORD_S-1:0]       write_ptr;
 
-wire [0:`BLK_S-1]       aes_ciphertext;
+wire [0:`BLK_S-1]       aes_out_blk;
 wire                    aes_done;
 
 reg                     aes_start;
-wire [0:`BLK_S-1]       aes_plaintext;
+wire [0:`BLK_S-1]       aes_in_blk;
 wire [0:`KEY_S-1]       aes_key;
 
 genvar i;
@@ -72,15 +72,15 @@ aes_top aes_mod(
 
         .aes_cmd(aes_cmd),
         .aes_key(aes_key),
-        .aes_plaintext(aes_plaintext),
+        .aes_in_blk(aes_in_blk),
 
-        .aes_ciphertext(aes_ciphertext),
+        .aes_out_blk(aes_out_blk),
         .en_o(aes_done)
 );
 
 assign in_fifo_addr = read_ptr;
 
-assign aes_plaintext = (aes_cmd == `ENCRYPT) ? swap_bytes128(in_fifo_data) : 32'h0;
+assign aes_in_blk = (aes_cmd == `ENCRYPT || aes_cmd == `DECRYPT) ? swap_bytes128(in_fifo_data) : 32'h0;
 assign aes_key = (aes_cmd == `SET_KEY) ? swap_bytes128(in_fifo_data) : 32'h0;
 
 always @(posedge clk) begin
@@ -130,7 +130,7 @@ always @(posedge clk) begin
                                         // output FIFO
                                         out_fifo_w_e <= 1'b1;
                                         out_fifo_addr <= write_ptr;
-                                        out_fifo_data <= swap_bytes128(aes_ciphertext);
+                                        out_fifo_data <= swap_bytes128(aes_out_blk);
                                         write_ptr <= write_ptr + 1'b1;
 
                                         // input FIFO
