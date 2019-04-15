@@ -63,7 +63,7 @@ MASTER_SEND = 2'b10; // Master is sending processed data
 /*
 * Master side signals
 */
-wire              axis_tvalid;
+reg              axis_tvalid;
 wire              axis_tlast;
 
 reg               axis_tvalid_delay;
@@ -141,7 +141,7 @@ wire [OUT_SRAM_DATA_WIDTH-1:0] out_sram_o_data;
 wire [OUT_SRAM_DATA_WIDTH-1:0] out_sram_i_data;
 wire [OUT_SRAM_ADDR_WIDTH-1:0] out_sram_addr;
 wire out_sram_w_e;
-wire out_sram_r_e;
+reg out_sram_r_e;
 
 block_ram #(
         .ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
@@ -166,16 +166,15 @@ block_ram #(
  */
 
 wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_shift;
-wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk;
+reg [OUT_SRAM_DATA_WIDTH-1:0]  axis_out_fifo_blk;
+wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_next;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_cnt;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_addr;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_word_cnt;
 wire                           axis_out_fifo_tx_en;
 reg                            axis_out_fifo_tx_done;
 
-// start reading from SRAM before state is MASTER_SEND, while processing_done is active
-assign out_sram_r_e = (state == MASTER_SEND) | processing_done; 
-assign axis_out_fifo_blk = out_sram_o_data;
+assign axis_out_fifo_blk_next = out_sram_o_data;
 
 assign m00_axis_tvalid       = axis_tvalid;
 assign m00_axis_tdata        = axis_out_fifo_blk_shift[OUT_SRAM_DATA_WIDTH-`WORD_S +: `WORD_S];
@@ -185,43 +184,83 @@ assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
 assign axis_tlast = (axis_out_fifo_blk_cnt == axis_blk_cnt - 1'b1) && 
                                 (axis_out_fifo_word_cnt == `Nb - 1'b1);
-assign axis_tvalid = (state == MASTER_SEND) && !axis_out_fifo_tx_done;
-assign axis_out_fifo_tx_en = m00_axis_tready && axis_tvalid;
+assign axis_out_fifo_tx_en = m00_axis_tready;
 
-/* This is hacky as hell
- * TODO: Change this to a cleaner FSM implementation, like the one handling 
- * AXIS slave logic.
- */
+localparam AXIS_MASTER_IDLE = 2'b0,
+           AXIS_MASTER_INIT_SRAM = 2'b1,
+           AXIS_MASTER_INIT_TRANSFER = 2'b10,
+           AXIS_MASTER_TRANSFER = 2'b11;
+
+reg [0:1] axis_master_fsm_state;
+
 always @(posedge m00_axis_aclk) begin
         if(!m00_axis_aresetn) begin
+                axis_out_fifo_blk <= 1'b0;
                 axis_out_fifo_blk_addr <= 1'b0;
                 axis_out_fifo_word_cnt <= 1'b0;
                 axis_out_fifo_blk_cnt <= 1'b0;
                 axis_out_fifo_tx_done <= 1'b0;
+
+                axis_tvalid <= 1'b0;
+                axis_master_fsm_state <= AXIS_MASTER_IDLE;
         end 
         else begin
+                out_sram_r_e <= 1'b0;
                 axis_out_fifo_tx_done <= 1'b0;
+                axis_tvalid <= 1'b0;
 
-                if (axis_out_fifo_tx_en) begin
-                        axis_out_fifo_word_cnt <= axis_out_fifo_word_cnt + 1'b1;
-
-                        if (axis_out_fifo_word_cnt == `Nb - 2'h2 && !(axis_out_fifo_blk_cnt == axis_blk_cnt - 1'b1)) begin
-                                axis_out_fifo_blk_addr <= axis_out_fifo_blk_cnt + 1'b1;
-                        end
-
-                        if (axis_out_fifo_word_cnt == `Nb - 1'b1) begin
-                                axis_out_fifo_word_cnt <= 1'b0;
-                                axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
-                        end
-
-                        if (axis_tlast) begin
-                                // cleanup
-                                axis_out_fifo_blk_addr <= 1'b0;
-                                axis_out_fifo_blk_cnt <= 1'b0;
-                                axis_out_fifo_word_cnt <= 1'b0;
-                                axis_out_fifo_tx_done <= 1'b1;
+                case (axis_master_fsm_state)
+                AXIS_MASTER_IDLE:
+                begin
+                        // start reading from SRAM before state is MASTER_SEND, while processing_done is active
+                        if ((state == MASTER_SEND | processing_done) && !axis_out_fifo_tx_done) begin
+                                out_sram_r_e <= 1'b1;
+                                axis_master_fsm_state <= AXIS_MASTER_INIT_SRAM;
                         end
                 end
+                AXIS_MASTER_INIT_SRAM:
+                begin
+                        out_sram_r_e <= 1'b1;
+                        axis_master_fsm_state <= AXIS_MASTER_INIT_TRANSFER;
+                        axis_out_fifo_blk_addr <= 1'b0;
+                end
+                AXIS_MASTER_INIT_TRANSFER:
+                begin
+                        out_sram_r_e <= 1'b1;
+                        axis_out_fifo_blk <= axis_out_fifo_blk_next;
+                        axis_tvalid <= 1'b1;
+                        axis_out_fifo_blk_addr <= axis_out_fifo_blk_cnt + 1'b1;
+
+                        axis_master_fsm_state <= AXIS_MASTER_TRANSFER;
+                end
+                AXIS_MASTER_TRANSFER:
+                begin
+                        out_sram_r_e <= 1'b1;
+                        axis_tvalid <= 1'b1;
+
+                        if (axis_out_fifo_tx_en) begin
+                                axis_out_fifo_word_cnt <= axis_out_fifo_word_cnt + 1'b1;
+
+                                if (axis_out_fifo_word_cnt == `Nb - 1'b1) begin
+                                        axis_out_fifo_blk <= axis_out_fifo_blk_next;
+                                        axis_out_fifo_blk_addr <= axis_out_fifo_blk_addr + 1'b1;
+                                        axis_out_fifo_word_cnt <= 1'b0;
+                                        axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
+                                end
+
+                                if (axis_tlast) begin
+                                        // cleanup
+                                        axis_out_fifo_blk_addr <= 1'b0;
+                                        axis_out_fifo_blk_cnt <= 1'b0;
+                                        axis_out_fifo_word_cnt <= 1'b0;
+                                        axis_out_fifo_tx_done <= 1'b1;
+
+                                        axis_tvalid <= 1'b0;
+                                        axis_master_fsm_state <= AXIS_MASTER_IDLE;
+                                end
+                        end
+                end
+                endcase
         end
 end
 
