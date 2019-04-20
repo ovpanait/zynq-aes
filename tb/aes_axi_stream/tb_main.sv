@@ -130,80 +130,11 @@ initial begin
 
         mst_agent.start_master();
         slv_agent.start_slave();
-
-        // Test 1
-        // The values need to be swap to math the values put by the kernel on the AXI bus
-        aes_key =  {
-                8'h54, 8'h68, 8'h61, 8'h74,
-                8'h73, 8'h20, 8'h6D, 8'h79,
-                8'h20, 8'h4B, 8'h75, 8'h6E,
-                8'h67, 8'h20, 8'h46, 8'h75
-        };
-        aes_plaintext =  {
-                8'h54, 8'h77, 8'h6F, 8'h20,
-                8'h4F, 8'h6E, 8'h65, 8'h20,
-                8'h4E, 8'h69, 8'h6E, 8'h65,
-                8'h20, 8'h54, 8'h77, 8'h6F
-        };
- 
-        aes_plaintext = swap_blk(aes_plaintext);
-        aes_key = swap_blk(aes_key);
-
-        $display("Sending...");
-        tester #(32)::packed_to_unpacked(`SET_KEY, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
-
-        tester #($size(aes_key))::packed_to_unpacked(aes_key, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
-
         slv_gen_tready();
 
-        wait(comparison_cnt == 4);
-        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
-
-        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
-
-        aes_plaintext = {
-                8'h12, 8'h34, 8'h56, 8'h78,
-                8'h91, 8'h11, 8'h23, 8'h45,
-                8'h67, 8'h89, 8'h01, 8'h23,
-                8'h45, 8'h67, 8'h89, 8'h01
-        };
-        aes_plaintext = swap_blk(aes_plaintext);
-
-        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
-
-        wait(comparison_cnt == 12);
-
-        aes_plaintext =  {
-                8'h54, 8'h77, 8'h6F, 8'h20,
-                8'h4F, 8'h6E, 8'h65, 8'h20,
-                8'h4E, 8'h69, 8'h6E, 8'h65,
-                8'h20, 8'h54, 8'h77, 8'h6F
-        };
-        aes_plaintext = swap_blk(aes_plaintext);
-
-        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
-
-        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
-
-        wait(comparison_cnt == 16);
-
-        if(error_cnt == 0) begin
-                $display("Regression Testing Completed Successfully");
-        end 
+        testcase1();
+        testcase2();
+        testcase3();
 
         $finish;
 end
@@ -308,6 +239,10 @@ function print_data(string msg, xil_axi4stream_data_byte data[4]);
                 $display("");
         end
 endfunction;
+
+`include "test1.vh"
+`include "test2.vh"
+`include "test3.vh"
 
 endmodule
 
