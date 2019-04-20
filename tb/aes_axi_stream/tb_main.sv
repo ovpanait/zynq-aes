@@ -46,8 +46,8 @@ bit                                     reset;
 // Test signals
 reg [0:7]               data_tmp[];
 
-reg [0:`BLK_S-1]        aes_plaintext;
-reg [0:`KEY_S-1]        aes_key;
+reg [0:`BLK_S-1]        aes128_in_blk;
+reg [0:`BLK_S-1]        aes128_out_blk;
 
 //  Expected results
 reg [0:`WORD_S-1] expected_results[] = '{
@@ -72,7 +72,13 @@ reg [0:`WORD_S-1] expected_results[] = '{
         32'h29c3505f,
         32'h571420f6,
         32'h402299b3,
-        32'h1a02d73a
+        32'h1a02d73a,
+
+        // Test 4
+        32'h54686174,
+        32'h73206D79,
+        32'h204B756E,
+        32'h67204675
 };
 
 // instantiate bd

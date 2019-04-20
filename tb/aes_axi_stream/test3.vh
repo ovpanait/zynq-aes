@@ -6,19 +6,19 @@ task testcase3();
         $display("Starting Testcase: Second independent encryption operation with the same key.");
 
         initial_cmp_cnt = comparison_cnt;
-        aes_plaintext =  {
+        aes128_in_blk =  {
                 8'h54, 8'h77, 8'h6F, 8'h20,
                 8'h4F, 8'h6E, 8'h65, 8'h20,
                 8'h4E, 8'h69, 8'h6E, 8'h65,
                 8'h20, 8'h54, 8'h77, 8'h6F
         };
-        aes_plaintext = swap_blk(aes_plaintext);
+        aes128_in_blk = swap_blk(aes128_in_blk);
 
         tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 
-        tester #($size(aes_plaintext))::packed_to_unpacked(aes_plaintext, data_tmp);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 1);
 
