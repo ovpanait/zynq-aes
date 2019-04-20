@@ -50,36 +50,7 @@ reg [0:`BLK_S-1]        aes128_in_blk;
 reg [0:`BLK_S-1]        aes128_out_blk;
 
 //  Expected results
-reg [0:`WORD_S-1] expected_results[] = '{
-        32'h0,
-        32'h0,
-        32'h0,
-        32'h0,
-
-        // Test 1
-        32'h29c3505f,
-        32'h571420f6,
-        32'h402299b3,
-        32'h1a02d73a,
-
-        // Test 2
-        32'h2914b146,
-        32'h6013ba1e,
-        32'h48d6d795,
-        32'he97d3e15,
-
-        // Test 3
-        32'h29c3505f,
-        32'h571420f6,
-        32'h402299b3,
-        32'h1a02d73a,
-
-        // Test 4
-        32'h54686174,
-        32'h73206D79,
-        32'h204B756E,
-        32'h67204675
-};
+reg [0:`WORD_S-1] results[$];
 
 // instantiate bd
 design_1_wrapper DUT(
@@ -197,10 +168,9 @@ initial begin
 
                         tester#($size(slv_data_packed))::pack(slv_data, slv_data_packed);
 
-                        tester #($size(slv_data_packed))::verify_output(slv_data_packed, 
-                                         swap_bytes32(expected_results[comparison_cnt])); // swap bytes again 
-                                                                                          // to match the values
-                                                                                          // as seen by the kernel
+                        results.push_back(swap_bytes32(slv_data_packed));  // swap bytes again 
+                                                                           // to match the values
+                                                                           // as seen by the kernel
                         comparison_cnt++;
                 end  
         end
