@@ -2,6 +2,13 @@
 // Test Key Expansion
 task testcase1();
         integer initial_cmp_cnt; // testcase comparison counter
+        integer i, j;
+        reg [0:`WORD_S-1] expected_results[$] = {
+                32'h0,
+                32'h0,
+                32'h0,
+                32'h0
+        };
 
         $display("Starting Testcase: Key expansion");
 
@@ -26,6 +33,10 @@ task testcase1();
         gen_transaction(data_tmp, 1);
 
         wait(comparison_cnt == initial_cmp_cnt + 4);
+
+        for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
+                tester #(`WORD_S)::verify_output(results[i], expected_results[j]);
+        end
 
         $display("Testcase 1 done with %d errors.\n", error_cnt);
         if (error_cnt != 0)
