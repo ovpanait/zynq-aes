@@ -1,28 +1,24 @@
 // Test 3
 // Second independent encryption operation with the same key.
 task testcase3();
+        localparam AES_PLAINTEXT_1 = `BLK_S'h54776f204f6e65204e696e652054776f;
+        localparam AES_CIPHERTEXT_1 = `BLK_S'h29c3505f571420f6402299b31a02d73a;
+
         integer initial_cmp_cnt; // testcase comparison counter
         integer i, j;
-        reg [0:`WORD_S-1] expected_results[$] = {
-                // Test 3
-                32'h29c3505f,
-                32'h571420f6,
-                32'h402299b3,
-                32'h1a02d73a
-        };
+        reg [0:`WORD_S-1] expected_results[$] = {};
 
         $display("Starting Testcase: Second independent encryption operation with the same key.");
 
+        tester #(`BLK_S)::q_push_back32_rev(AES_CIPHERTEXT_1, expected_results);
+        tester #(`BLK_S)::q_push_back32_rev(AES_PLAINTEXT_1, expected_results);
         initial_cmp_cnt = comparison_cnt;
-        aes128_in_blk =  {
-                8'h54, 8'h77, 8'h6F, 8'h20,
-                8'h4F, 8'h6E, 8'h65, 8'h20,
-                8'h4E, 8'h69, 8'h6E, 8'h65,
-                8'h20, 8'h54, 8'h77, 8'h6F
-        };
+
+        // Encrypt
+        aes128_in_blk =  AES_PLAINTEXT_1;
         aes128_in_blk = swap_blk(aes128_in_blk);
 
-        tester #(32)::packed_to_unpacked(`ENCRYPT, data_tmp);
+        tester::packed_to_unpacked(`ENCRYPT, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 
@@ -30,10 +26,22 @@ task testcase3();
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 1);
 
-        wait(comparison_cnt == initial_cmp_cnt + 4);
+        // Decrypt
+        aes128_in_blk =  AES_CIPHERTEXT_1;
+        aes128_in_blk = swap_blk(aes128_in_blk);
+
+        tester::packed_to_unpacked(`DECRYPT, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp);
+
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 1);
+
+        wait(comparison_cnt == initial_cmp_cnt + 8);
 
         for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
-                tester #(`WORD_S)::verify_output(results[i], expected_results[j]);
+                tester::verify_output(results[i], expected_results[j]);
         end
 
         $display("Testcase 3 done with %d errors.\n", error_cnt);
