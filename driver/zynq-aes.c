@@ -17,8 +17,9 @@
 
 #define ZYNQAES_FIFO_NBYTES 8192
 
-static const u32 zynqaes_encrypt_cmd = 0x20;
-static const u32 zynqaes_set_key_cmd = 0x10;
+#define ZYNQAES_ECB_EXPAND_KEY 0x10
+#define ZYNQAES_ECB_ENCRYPT 0x20
+#define ZYNQAES_ECB_DECRYPT 0x30
 
 static struct dma_pool *cmd_pool;
 static struct dma_pool *ciphertext_pool;
@@ -100,18 +101,7 @@ err:
 	return -EBUSY;
 }
 
-static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
-			    unsigned int key_len)
-{
-	//printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
-
-	memcpy(cmd_cpu_buf, &zynqaes_set_key_cmd, ZYNQAES_CMD_LEN);
-	zynqaes_dma_op(in_key, AES_KEYSIZE_128, cmd_cpu_buf, ciphertext_cpu_buf);
-
-	return 0;
-}
-
-static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 {
 	struct ablkcipher_walk walk;
 	unsigned long src_paddr;
@@ -142,7 +132,7 @@ static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 
 		processed = (nbytes > ZYNQAES_FIFO_NBYTES) ? ZYNQAES_FIFO_NBYTES : nbytes;
 
-		memcpy(cmd_cpu_buf, &zynqaes_encrypt_cmd, ZYNQAES_CMD_LEN);
+		memcpy(cmd_cpu_buf, &cmd, ZYNQAES_CMD_LEN);
 		zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
 		memcpy(out_ptr, ciphertext_cpu_buf, processed);
 
@@ -160,10 +150,26 @@ out:
 	return ret;
 }
 
+static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
+			    unsigned int key_len)
+{
+	//printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
+
+	const u32 key_cmd = ZYNQAES_ECB_EXPAND_KEY;
+	memcpy(cmd_cpu_buf, &key_cmd, ZYNQAES_CMD_LEN);
+	zynqaes_dma_op(in_key, AES_KEYSIZE_128, cmd_cpu_buf, ciphertext_cpu_buf);
+
+	return 0;
+}
+
+static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypto_op(areq, ZYNQAES_ECB_ENCRYPT);
+}
+
 static int zynqaes_ecb_decrypt(struct ablkcipher_request *areq)
 {
-        return 0;
-
+	return zynqaes_crypto_op(areq, ZYNQAES_ECB_DECRYPT);
 }
 
 static struct crypto_alg zynqaes_ecb_alg = {
