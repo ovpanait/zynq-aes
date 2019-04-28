@@ -133,7 +133,8 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		dst_paddr = (page_to_phys(walk.dst.page) + walk.dst.offset);
 		out_ptr = phys_to_virt(dst_paddr);
 
-		processed = (nbytes > ZYNQAES_FIFO_NBYTES) ? ZYNQAES_FIFO_NBYTES : nbytes;
+		processed = (nbytes > ZYNQAES_FIFO_NBYTES) ? 
+			ZYNQAES_FIFO_NBYTES : (nbytes - nbytes % AES_BLOCK_SIZE);
 
 		memcpy(cmd_cpu_buf, &cmd, ZYNQAES_CMD_LEN);
 		zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
