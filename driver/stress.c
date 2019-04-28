@@ -13,6 +13,34 @@
 #define SOL_ALG 279
 #endif
 
+#define AES_BLOCK_SIZE 16
+
+#define PAYLOAD_AES_BLOCKS 512
+#define PAYLOAD_SIZE (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
+
+static void dump_aes_buffer(char *msg, char *aes_buf, int blocks_no)
+{
+        int i =0, j = 0;
+
+	printf("%s \n", msg);
+	for (i = 0; i < blocks_no; ++i) {
+                for (j = 0; j < AES_BLOCK_SIZE; ++j)
+		        printf("%02x", aes_buf[i * AES_BLOCK_SIZE + j]);
+	        printf("\n");
+        }
+        printf("\n");
+}
+
+static void check_aes_buffers(char *aes_buf_in, char *aes_buf_out, int blocks_no)
+{
+        int i =0;
+
+	for (i = 0; i < blocks_no; ++i) {
+                assert(strncmp(aes_buf_in + i * AES_BLOCK_SIZE,
+                        aes_buf_out + i * AES_BLOCK_SIZE, AES_BLOCK_SIZE) == 0);
+        }
+}
+
 int main(void)
 {
         int opfd;
@@ -30,6 +58,19 @@ int main(void)
 
         int ret;
 
+        // Allocate buffers
+	char *plaintext_in = malloc(PAYLOAD_SIZE + 1);
+	char *plaintext_out = malloc(PAYLOAD_SIZE + 1);
+	char *ciphertext = malloc(PAYLOAD_SIZE + 1);
+	if (plaintext_in == NULL || ciphertext == NULL || plaintext_out == NULL) {
+		perror("Could not allocate buffers!");
+		exit(EXIT_FAILURE);
+	}
+
+	ciphertext[PAYLOAD_SIZE - 1] = '\0';
+	plaintext_out[PAYLOAD_SIZE - 1] = '\0';
+
+        // Setup AF_ALG socket
         tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
 
         if (tfmfd == -1) {
@@ -69,76 +110,57 @@ int main(void)
 
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
-	iov.iov_len = 16;
 
-	char *plaintext_in = malloc(17);
-	char *plaintext_out = malloc(17);
-	char *ciphertext = malloc(17);
-	if (plaintext_in == NULL || ciphertext == NULL || plaintext_out == NULL) {
-		perror("Could not allocate buf");
+        iov.iov_len = 0;
+
+        // Setup input plaintext
+	for (int i = 0; i < PAYLOAD_AES_BLOCKS; ++i) {
+		sprintf(plaintext_in + iov.iov_len, "Single bloc%05d", i);
+		iov.iov_len += AES_BLOCK_SIZE;
+        }
+        assert(iov.iov_len == PAYLOAD_SIZE);
+
+        dump_aes_buffer("plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
+
+        // Encrypt
+	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
+	iov.iov_base = plaintext_in;
+
+        ret = sendmsg(opfd, &msg, 0);
+	if (ret == -1) {
+		perror("sendmsg");
 		exit(EXIT_FAILURE);
 	}
 
-	ciphertext[16] = '\0';
-	plaintext_out[16] = '\0';
-
-	for (int i = 0; i < 10000; ++i) {
-		// Encrypt
-		sprintf(plaintext_in, "Single bloc%05d", i);
-		assert(strlen(plaintext_in) == 16);
-
-		printf("%s\n", plaintext_in);
-		printf("plaintext_in: ");
-		for (int i = 0; i < 16; i++) {
-			printf("%02x", (unsigned char)plaintext_in[i]);
-		}
-		printf("\n");
-
-		*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
-		iov.iov_base = plaintext_in;
-
-		ret = sendmsg(opfd, &msg, 0);
-		if (ret == -1) {
-			perror("sendmsg");
-			exit(EXIT_FAILURE);
-		}
-
-		ret = read(opfd, ciphertext, 16);
-		if (ret == -1) {
-			perror("read");
-			exit(EXIT_FAILURE);
-		}
-		
-		printf("ciphertext: ");
-		for (int i = 0; i < 16; i++) {
-			printf("%02x", (unsigned char)ciphertext[i]);
-		}
-		printf("\n");
-
-		// Decrypt
-		*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
-		iov.iov_base = ciphertext;
-
-		ret = sendmsg(opfd, &msg, 0);
-		if (ret == -1) {
-			perror("sendmsg");
-			exit(EXIT_FAILURE);
-		}
-
-		ret = read(opfd, plaintext_out, 16);
-		if (ret == -1) {
-			perror("read");
-			exit(EXIT_FAILURE);
-		}
-
-		printf("plaintext_out: ");
-		for (int i = 0; i < 16; i++) {
-			printf("%02x", (unsigned char)plaintext_out[i]);
-		}
-		printf("\n");
-		
-		assert(strncmp(plaintext_in, plaintext_out, 16) == 0);
+	ret = read(opfd, ciphertext, iov.iov_len);
+	if (ret == -1) {
+		perror("read");
+		exit(EXIT_FAILURE);
 	}
+
+        dump_aes_buffer("ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
+
+	// Decrypt
+	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
+	iov.iov_base = ciphertext;
+
+	ret = sendmsg(opfd, &msg, 0);
+	if (ret == -1) {
+		perror("sendmsg");
+		exit(EXIT_FAILURE);
+	}
+
+	ret = read(opfd, plaintext_out, iov.iov_len);
+	if (ret == -1) {
+		perror("read");
+		exit(EXIT_FAILURE);
+	}
+
+        dump_aes_buffer("plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
+        check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
+
+        printf("Great success! All blocks match!\n");
+
         close(opfd);
         close(tfmfd);
 
