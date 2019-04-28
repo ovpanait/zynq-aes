@@ -15,7 +15,8 @@
 
 #define AES_BLOCK_SIZE 16
 
-#define PAYLOAD_AES_BLOCKS 512
+#define ITER_NO 100
+#define PAYLOAD_AES_BLOCKS 555
 #define PAYLOAD_SIZE (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
 
 static void dump_aes_buffer(char *msg, char *aes_buf, int blocks_no)
@@ -122,43 +123,48 @@ int main(void)
 
         dump_aes_buffer("plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
 
-        // Encrypt
-	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
-	iov.iov_base = plaintext_in;
+        for (int i = 0; i < ITER_NO; ++i) {
+                printf("Iteration no.: %d\n\n", i);
+                // Encrypt
+                *(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
+                iov.iov_base = plaintext_in;
 
-        ret = sendmsg(opfd, &msg, 0);
-	if (ret == -1) {
-		perror("sendmsg");
-		exit(EXIT_FAILURE);
-	}
+                ret = sendmsg(opfd, &msg, 0);
+                if (ret == -1) {
+                        perror("sendmsg");
+                        exit(EXIT_FAILURE);
+                }
 
-	ret = read(opfd, ciphertext, iov.iov_len);
-	if (ret == -1) {
-		perror("read");
-		exit(EXIT_FAILURE);
-	}
+                memset(ciphertext, 0, iov.iov_len);
+                ret = read(opfd, ciphertext, iov.iov_len);
+                if (ret == -1) {
+                        perror("read");
+                        exit(EXIT_FAILURE);
+                }
 
-        dump_aes_buffer("ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
+                dump_aes_buffer("ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
 
-	// Decrypt
-	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
-	iov.iov_base = ciphertext;
+                // Decrypt
+                *(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
+                iov.iov_base = ciphertext;
 
-	ret = sendmsg(opfd, &msg, 0);
-	if (ret == -1) {
-		perror("sendmsg");
-		exit(EXIT_FAILURE);
-	}
+                ret = sendmsg(opfd, &msg, 0);
+                if (ret == -1) {
+                        perror("sendmsg");
+                        exit(EXIT_FAILURE);
+                }
 
-	ret = read(opfd, plaintext_out, iov.iov_len);
-	if (ret == -1) {
-		perror("read");
-		exit(EXIT_FAILURE);
-	}
+                memset(plaintext_out, 0, iov.iov_len);
+                ret = read(opfd, plaintext_out, iov.iov_len);
+                if (ret == -1) {
+                        perror("read");
+                        exit(EXIT_FAILURE);
+                }
 
-        dump_aes_buffer("plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
-        check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
+                dump_aes_buffer("plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
+                check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
 
+        }
         printf("Great success! All blocks match!\n");
 
         close(opfd);
