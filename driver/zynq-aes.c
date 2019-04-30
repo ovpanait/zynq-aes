@@ -36,6 +36,8 @@ static dma_addr_t rx_dma_handle;
 
 static struct device *dev;
 
+static DEFINE_MUTEX(op_mutex);
+
 static void axidma_sync_callback(void *completion)
 {
 	complete(completion);
@@ -136,9 +138,15 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		processed = (nbytes > ZYNQAES_FIFO_NBYTES) ? 
 			ZYNQAES_FIFO_NBYTES : (nbytes - nbytes % AES_BLOCK_SIZE);
 
+		mutex_lock(&op_mutex);
 		memcpy(cmd_cpu_buf, &cmd, ZYNQAES_CMD_LEN);
-		zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
+
+		ret = zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
+		if (ret)
+			goto out;
+
 		memcpy(out_ptr, ciphertext_cpu_buf, processed);
+		mutex_unlock(&op_mutex);
 
 		nbytes -= processed;
 		ret = ablkcipher_walk_done(areq, &walk, nbytes);
@@ -150,7 +158,9 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 	}
 	ablkcipher_walk_complete(&walk);
 
+	return 0;
 out:
+	mutex_unlock(&op_mutex);
 	return ret;
 }
 
@@ -181,7 +191,7 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
 	.cra_priority		=	100,
-	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER | CRYPTO_ALG_ASYNC,
+	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
 	.cra_type		=	&crypto_ablkcipher_type,
 	.cra_module		=	THIS_MODULE,
