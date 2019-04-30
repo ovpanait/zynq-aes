@@ -50,6 +50,7 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	struct dma_async_tx_descriptor *rx_chan_desc;
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
 	enum dma_status status;
+	int ret = 0;
 
 	dev_dbg(dev, "xxx: %s:%d\n", __func__, __LINE__);
 
@@ -59,11 +60,13 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, msg_nbytes + ZYNQAES_CMD_LEN, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
 		dev_err(dev, "dmaengine_prep_slave_single error\n");
+		ret = -ECOMM;
 		goto err;
 	}
 	tx_cookie = dmaengine_submit(tx_chan_desc);
 	if (dma_submit_error(tx_cookie)) {
 		dev_err(dev, "tx_cookie: xdma_prep_buffer error\n");
+		ret = -ECOMM;
 		goto err;
 	}
 
@@ -72,6 +75,7 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	rx_chan_desc = dmaengine_prep_slave_single(rx_chan, rx_dma_handle, msg_nbytes, DMA_DEV_TO_MEM, flags);
 	if (!rx_chan_desc) {
 		dev_err(dev, "dmaengine_prep_slave_single error\n");
+		ret = -ECOMM;
 		goto err;
 	}
 	rx_chan_desc->callback = axidma_sync_callback;
@@ -79,6 +83,7 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	rx_cookie = dmaengine_submit(rx_chan_desc);
 	if (dma_submit_error(rx_cookie)) {
 		dev_err(dev, "rx_cookie: xdma_prep_buffer error\n");
+		ret = -ECOMM;
 		goto err;
 	}
 
@@ -91,18 +96,20 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 		timeout = wait_for_completion_timeout(&rx_cmp, timeout);
 		status = dma_async_is_tx_complete(rx_chan, rx_cookie, NULL, NULL);
 
-		if (timeout == 0)  {
-			dev_err(dev, "DMA timed out\n");
-		} else if (status != DMA_COMPLETE) {
+                if (status != DMA_COMPLETE) {
 			dev_err(dev, "DMA returned completion callback status of: %s\n",
 			status == DMA_ERROR ? "error" : "in progress");
+                        ret = -EINVAL;
 		}
-	}
 
-	return 0;
+		if (timeout == 0)  {
+			dev_err(dev, "DMA timed out\n");
+                        ret = -ETIMEDOUT;
+	        }
+        }
 
 err:
-	return -EBUSY;
+	return ret;
 }
 
 static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
