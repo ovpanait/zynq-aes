@@ -176,10 +176,12 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *in_key,
 {
 	const u32 key_cmd = ZYNQAES_ECB_EXPAND_KEY;
 
-	dev_dbg(dev, "%s:%d: Entering function\n", __func__, __LINE__);
+	dev_dbg(dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
+	mutex_lock(&op_mutex);
 	memcpy(cmd_cpu_buf, &key_cmd, ZYNQAES_CMD_LEN);
 	zynqaes_dma_op(in_key, AES_KEYSIZE_128, cmd_cpu_buf, ciphertext_cpu_buf);
+	mutex_unlock(&op_mutex);
 
 	return 0;
 }
