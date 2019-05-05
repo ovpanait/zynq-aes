@@ -52,20 +52,20 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	enum dma_status status;
 	int ret = 0;
 
-	dev_dbg(dev, "xxx: %s:%d\n", __func__, __LINE__);
+	dev_dbg(dev, "[%s:%d]", __func__, __LINE__);
 
 	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, msg_nbytes);
 
 	/* Tx Channel */
 	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, msg_nbytes + ZYNQAES_CMD_LEN, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
-		dev_err(dev, "dmaengine_prep_slave_single error\n");
+		dev_err(dev, "[%s:%d] dmaengine_prep_slave_single error\n", __func__, __LINE__);
 		ret = -ECOMM;
 		goto err;
 	}
 	tx_cookie = dmaengine_submit(tx_chan_desc);
 	if (dma_submit_error(tx_cookie)) {
-		dev_err(dev, "tx_cookie: xdma_prep_buffer error\n");
+		dev_err(dev, "[%s:%d] tx_cookie: xdma_prep_buffer error\n", __func__, __LINE__);
 		ret = -ECOMM;
 		goto err;
 	}
@@ -74,7 +74,7 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	flags |= DMA_PREP_INTERRUPT;
 	rx_chan_desc = dmaengine_prep_slave_single(rx_chan, rx_dma_handle, msg_nbytes, DMA_DEV_TO_MEM, flags);
 	if (!rx_chan_desc) {
-		dev_err(dev, "dmaengine_prep_slave_single error\n");
+		dev_err(dev, "[%s:%d] dmaengine_prep_slave_single error\n", __func__, __LINE__);
 		ret = -ECOMM;
 		goto err;
 	}
@@ -82,7 +82,7 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	rx_chan_desc->callback_param = &rx_cmp;
 	rx_cookie = dmaengine_submit(rx_chan_desc);
 	if (dma_submit_error(rx_cookie)) {
-		dev_err(dev, "rx_cookie: xdma_prep_buffer error\n");
+		dev_err(dev, "[%s:%d] rx_cookie: xdma_prep_buffer error\n", __func__, __LINE__);
 		ret = -ECOMM;
 		goto err;
 	}
@@ -97,13 +97,13 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 		status = dma_async_is_tx_complete(rx_chan, rx_cookie, NULL, NULL);
 
                 if (status != DMA_COMPLETE) {
-			dev_err(dev, "DMA returned completion callback status of: %s\n",
-			status == DMA_ERROR ? "error" : "in progress");
+			dev_err(dev, "[%s:%d] DMA returned completion callback status of: %s\n",
+			__func__, __LINE__, status == DMA_ERROR ? "error" : "in progress");
                         ret = -EINVAL;
 		}
 
 		if (timeout == 0)  {
-			dev_err(dev, "DMA timed out\n");
+			dev_err(dev, "[%s:%d] DMA timed out\n", __func__, __LINE__);
                         ret = -ETIMEDOUT;
 	        }
         }
@@ -123,19 +123,20 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 	u8 *in_ptr;
 	u8 *out_ptr;
 
-	dev_dbg(dev, "%s:%d: Entering function\n", __func__, __LINE__);
+	dev_dbg(dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
+		cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
 
 	ablkcipher_walk_init(&walk, areq->dst, areq->src, areq->nbytes);
 	ret = ablkcipher_walk_phys(areq, &walk);
 
 	if (ret) {
-		dev_err(dev, "[%s]: ablkcipher_walk_phys() failed!",
-			__func__);
+		dev_err(dev, "[%s:%d] ablkcipher_walk_phys() failed!",
+			__func__, __LINE__);
 		goto out;
 	}
 
 	while ((nbytes = walk.nbytes) > 0) {
-		dev_dbg(dev, "%s:%d: nbytes: %d\n", __func__, __LINE__, nbytes);
+		dev_dbg(dev, "[%s:%d] nbytes: %d\n", __func__, __LINE__, nbytes);
 		src_paddr = (page_to_phys(walk.src.page) + walk.src.offset);
 		in_ptr = phys_to_virt(src_paddr);
 
@@ -149,8 +150,10 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		memcpy(cmd_cpu_buf, &cmd, ZYNQAES_CMD_LEN);
 
 		ret = zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
-		if (ret)
+		if (ret) {
+                        dev_err(dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
 			goto out;
+                }
 
 		memcpy(out_ptr, ciphertext_cpu_buf, processed);
 		mutex_unlock(&op_mutex);
@@ -158,10 +161,10 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		nbytes -= processed;
 		ret = ablkcipher_walk_done(areq, &walk, nbytes);
 		if (ret) {
-                        dev_err(dev, "[%s]: ablkcipher_walk_done() failed! error: %d",
-                                __func__, ret);
+			dev_err(dev, "[%s:%d] ablkcipher_walk_done() failed! error: %d",
+				__func__, __LINE__, ret);
 			goto out;
-                }
+		}
 	}
 	ablkcipher_walk_complete(&walk);
 
@@ -221,25 +224,25 @@ static int zynqaes_dma_buf_alloc(struct device *dev)
 
 	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, 1, 0);
 	if (cmd_pool == NULL) {
-		dev_err(dev, "zynqaes_cmd_pool: Allocating DMA pool failed\n");
+		dev_err(dev, "[%s:%d] zynqaes_cmd_pool: Allocating DMA pool failed\n", __func__, __LINE__);
 		goto err_alloc_cmd_pool;
 	}
 
 	cmd_cpu_buf = dma_pool_alloc(cmd_pool, GFP_KERNEL, &tx_dma_handle);
 	if (cmd_cpu_buf == NULL) {
-		dev_err(dev, "cmd_cpu_buf: Allocating DMA memory failed\n");
+		dev_err(dev, "[%s:%d] cmd_cpu_buf: Allocating DMA memory failed\n", __func__, __LINE__);
 		goto err_alloc_cmd_buf;
 	}
 
 	ciphertext_pool = dma_pool_create("zynqaes_ciphertext_pool", dev, ZYNQAES_FIFO_NBYTES, 1, 0);
 	if (ciphertext_pool == NULL) {
-		dev_err(dev, "zynqaes_ciphertext_pool: Allocating DMA pool failed\n");
+		dev_err(dev, "[%s:%d] zynqaes_ciphertext_pool: Allocating DMA pool failed\n",__func__, __LINE__);
 		goto err_alloc_ciphertext_pool;
 	}
 
 	ciphertext_cpu_buf = dma_pool_alloc(ciphertext_pool, GFP_KERNEL, &rx_dma_handle);
 	if (ciphertext_cpu_buf == NULL) {
-		dev_err(dev, "ciphertext_cpu_buf: Allocating DMA memory failed\n");
+		dev_err(dev, "[%s:%d] ciphertext_cpu_buf: Allocating DMA memory failed\n",__func__, __LINE__);
 		goto err_alloc_ciphertext_buf;
 	}
 
@@ -271,19 +274,19 @@ static int zynqaes_probe(struct platform_device *pdev)
 {
 	int err;
 
-	printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
+	pr_debug("[%s:%d]: Entering function\n", __func__, __LINE__);
 
 	tx_chan = dma_request_chan(&pdev->dev, "axidma0");
 	if (IS_ERR(tx_chan)) {
 		err = PTR_ERR(tx_chan);
-		dev_err(dev, "xilinx_dmatest: No Tx channel\n");
+		dev_err(dev, "[%s:%d] xilinx_dmatest: No Tx channel\n", __func__, __LINE__);
 		goto out_err;
 	}
 
 	rx_chan = dma_request_chan(&pdev->dev, "axidma1");
 	if (IS_ERR(rx_chan)) {
 		err = PTR_ERR(rx_chan);
-		dev_err(dev, "xilinx_dmatest: No Rx channel\n");
+		dev_err(dev, "[%s:%d] xilinx_dmatest: No Rx channel\n", __func__, __LINE__);
 		goto free_tx;
 	}
 
@@ -296,7 +299,7 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 	dev = &pdev->dev;
 
-	dev_dbg(dev, "%s: %d: Probing successful \n", __func__, __LINE__);
+	dev_dbg(dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
 	return 0;
 
 free_rx:
@@ -306,14 +309,14 @@ free_tx:
 	dma_release_channel(tx_chan);
 
 out_err:
-	dev_err(&pdev->dev, "Probe failed with error: %d", err);
+	dev_err(&pdev->dev, "[%s:%d] Probe failed with error: %d", __func__, __LINE__, err);
 
 	return err;
 }
 
 static int zynqaes_remove(struct platform_device *pdev)
 {
-	dev_dbg(dev, "%s:%d: Entering function\n", __func__, __LINE__);
+	dev_dbg(dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
 
@@ -344,14 +347,14 @@ static struct platform_driver zynqaes_platform_driver = {
 
 static int __init zynqaes_init(void)
 {
-	printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
+	pr_debug("[%s:%d] Entering function\n", __func__, __LINE__);
 
 	return platform_driver_register(&zynqaes_platform_driver);
 }
 
 static void __exit zynqaes_exit(void)
 {
-	printk(KERN_INFO "%s:%d: Entering function\n", __func__, __LINE__);
+	pr_debug("[%s:%d] Entering function\n", __func__, __LINE__);
 
 	platform_driver_unregister(&zynqaes_platform_driver);
 }
