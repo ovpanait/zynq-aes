@@ -45,7 +45,7 @@ static void axidma_sync_callback(void *completion)
 
 static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char *dest_dma_buffer)
 {
-	unsigned long timeout = msecs_to_jiffies(5000);
+	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
 	struct dma_async_tx_descriptor *rx_chan_desc;
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
@@ -92,21 +92,26 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 	dma_async_issue_pending(rx_chan);
 
 	status = dma_async_is_tx_complete(rx_chan, rx_cookie, NULL, NULL);
-	if (status != DMA_COMPLETE) {
+	do {
+		timeout = msecs_to_jiffies(5000);
+
 		timeout = wait_for_completion_timeout(&rx_cmp, timeout);
 		status = dma_async_is_tx_complete(rx_chan, rx_cookie, NULL, NULL);
 
-                if (status != DMA_COMPLETE) {
+		if (status != DMA_COMPLETE) {
 			dev_err(dev, "[%s:%d] DMA returned completion callback status of: %s\n",
 			__func__, __LINE__, status == DMA_ERROR ? "error" : "in progress");
-                        ret = -EINVAL;
+
+			if (status == DMA_ERROR) {
+				ret = -EINVAL;
+			}
 		}
 
 		if (timeout == 0)  {
 			dev_err(dev, "[%s:%d] DMA timed out\n", __func__, __LINE__);
-                        ret = -ETIMEDOUT;
-	        }
-        }
+			ret = -ETIMEDOUT;
+		}
+	} while(status != DMA_COMPLETE && !ret);
 
 err:
 	return ret;
