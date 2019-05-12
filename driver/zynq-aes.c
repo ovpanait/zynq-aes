@@ -92,7 +92,7 @@ static int zynqaes_dma_op(struct zynqaes_op *op, u8 *src_buf, u8 *dst_buf, int m
 		goto err;
 	}
 
-	init_completion(&rx_cmp);
+	reinit_completion(&rx_cmp);
 	dma_async_issue_pending(tx_chan);
 	dma_async_issue_pending(rx_chan);
 
@@ -294,6 +294,8 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 	if ((err = crypto_register_alg(&zynqaes_ecb_alg)))
 		goto free_rx_kbuf;
+
+	init_completion(&rx_cmp);
 
 	dev_dbg(dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
 	return 0;
