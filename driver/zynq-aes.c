@@ -3,6 +3,7 @@
 #include <linux/module.h>
 #include <crypto/algapi.h>
 #include <crypto/aes.h>
+#include <crypto/scatterwalk.h>
 #include <asm/io.h>
 #include <linux/of_platform.h>
 
@@ -15,16 +16,11 @@
 
 #define ZYNQAES_CMD_LEN 4
 
-#define ZYNQAES_FIFO_NBYTES 8192
+#define ZYNQAES_FIFO_NBYTES 8160
 
 #define ZYNQAES_ECB_EXPAND_KEY 0x10
 #define ZYNQAES_ECB_ENCRYPT 0x20
 #define ZYNQAES_ECB_DECRYPT 0x30
-
-static struct dma_pool *cmd_pool;
-static struct dma_pool *ciphertext_pool;
-static char *cmd_cpu_buf;
-static char *ciphertext_cpu_buf;
 
 static struct dma_chan *tx_chan;
 static struct dma_chan *rx_chan;
@@ -33,6 +29,9 @@ static dma_cookie_t tx_cookie;
 static dma_cookie_t rx_cookie;
 static dma_addr_t tx_dma_handle;
 static dma_addr_t rx_dma_handle;
+
+static u8 *tx_kbuf;
+static u8 *rx_kbuf;
 
 static struct device *dev;
 
@@ -48,7 +47,7 @@ static void axidma_sync_callback(void *completion)
 	complete(completion);
 }
 
-static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char *dest_dma_buffer)
+static int zynqaes_dma_op(struct zynqaes_op *op, u8 *src_buf, u8 *dst_buf, int msg_nbytes, const u32 cmd)
 {
 	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
@@ -59,7 +58,8 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 
 	dev_dbg(dev, "[%s:%d]", __func__, __LINE__);
 
-	memcpy(src_dma_buffer + ZYNQAES_CMD_LEN, msg, msg_nbytes);
+	memcpy(tx_kbuf, &cmd, ZYNQAES_CMD_LEN);
+	memcpy(tx_kbuf + ZYNQAES_CMD_LEN, src_buf, msg_nbytes);
 
 	/* Tx Channel */
 	tx_chan_desc = dmaengine_prep_slave_single(tx_chan, tx_dma_handle, msg_nbytes + ZYNQAES_CMD_LEN, DMA_MEM_TO_DEV, flags);
@@ -118,6 +118,9 @@ static int zynqaes_dma_op(char *msg, int msg_nbytes, char *src_dma_buffer, char 
 		}
 	} while(status != DMA_COMPLETE && !ret);
 
+	if (dst_buf != NULL)
+		memcpy(dst_buf, rx_kbuf, msg_nbytes);
+
 err:
 	return ret;
 }
@@ -129,22 +132,20 @@ static int zynqaes_setkey_hw(struct zynqaes_op *op)
 
 	dev_dbg(dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	memcpy(cmd_cpu_buf, &key_cmd, ZYNQAES_CMD_LEN);
 	last_op = op;
 
-	return zynqaes_dma_op(op->key, AES_KEYSIZE_128, cmd_cpu_buf, ciphertext_cpu_buf);
+	return zynqaes_dma_op(op, op->key, NULL, AES_KEYSIZE_128, key_cmd);
 }
 
 static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 {
-	struct ablkcipher_walk walk;
-	unsigned long src_paddr;
-	unsigned long dst_paddr;
-	int ret;
-	int nbytes;
-	int processed;
-	u8 *in_ptr;
-	u8 *out_ptr;
+	int ret = 0;
+	unsigned int nbytes;
+	unsigned int nbytes_total;
+
+	unsigned int tx_i = 0;
+
+	u8 *src_buf, *dst_buf;
 
 	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
@@ -153,53 +154,59 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 	dev_dbg(dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
 		cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
 
-	ablkcipher_walk_init(&walk, areq->dst, areq->src, areq->nbytes);
-	ret = ablkcipher_walk_phys(areq, &walk);
+	nbytes_total = areq->nbytes;
+	dev_dbg(dev, "[%s:%d] nbytes_total: %d\n", __func__, __LINE__, nbytes_total);
 
-	if (ret) {
-		dev_err(dev, "[%s:%d] ablkcipher_walk_phys() failed!",
-			__func__, __LINE__);
+	src_buf = kmalloc(nbytes_total, GFP_KERNEL);
+	if (src_buf == NULL) {
+		dev_err(dev, "[%s:%d] tx: src_buf: Allocating memory failed\n", __func__, __LINE__);
+		ret = -ENOMEM;
 		goto out;
 	}
 
-	while ((nbytes = walk.nbytes) > 0) {
-		dev_dbg(dev, "[%s:%d] nbytes: %d\n", __func__, __LINE__, nbytes);
-		src_paddr = (page_to_phys(walk.src.page) + walk.src.offset);
-		in_ptr = phys_to_virt(src_paddr);
-
-		dst_paddr = (page_to_phys(walk.dst.page) + walk.dst.offset);
-		out_ptr = phys_to_virt(dst_paddr);
-
-		processed = (nbytes > ZYNQAES_FIFO_NBYTES) ? 
-			ZYNQAES_FIFO_NBYTES : (nbytes - nbytes % AES_BLOCK_SIZE);
-
-		mutex_lock(&op_mutex);
-
-		if (last_op != op)
-			ret = zynqaes_setkey_hw(op);
-
-		memcpy(cmd_cpu_buf, &cmd, ZYNQAES_CMD_LEN);
-		ret = zynqaes_dma_op(in_ptr, processed, cmd_cpu_buf, ciphertext_cpu_buf);
-		if (ret) {
-                        dev_err(dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
-			goto out;
-                }
-
-		memcpy(out_ptr, ciphertext_cpu_buf, processed);
-		mutex_unlock(&op_mutex);
-
-		nbytes -= processed;
-		ret = ablkcipher_walk_done(areq, &walk, nbytes);
-		if (ret) {
-			dev_err(dev, "[%s:%d] ablkcipher_walk_done() failed! error: %d",
-				__func__, __LINE__, ret);
-			goto out;
-		}
+	dst_buf = kmalloc(nbytes_total, GFP_KERNEL);
+	if (dst_buf == NULL) {
+		dev_err(dev, "[%s:%d] rx: dst_buf: Allocating memory failed\n", __func__, __LINE__);
+		ret = -ENOMEM;
+		goto out_src_buf;
 	}
-	ablkcipher_walk_complete(&walk);
 
-	return 0;
+	mutex_lock(&op_mutex);
+
+	if (last_op != op)
+		ret = zynqaes_setkey_hw(op);
+
+	scatterwalk_map_and_copy(src_buf, areq->src, 0, nbytes_total, 0);
+
+	tx_i = 0;
+	nbytes = nbytes_total;
+
+	while (nbytes != 0) {
+		unsigned int dma_nbytes;
+
+		dma_nbytes = (nbytes < ZYNQAES_FIFO_NBYTES) ? nbytes : ZYNQAES_FIFO_NBYTES;
+		dev_dbg(dev, "[%s:%d] nbytes: %d\n", __func__, __LINE__, nbytes);
+		dev_dbg(dev, "[%s:%d] dma_nbytes: %d\n", __func__, __LINE__, dma_nbytes);
+
+		ret = zynqaes_dma_op(op, src_buf + tx_i, dst_buf + tx_i, dma_nbytes, cmd);
+		if (ret) {
+			dev_err(dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
+			goto out_dst_buf;
+		}
+
+		tx_i += dma_nbytes;
+		nbytes -= dma_nbytes;
+	}
+
+	scatterwalk_map_and_copy(dst_buf, areq->dst, 0, nbytes_total, 1);
+
+out_dst_buf:
+	kfree(dst_buf);
+
+out_src_buf:
+	kfree(src_buf);
 out:
+
 	mutex_unlock(&op_mutex);
 	return ret;
 }
@@ -249,89 +256,53 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	}
 };
 
-static int zynqaes_dma_buf_alloc(struct device *dev)
-{
-	int ret = -ENOMEM;
-
-	cmd_pool = dma_pool_create("zynqaes_cmd_pool", dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, 1, 0);
-	if (cmd_pool == NULL) {
-		dev_err(dev, "[%s:%d] zynqaes_cmd_pool: Allocating DMA pool failed\n", __func__, __LINE__);
-		goto err_alloc_cmd_pool;
-	}
-
-	cmd_cpu_buf = dma_pool_alloc(cmd_pool, GFP_KERNEL, &tx_dma_handle);
-	if (cmd_cpu_buf == NULL) {
-		dev_err(dev, "[%s:%d] cmd_cpu_buf: Allocating DMA memory failed\n", __func__, __LINE__);
-		goto err_alloc_cmd_buf;
-	}
-
-	ciphertext_pool = dma_pool_create("zynqaes_ciphertext_pool", dev, ZYNQAES_FIFO_NBYTES, 1, 0);
-	if (ciphertext_pool == NULL) {
-		dev_err(dev, "[%s:%d] zynqaes_ciphertext_pool: Allocating DMA pool failed\n",__func__, __LINE__);
-		goto err_alloc_ciphertext_pool;
-	}
-
-	ciphertext_cpu_buf = dma_pool_alloc(ciphertext_pool, GFP_KERNEL, &rx_dma_handle);
-	if (ciphertext_cpu_buf == NULL) {
-		dev_err(dev, "[%s:%d] ciphertext_cpu_buf: Allocating DMA memory failed\n",__func__, __LINE__);
-		goto err_alloc_ciphertext_buf;
-	}
-
-	return 0;
-
-err_alloc_ciphertext_buf:
-	dma_pool_destroy(ciphertext_pool);
-
-err_alloc_ciphertext_pool:
-	dma_pool_free(cmd_pool, cmd_cpu_buf, tx_dma_handle);
-
-err_alloc_cmd_buf:
-	dma_pool_destroy(cmd_pool);
-
-err_alloc_cmd_pool:
-	return ret;
-}
-
-static void zynqaes_dma_buf_free(void)
-{
-	dma_pool_free(cmd_pool, cmd_cpu_buf, tx_dma_handle);
-	dma_pool_destroy(cmd_pool);
-
-	dma_pool_free(ciphertext_pool, ciphertext_cpu_buf, rx_dma_handle);
-	dma_pool_destroy(ciphertext_pool);
-}
-
 static int zynqaes_probe(struct platform_device *pdev)
 {
 	int err;
 
 	pr_debug("[%s:%d]: Entering function\n", __func__, __LINE__);
 
-	tx_chan = dma_request_chan(&pdev->dev, "axidma0");
+	dev = &pdev->dev;
+
+	tx_chan = dma_request_chan(dev, "axidma0");
 	if (IS_ERR(tx_chan)) {
 		err = PTR_ERR(tx_chan);
 		dev_err(dev, "[%s:%d] xilinx_dmatest: No Tx channel\n", __func__, __LINE__);
 		goto out_err;
 	}
 
-	rx_chan = dma_request_chan(&pdev->dev, "axidma1");
+	rx_chan = dma_request_chan(dev, "axidma1");
 	if (IS_ERR(rx_chan)) {
 		err = PTR_ERR(rx_chan);
 		dev_err(dev, "[%s:%d] xilinx_dmatest: No Rx channel\n", __func__, __LINE__);
 		goto free_tx;
 	}
 
-	err = zynqaes_dma_buf_alloc(&pdev->dev);
-	if (err == -ENOMEM)
+	tx_kbuf = dma_alloc_coherent(dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &tx_dma_handle, GFP_KERNEL);
+	if (tx_kbuf == NULL) {
+		dev_err(dev, "[%s:%d] tx: dma_alloc_coherent: Allocating DMA memory failed\n", __func__, __LINE__);
+		err = -ENOMEM;
 		goto free_rx;
+	}
+
+	rx_kbuf = dma_alloc_coherent(dev, ZYNQAES_FIFO_NBYTES, &rx_dma_handle, GFP_KERNEL);
+	if (rx_kbuf == NULL) {
+		dev_err(dev, "[%s:%d] rx: dma_alloc_coherent: Allocating DMA memory failed\n", __func__, __LINE__);
+		err = -ENOMEM;
+		goto free_tx_kbuf;
+	}
 
 	if ((err = crypto_register_alg(&zynqaes_ecb_alg)))
-		goto free_rx;
-
-	dev = &pdev->dev;
+		goto free_rx_kbuf;
 
 	dev_dbg(dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
 	return 0;
+
+free_rx_kbuf:
+	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES, &rx_dma_handle, GFP_KERNEL);
+
+free_tx_kbuf:
+	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &tx_dma_handle, GFP_KERNEL);
 
 free_rx:
 	dma_release_channel(rx_chan);
@@ -351,7 +322,8 @@ static int zynqaes_remove(struct platform_device *pdev)
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
 
-	zynqaes_dma_buf_free();
+	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &tx_dma_handle, GFP_KERNEL);
+	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES, &rx_dma_handle, GFP_KERNEL);
 
 	dma_release_channel(rx_chan);
 	dma_release_channel(tx_chan);
