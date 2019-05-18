@@ -47,6 +47,7 @@ static void axidma_sync_callback(void *completion)
 	complete(completion);
 }
 
+/* Called with op_mutex held */
 static int zynqaes_dma_op(struct zynqaes_op *op, u8 *src_buf, u8 *dst_buf, int msg_nbytes, const u32 cmd)
 {
 	unsigned long timeout;
@@ -171,12 +172,13 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		goto out_src_buf;
 	}
 
-	mutex_lock(&op_mutex);
-
-	if (last_op != op)
-		ret = zynqaes_setkey_hw(op);
-
 	scatterwalk_map_and_copy(src_buf, areq->src, 0, nbytes_total, 0);
+
+	if (last_op != op) {
+		mutex_lock(&op_mutex);
+		ret = zynqaes_setkey_hw(op);
+		mutex_unlock(&op_mutex);
+	}
 
 	tx_i = 0;
 	nbytes = nbytes_total;
@@ -188,7 +190,9 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		dev_dbg(dev, "[%s:%d] nbytes: %d\n", __func__, __LINE__, nbytes);
 		dev_dbg(dev, "[%s:%d] dma_nbytes: %d\n", __func__, __LINE__, dma_nbytes);
 
+		mutex_lock(&op_mutex);
 		ret = zynqaes_dma_op(op, src_buf + tx_i, dst_buf + tx_i, dma_nbytes, cmd);
+		mutex_unlock(&op_mutex);
 		if (ret) {
 			dev_err(dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
 			goto out_dst_buf;
@@ -207,7 +211,6 @@ out_src_buf:
 	kfree(src_buf);
 out:
 
-	mutex_unlock(&op_mutex);
 	return ret;
 }
 
