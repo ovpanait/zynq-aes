@@ -24,7 +24,7 @@ task testcase1();
         aes128_in_blk = swap_blk(aes128_in_blk);
 
         // Key expansion
-        tester #(32)::packed_to_unpacked(`SET_KEY, data_tmp);
+        tester #(32)::packed_to_unpacked(`SET_KEY_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 

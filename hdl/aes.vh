@@ -11,8 +11,8 @@
 `define KEY_S 128
 `define BLK_S 128
 
-`define SET_KEY 32'h10
-`define ENCRYPT 32'h20
-`define DECRYPT 32'h30
+`define SET_KEY_128 32'h10
+`define ECB_ENCRYPT_128 32'h20
+`define ECB_DECRYPT_128 32'h30
 
 `endif

@@ -41,7 +41,7 @@ wire [0:3]      addr;
 wire            r_e;
 
 // Key expansion
-assign en_i_round_key = (en && aes_cmd == `SET_KEY);
+assign en_i_round_key = (en && aes_cmd == `SET_KEY_128);
 
 round_key round_key_gen(
         .clk(clk),
@@ -77,8 +77,8 @@ block_ram #(
 
 // Encryption / Decryption blocks
 
-assign en_i_cipher = (en && aes_cmd == `ENCRYPT);
-assign en_i_decipher = (en && aes_cmd == `DECRYPT);
+assign en_i_cipher = (en && aes_cmd == `ECB_ENCRYPT_128);
+assign en_i_decipher = (en && aes_cmd == `ECB_DECRYPT_128);
 
 cipher encrypt_blk(
         .clk(clk),
