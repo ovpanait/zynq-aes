@@ -80,8 +80,8 @@ aes_top aes_mod(
 
 assign in_fifo_addr = read_ptr;
 
-assign aes_in_blk = (aes_cmd == `ENCRYPT || aes_cmd == `DECRYPT) ? swap_bytes128(in_fifo_data) : 32'h0;
-assign aes_key = (aes_cmd == `SET_KEY) ? swap_bytes128(in_fifo_data) : 32'h0;
+assign aes_in_blk = (aes_cmd == `ECB_ENCRYPT_128 || aes_cmd == `ECB_DECRYPT_128) ? swap_bytes128(in_fifo_data) : 32'h0;
+assign aes_key = (aes_cmd == `SET_KEY_128) ? swap_bytes128(in_fifo_data) : 32'h0;
 
 always @(posedge clk) begin
         if (reset == 1'b1) begin

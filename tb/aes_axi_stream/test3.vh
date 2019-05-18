@@ -18,7 +18,7 @@ task testcase3();
         aes128_in_blk =  AES_PLAINTEXT_1;
         aes128_in_blk = swap_blk(aes128_in_blk);
 
-        tester::packed_to_unpacked(`ENCRYPT, data_tmp);
+        tester::packed_to_unpacked(`ECB_ENCRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 
@@ -30,7 +30,7 @@ task testcase3();
         aes128_in_blk =  AES_CIPHERTEXT_1;
         aes128_in_blk = swap_blk(aes128_in_blk);
 
-        tester::packed_to_unpacked(`DECRYPT, data_tmp);
+        tester::packed_to_unpacked(`ECB_DECRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 

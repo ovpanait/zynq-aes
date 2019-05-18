@@ -60,7 +60,7 @@ initial begin
         // Set key
         @(negedge clk) begin
                 en = 1'b1;
-                aes_cmd = `SET_KEY;
+                aes_cmd = `SET_KEY_128;
                 aes_key =  {
                         8'h54, 8'h68, 8'h61, 8'h74,
                         8'h73, 8'h20, 8'h6D, 8'h79,
@@ -86,7 +86,7 @@ initial begin
 
         @(negedge clk) begin
                 en = 1'b1;
-                aes_cmd = `ENCRYPT;
+                aes_cmd = `ECB_ENCRYPT_128;
                 aes_key = {`KEY_S{1'b0}};
                 aes_in_blk = `T1_AES_PLAINTEXT;
         end;
@@ -108,7 +108,7 @@ initial begin
         // Test decryption
         @(negedge clk) begin
                 en = 1'b1;
-                aes_cmd = `DECRYPT;
+                aes_cmd = `ECB_DECRYPT_128;
                 aes_in_blk = `T1_AES_CIPHERTEXT;
         end
 
@@ -132,7 +132,7 @@ initial begin
         @(negedge clk) begin
                 en = 1'b1;
         
-                aes_cmd = `ENCRYPT;
+                aes_cmd = `ECB_ENCRYPT_128;
                 aes_key = {`KEY_S{1'b0}};
                 aes_in_blk = `T2_AES_PLAINTEXT;
         end
@@ -152,7 +152,7 @@ initial begin
         // Test decryption
         @(negedge clk) begin
                 en = 1'b1;
-                aes_cmd = `DECRYPT;
+                aes_cmd = `ECB_DECRYPT_128;
                 aes_in_blk = `T2_AES_CIPHERTEXT;
         end
 

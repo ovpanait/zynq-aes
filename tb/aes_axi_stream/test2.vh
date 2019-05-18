@@ -27,7 +27,7 @@ task testcase2();
 
         initial_cmp_cnt = comparison_cnt;
 
-        tester::packed_to_unpacked(`ENCRYPT, data_tmp);
+        tester::packed_to_unpacked(`ECB_ENCRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 
@@ -55,7 +55,7 @@ task testcase2();
                         gen_transaction(data_tmp, 0);
         end
 
-        tester::packed_to_unpacked(`DECRYPT, data_tmp);
+        tester::packed_to_unpacked(`ECB_DECRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
 
