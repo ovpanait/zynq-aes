@@ -8,8 +8,8 @@ import design_1_axi4stream_vip_1_0_pkg::*;
 module tb_main(
 );
 
-// Error count to check how many comparison failed
-xil_axi4stream_uint                            error_cnt = 0; 
+integer errors = 0;
+
 // Comparison count to check how many comparsion happened
 xil_axi4stream_uint                            comparison_cnt = 0;
 

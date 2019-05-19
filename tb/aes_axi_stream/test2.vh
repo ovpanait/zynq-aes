@@ -84,11 +84,11 @@ task testcase2();
 
         wait(comparison_cnt == initial_cmp_cnt + blocks_no * 2 * 4);
         for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
-                tester::verify_output(results[i], expected_results[j]);
+                tester::verify_output(results[i], expected_results[j], errors);
         end
 
-        $display("Testcase 2 done with %d errors.\n", error_cnt);
-        if (error_cnt != 0)
+        $display("Testcase 2 done with %d errors.\n", errors);
+        if (errors != 0)
                 $finish;
 
         // No cleanup
