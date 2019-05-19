@@ -112,6 +112,7 @@ initial begin
         testcase1();
         testcase2();
         testcase3();
+        testcase4();
 
         $finish;
 end
@@ -219,6 +220,7 @@ endfunction;
 `include "test1.vh"
 `include "test2.vh"
 `include "test3.vh"
+`include "test4.vh"
 
 endmodule
 
