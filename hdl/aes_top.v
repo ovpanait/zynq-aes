@@ -77,8 +77,8 @@ block_ram #(
 
 // Encryption / Decryption blocks
 
-assign en_i_cipher = (en && aes_cmd == `ECB_ENCRYPT_128);
-assign en_i_decipher = (en && aes_cmd == `ECB_DECRYPT_128);
+assign en_i_cipher = (en && (aes_cmd == `ECB_ENCRYPT_128 || aes_cmd == `CBC_ENCRYPT_128));
+assign en_i_decipher = (en && (aes_cmd == `ECB_DECRYPT_128 || aes_cmd == `CBC_DECRYPT_128));
 
 cipher encrypt_blk(
         .clk(clk),
