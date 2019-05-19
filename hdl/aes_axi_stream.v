@@ -167,6 +167,7 @@ block_ram #(
 
 wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_shift;
 reg [OUT_SRAM_DATA_WIDTH-1:0]  axis_out_fifo_blk;
+wire [OUT_SRAM_ADDR_WIDTH-1:0] axis_out_fifo_blk_no; // number of 128-bit blocks in the output FIFO
 wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_next;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_cnt;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_addr;
@@ -182,7 +183,7 @@ assign m00_axis_tlast        = axis_tlast;
 assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 
 assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
-assign axis_tlast = (axis_out_fifo_blk_cnt == axis_blk_cnt - 1'b1) && 
+assign axis_tlast = (axis_out_fifo_blk_cnt == axis_out_fifo_blk_no - 1'b1) && 
                                 (axis_out_fifo_word_cnt == `Nb - 1'b1);
 assign axis_out_fifo_tx_en = m00_axis_tready;
 
@@ -449,6 +450,7 @@ aes_controller #(
         .in_fifo_blk_cnt(aes_controller_in_fifo_blk_cnt),
 
         .out_fifo_data(aes_controller_out_fifo_data),
+        .out_fifo_blk_no(axis_out_fifo_blk_no),
         .out_fifo_w_e(aes_controller_out_fifo_w_e),
         .out_fifo_addr(aes_controller_out_fifo_addr),
 
