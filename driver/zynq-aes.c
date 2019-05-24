@@ -22,6 +22,9 @@
 #define ZYNQAES_ECB_ENCRYPT 0x20
 #define ZYNQAES_ECB_DECRYPT 0x30
 
+#define ZYNQAES_CBC_ENCRYPT 0x40
+#define ZYNQAES_CBC_DECRYPT 0x41
+
 static struct dma_chan *tx_chan;
 static struct dma_chan *rx_chan;
 static struct completion rx_cmp;
@@ -42,6 +45,11 @@ struct zynqaes_op {
 };
 static struct zynqaes_op *last_op;
 
+static inline int is_cbc_op(const u32 cmd)
+{
+	return (cmd == ZYNQAES_CBC_ENCRYPT) || (cmd == ZYNQAES_CBC_DECRYPT);
+}
+
 static unsigned int zynqaes_ecb_set_txkbuf(u8 *src_buf, u8 *tx_kbuf, int payload_nbytes, const u32 cmd)
 {
 	memcpy(tx_kbuf, &cmd, ZYNQAES_CMD_LEN);
@@ -50,10 +58,40 @@ static unsigned int zynqaes_ecb_set_txkbuf(u8 *src_buf, u8 *tx_kbuf, int payload
 	return payload_nbytes + ZYNQAES_CMD_LEN;
 }
 
-static void zynqaes_ecb_get_rxkbuf(u8 *dst_buf, u8 *rx_kbuf, int payload_nbytes)
+static unsigned int zynqaes_cbc_set_txkbuf(u8 *payload_buf, u8 *iv, u8 *tx_kbuf, int payload_nbytes, const u32 cmd)
+{
+	memcpy(tx_kbuf, &cmd, ZYNQAES_CMD_LEN);
+	memcpy(tx_kbuf + ZYNQAES_CMD_LEN, iv, AES_BLOCK_SIZE);
+	memcpy(tx_kbuf + ZYNQAES_CMD_LEN + AES_BLOCK_SIZE, payload_buf, payload_nbytes);
+
+	return ZYNQAES_CMD_LEN + AES_BLOCK_SIZE + payload_nbytes;
+}
+
+static unsigned int zynqaes_set_txkbuf(u8 *payload_buf, u8 *iv, u8 *tx_kbuf, int payload_nbytes, const u32 cmd)
+{
+	switch (cmd) {
+	case ZYNQAES_ECB_ENCRYPT:
+	case ZYNQAES_ECB_DECRYPT:
+		return zynqaes_ecb_set_txkbuf(payload_buf, tx_kbuf, payload_nbytes, cmd);
+		break;
+	case ZYNQAES_CBC_ENCRYPT:
+	case ZYNQAES_CBC_DECRYPT:
+		return zynqaes_cbc_set_txkbuf(payload_buf, iv, tx_kbuf, payload_nbytes, cmd);
+		break;
+	default:
+		break;
+	}
+
+	return -ENOMEM;
+}
+
+static void zynqaes_get_rxkbuf(u8 *src_buf, u8 *dst_buf, u8 *iv, u8 *rx_kbuf, int payload_nbytes, const u32 cmd)
 {
 	if (dst_buf != NULL)
 		memcpy(dst_buf, rx_kbuf, payload_nbytes);
+
+	if (is_cbc_op(cmd))
+		memcpy(iv, src_buf + (payload_nbytes - AES_BLOCK_SIZE), AES_BLOCK_SIZE);
 }
 
 static void axidma_sync_callback(void *completion)
@@ -157,6 +195,7 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 	unsigned int tx_i = 0;
 
 	u8 *src_buf, *dst_buf;
+	u8 *iv;
 
 	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
@@ -192,6 +231,7 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 
 	tx_i = 0;
 	nbytes = nbytes_total;
+	iv = areq->info;
 
 	while (nbytes != 0) {
 		unsigned int dma_nbytes;
@@ -202,14 +242,19 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 		dev_dbg(dev, "[%s:%d] dma_nbytes: %d\n", __func__, __LINE__, dma_nbytes);
 
 		mutex_lock(&op_mutex);
-		in_nbytes = zynqaes_ecb_set_txkbuf(src_buf + tx_i, tx_kbuf, dma_nbytes, cmd);
+
+		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, tx_kbuf, dma_nbytes, cmd);
+
 		ret = zynqaes_dma_op(op, in_nbytes, dma_nbytes);
-		zynqaes_ecb_get_rxkbuf(dst_buf + tx_i, rx_kbuf, dma_nbytes);
-		mutex_unlock(&op_mutex);
 		if (ret) {
+			mutex_unlock(&op_mutex);
 			dev_err(dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
 			goto out_dst_buf;
 		}
+
+		zynqaes_get_rxkbuf(src_buf + tx_i, dst_buf + tx_i, iv, rx_kbuf, dma_nbytes, cmd);
+
+		mutex_unlock(&op_mutex);
 
 		tx_i += dma_nbytes;
 		nbytes -= dma_nbytes;
@@ -252,6 +297,16 @@ static int zynqaes_ecb_decrypt(struct ablkcipher_request *areq)
 	return zynqaes_crypto_op(areq, ZYNQAES_ECB_DECRYPT);
 }
 
+static int zynqaes_cbc_encrypt(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypto_op(areq, ZYNQAES_CBC_ENCRYPT);
+}
+
+static int zynqaes_cbc_decrypt(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypto_op(areq, ZYNQAES_CBC_DECRYPT);
+}
+
 static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
@@ -268,6 +323,27 @@ static struct crypto_alg zynqaes_ecb_alg = {
 			.setkey	   		= 	zynqaes_setkey,
 			.encrypt		=	zynqaes_ecb_encrypt,
 			.decrypt		=	zynqaes_ecb_decrypt,
+		}
+	}
+};
+
+static struct crypto_alg zynqaes_cbc_alg = {
+	.cra_name		=	"cbc(aes)",
+	.cra_driver_name	=	"zynqaes-cbc",
+	.cra_priority		=	100,
+	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_blocksize		=	AES_BLOCK_SIZE,
+	.cra_ctxsize		=	sizeof(struct zynqaes_op),
+	.cra_type		=	&crypto_ablkcipher_type,
+	.cra_module		=	THIS_MODULE,
+	.cra_u			=	{
+		.ablkcipher = {
+			.min_keysize		=	AES_KEYSIZE_128,
+			.max_keysize		=	AES_KEYSIZE_128,
+			.ivsize			=	AES_BLOCK_SIZE,
+			.setkey	   		= 	zynqaes_setkey,
+			.encrypt		=	zynqaes_cbc_encrypt,
+			.decrypt		=	zynqaes_cbc_decrypt,
 		}
 	}
 };
@@ -311,10 +387,17 @@ static int zynqaes_probe(struct platform_device *pdev)
 	if ((err = crypto_register_alg(&zynqaes_ecb_alg)))
 		goto free_rx_kbuf;
 
+	if ((err = crypto_register_alg(&zynqaes_cbc_alg)))
+		goto free_ecb_alg;
+
 	init_completion(&rx_cmp);
 
 	dev_dbg(dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
+
 	return 0;
+
+free_ecb_alg:
+	crypto_unregister_alg(&zynqaes_ecb_alg);
 
 free_rx_kbuf:
 	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES, &rx_dma_handle, GFP_KERNEL);
@@ -339,6 +422,7 @@ static int zynqaes_remove(struct platform_device *pdev)
 	dev_dbg(dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
+	crypto_unregister_alg(&zynqaes_cbc_alg);
 
 	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &tx_dma_handle, GFP_KERNEL);
 	dma_free_coherent(dev, ZYNQAES_FIFO_NBYTES, &rx_dma_handle, GFP_KERNEL);
