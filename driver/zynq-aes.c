@@ -45,11 +45,6 @@ struct zynqaes_op {
 };
 static struct zynqaes_op *last_op;
 
-static inline int is_cbc_op(const u32 cmd)
-{
-	return (cmd == ZYNQAES_CBC_ENCRYPT) || (cmd == ZYNQAES_CBC_DECRYPT);
-}
-
 static unsigned int zynqaes_ecb_set_txkbuf(u8 *src_buf, u8 *tx_kbuf, int payload_nbytes, const u32 cmd)
 {
 	memcpy(tx_kbuf, &cmd, ZYNQAES_CMD_LEN);
@@ -90,8 +85,16 @@ static void zynqaes_get_rxkbuf(u8 *src_buf, u8 *dst_buf, u8 *iv, u8 *rx_kbuf, in
 	if (dst_buf != NULL)
 		memcpy(dst_buf, rx_kbuf, payload_nbytes);
 
-	if (is_cbc_op(cmd))
+	switch(cmd) {
+	case ZYNQAES_CBC_ENCRYPT:
+		memcpy(iv, dst_buf + (payload_nbytes - AES_BLOCK_SIZE), AES_BLOCK_SIZE);
+		break;
+	case ZYNQAES_CBC_DECRYPT:
 		memcpy(iv, src_buf + (payload_nbytes - AES_BLOCK_SIZE), AES_BLOCK_SIZE);
+		break;
+	default:
+		break;
+	}
 }
 
 static void axidma_sync_callback(void *completion)
