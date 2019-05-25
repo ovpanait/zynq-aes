@@ -7,23 +7,45 @@
 ```sh
 
 Software-only:
-
-root@xilinx-zynq:~# openssl speed -evp aes-128-ecb -elapsed
-Doing aes-128-ecb for 3s on 16 size blocks: 4131616 aes-128-ecb's in 3.00s
-Doing aes-128-ecb for 3s on 64 size blocks: 1140184 aes-128-ecb's in 3.00s
-Doing aes-128-ecb for 3s on 256 size blocks: 293425 aes-128-ecb's in 3.00s
-Doing aes-128-ecb for 3s on 1024 size blocks: 73802 aes-128-ecb's in 3.00s
-Doing aes-128-ecb for 3s on 8192 size blocks: 9222 aes-128-ecb's in 3.00s
-OpenSSL 1.0.2o  27 Mar 2018
-built on: reproducible build, date unspecified
-options:bn(64,32) rc4(ptr,char) des(idx,cisc,16,long) aes(partial) idea(int) blowfish(ptr) 
-compiler: arm-wrs-linux-gnueabi-gcc  -march=armv7-a -marm -mfpu=neon -mfloat-abi=hard  -DL_ENDIAN       -DTERMIO  -O2 -pipe -g -feliminate-unused-debug-types  -Wall -Wa,--noexecstack -DHAVE_CRYPTODEV -DUSE_CRYPTODEV_DIGESTS
+root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
+Could not open /dev/crypto: No such file or directory
+You have chosen to measure elapsed time instead of user CPU time.
+Doing aes-128-ecb for 3s on 16 size blocks: 3869697 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 64 size blocks: 1122983 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 256 size blocks: 293083 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 512 size blocks: 147615 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 1024 size blocks: 74070 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 2048 size blocks: 37097 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 4096 size blocks: 18555 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 8192 size blocks: 9269 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 16384 size blocks: 4617 aes-128-ecb's in 3.00s
+OpenSSL 1.1.1a  20 Nov 2018
+built on: Wed May 22 06:38:44 2019 UTC
+options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
+compiler: arm-poky-linux-gnueabi-gcc  -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fdebug-prefix-map= -fdebug-prefix-map= -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
-type             16 bytes     64 bytes    256 bytes   1024 bytes   8192 bytes
-aes-128-ecb      22035.29k    24323.93k    25038.93k    25191.08k    25182.21k
+type             16 bytes     64 bytes    256 bytes    512 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes
+aes-128-ecb      20638.38k    23956.97k    25009.75k    25192.96k    25282.56k    25324.89k    25333.76k    25310.55k    25214.98k
 
 HW acceleration:
-
+root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
+You have chosen to measure elapsed time instead of user CPU time.
+Doing aes-128-ecb for 3s on 16 size blocks: 84530 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 64 size blocks: 82951 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 256 size blocks: 78265 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 512 size blocks: 73014 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 1024 size blocks: 44898 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 2048 size blocks: 30630 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 4096 size blocks: 21869 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 8192 size blocks: 12018 aes-128-ecb's in 3.00s
+Doing aes-128-ecb for 3s on 16384 size blocks: 6486 aes-128-ecb's in 3.00s
+OpenSSL 1.1.1a  20 Nov 2018
+built on: Wed May 22 06:38:44 2019 UTC
+options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
+compiler: arm-poky-linux-gnueabi-gcc  -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fdebug-prefix-map= -fdebug-prefix-map= -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
+The 'numbers' are in 1000s of bytes per second processed.
+type             16 bytes     64 bytes    256 bytes    512 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes
+aes-128-ecb        450.83k     1769.62k     6678.61k    12461.06k    15325.18k    20910.08k    29858.47k    32817.15k    35422.21k
 
 
 ```
