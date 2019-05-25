@@ -42,7 +42,7 @@ static void check_aes_buffers(char *aes_buf_in, char *aes_buf_out, int blocks_no
         }
 }
 
-int main(void)
+static int do_ecb_stress(void)
 {
         int opfd;
         int tfmfd;
@@ -171,4 +171,11 @@ int main(void)
         close(tfmfd);
 
         return 0;
+}
+
+int main(void)
+{
+	do_ecb_stress();
+
+	return 0;
 }
