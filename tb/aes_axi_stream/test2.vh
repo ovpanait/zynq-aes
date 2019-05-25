@@ -6,7 +6,7 @@ task testcase2();
         localparam AES_PLAINTEXT_2 = `BLK_S'h12345678911123456789012345678901;
         localparam AES_CIPHERTEXT_2 = `BLK_S'h2914b1466013ba1e48d6d795e97d3e15;
 
-        localparam blocks_no = 510;
+        localparam blocks_no = 2048;
 
         integer initial_cmp_cnt; // testcase comparison counter
         integer i, j;
