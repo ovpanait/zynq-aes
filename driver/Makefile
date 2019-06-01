@@ -1,5 +1,5 @@
-CFLAGS_zynq-aes.o := -DDEBUG
-obj-m := zynq-aes.o
+#CFLAGS_zynqaes.o := -DDEBUG
+obj-m := zynqaes.o
 
 SRC := $(shell pwd)
 
