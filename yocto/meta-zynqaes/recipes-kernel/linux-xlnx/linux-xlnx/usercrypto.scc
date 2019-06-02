@@ -1,0 +1,4 @@
+define KFEATURE_DESCRIPTION "Enable features needed for accessing kernel crypto from userspace"
+define KFEATURE_COMPATIBILITY board
+
+kconf non-hardware usercrypto.cfg
