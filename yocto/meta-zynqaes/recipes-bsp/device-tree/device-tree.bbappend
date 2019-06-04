@@ -1,11 +1,10 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 
-PL_ZYNQAES_DTSI = "pl-zynqaes.dtsi"
-
 SRC_URI_append = " \
-    file://${PL_ZYNQAES_DTSI} \
+    file://pl-zynqaes.dts \
+    file://amba-pl.dtsi \
     "
 
 do_configure_append() {
-        echo "/include/ \"${PL_ZYNQAES_DTSI}\"" >> ${WORKDIR}/zynq-artyz7.dts
+        echo "/include/ \"amba-pl.dtsi\"" >> ${WORKDIR}/zynq-artyz7.dts
 }
