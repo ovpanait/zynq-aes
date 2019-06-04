@@ -1,8 +1,52 @@
 # AES hardware accelerator for Xilinx Zynq platform
 
+- 128 bit keys (yet)
 - ECB/CBC support
 
-### Benchmarks
+
+## Quick Start for Arty Z7 board
+
+### Setup
+```sh
+git clone -b thud git://git.yoctoproject.org/poky
+git clone -b thud git://github.com/Xilinx/meta-xilinx
+git clone -b thud git://github.com/ovpanait/meta-artyz7
+git clone https://github.com/ovpanait/zynq-aes.git
+
+. poky/oe-init-build-env
+bitbake-layers add-layer ../meta-xilinx/meta-xilinx-bsp/
+bitbake-layers add-layer ../meta-artyz7
+bitbake-layers add-layer ../zynq-aes/yocto/meta-zynqaes/
+
+echo 'MACHINE="arty-zynq7"' >> conf/local.conf
+echo 'DTC_BFLAGS_append = " -@"' >> conf/local.conf
+echo 'IMAGE_INSTALL_append = " openssh cryptodev-linux cryptodev-module cryptodev-tests"' >> conf/local.conf
+echo 'IMAGE_INSTALL_append = " openssl-bin openssl openssl-engines"' >> conf/local.conf
+echo 'IMAGE_INSTALL_append = " zynqaes-mod zynqaes-firmware"' >> conf/local.conf
+```
+
+### Build a minimal console-only image:
+```sh
+bitbake core-image-minimal
+```
+
+### Copy image to sd-card
+```sh
+sudo dd if=tmp/deploy/images/arty-zynq7/core-image-minimal-arty-zynq7.wic of=/dev/mmcblkX bs=4M iflag=fullblock oflag=direct conv=fsync status=progres
+```
+
+### Run benchmarks
+```sh
+root@arty-zynq7:~# echo zynqaes-firmware_0.1.bit.bin > /sys/class/fpga_manager/fpga0/firmware
+root@arty-zynq7:~# mkdir -p /sys/kernel/config/device-tree/overlays/zynqaes
+root@arty-zynq7:~# umount /boot
+root@arty-zynq7:~# cat /boot/devicetree/pl-zynqaes.dtbo > /sys/kernel/config/device-tree/overlays/zynqaes/dtbo
+root@arty-zynq7:~# modprobe cryptodev
+root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
+root@arty-zynq7:~# openssl speed -evp aes-128-cbc -elapsed
+```
+
+## Benchmarks
 #### ECB
 ```sh
 
