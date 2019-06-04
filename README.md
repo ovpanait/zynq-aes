@@ -4,7 +4,7 @@
 - ECB/CBC support
 
 
-## Quick Start for Arty Z7 board
+## Quick Start for Arty Z7-20 board
 
 ### Setup
 ```sh
@@ -20,6 +20,7 @@ bitbake-layers add-layer ../zynq-aes/yocto/meta-zynqaes/
 
 echo 'MACHINE="arty-zynq7"' >> conf/local.conf
 echo 'DTC_BFLAGS_append = " -@"' >> conf/local.conf
+echo 'PACKAGECONFIG_append_pn-openssl = " cryptodev-linux"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " openssh cryptodev-linux cryptodev-module cryptodev-tests"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " openssl-bin openssl openssl-engines"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " zynqaes-mod zynqaes-firmware"' >> conf/local.conf
