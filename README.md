@@ -137,4 +137,7 @@ The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes    512 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes
 aes-128-cbc        436.29k     1733.82k     6735.36k    12027.56k    14738.43k    20255.40k    28915.03k    36189.53k    40834.39k
 ```
+## Block design and AXI DMA config
 
+![](https://github.com/ovpanait/zynq-aes/blob/master/block_design.png)
+![](https://github.com/ovpanait/zynq-aes/blob/master/axi_dma.png)
