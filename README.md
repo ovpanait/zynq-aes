@@ -23,7 +23,7 @@ echo 'DTC_BFLAGS_append = " -@"' >> conf/local.conf
 echo 'PACKAGECONFIG_append_pn-openssl = " cryptodev-linux"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " openssh cryptodev-linux cryptodev-module cryptodev-tests"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " openssl-bin openssl openssl-engines"' >> conf/local.conf
-echo 'IMAGE_INSTALL_append = " zynqaes-mod zynqaes-firmware"' >> conf/local.conf
+echo 'IMAGE_INSTALL_append = " zynqaes-mod zynqaes-firmware-xc7z020clg400-1"' >> conf/local.conf
 ```
 
 ### Build a minimal console-only image:
@@ -38,7 +38,7 @@ sudo dd if=tmp/deploy/images/arty-zynq7/core-image-minimal-arty-zynq7.wic of=/de
 
 ### Run benchmarks
 ```sh
-root@arty-zynq7:~# echo zynqaes-firmware_0.1.bit.bin > /sys/class/fpga_manager/fpga0/firmware
+root@arty-zynq7:~# echo zynqaes-firmware-xc7z020clg400-1_0.1.bit.bin > /sys/class/fpga_manager/fpga0/firmware
 root@arty-zynq7:~# mkdir -p /sys/kernel/config/device-tree/overlays/zynqaes
 root@arty-zynq7:~# umount /boot
 root@arty-zynq7:~# cat /boot/devicetree/pl-zynqaes.dtbo > /sys/kernel/config/device-tree/overlays/zynqaes/dtbo
