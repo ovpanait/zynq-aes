@@ -13,7 +13,9 @@ do_compile() {
 
 do_install() {
 	install -d ${D}${nonarch_base_libdir}/firmware/
-	install ${WORKDIR}/${PN}-xc7z020clg400-1_${PV}.bit.bin ${D}${nonarch_base_libdir}/firmware/
+	install ${WORKDIR}/*.bit.bin ${D}${nonarch_base_libdir}/firmware/
 }
 
-FILES_${PN} = "${nonarch_base_libdir}/firmware/${PN}-xc7z020clg400-1_${PV}.bit.bin"
+PACKAGES = "${PN}-xc7z020clg400-1"
+
+FILES_${PN}-xc7z020clg400-1 = "${nonarch_base_libdir}/firmware/${PN}-xc7z020clg400-1_${PV}.bit.bin"
