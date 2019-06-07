@@ -1,0 +1,26 @@
+From 054c00b4970413bdd1caea2516786a30067cfa0c Mon Sep 17 00:00:00 2001
+From: Ovidiu Panait <ovidiu.panait@windriver.com>
+Date: Fri, 7 Jun 2019 12:22:44 +0300
+Subject: [PATCH] speed.c: Add benchmark for 2/4/32/64 kB blocks
+
+Signed-off-by: Ovidiu Panait <ovidiu.panait@windriver.com>
+---
+ apps/speed.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/speed.c b/apps/speed.c
+index 40e9904..af4648e 100644
+--- a/apps/speed.c
++++ b/apps/speed.c
+@@ -198,7 +198,7 @@ static int do_multi(int multi, int size_num);
+ #endif
+ 
+ static const int lengths_list[] = {
+-    16, 64, 256, 1024, 8 * 1024, 16 * 1024
++    16, 64, 256, 1024, 2 * 1024, 4 * 1024, 8 * 1024, 16 * 1024, 32 * 1024, 64 * 1024
+ };
+ static const int *lengths = lengths_list;
+ 
+-- 
+2.20.1
+
