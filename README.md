@@ -19,7 +19,7 @@ sudo apt-get install gawk wget git-core diffstat unzip texinfo gcc-multilib \
 git clone -b thud git://git.yoctoproject.org/poky
 git clone -b thud git://github.com/Xilinx/meta-xilinx
 git clone -b thud git://github.com/ovpanait/meta-artyz7
-git clone https://github.com/ovpanait/zynq-aes.git
+git clone -b thud git://github.com/ovpanait/zynq-aes
 
 . poky/oe-init-build-env
 bitbake-layers add-layer ../meta-xilinx/meta-xilinx-bsp/
