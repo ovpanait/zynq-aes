@@ -126,9 +126,9 @@ end
 /*
 * Master side logic
 */
-localparam OUT_SRAM_ADDR_WIDTH = 11;
 localparam OUT_SRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam OUT_SRAM_DEPTH = 2048; /* max 32k AES block */
+localparam OUT_SRAM_ADDR_WIDTH = clogb2(OUT_SRAM_DEPTH);
 
 /*
  * The output FIFO is implemented as 128-bit Block RAM:
@@ -270,9 +270,9 @@ end
 /*
 * AXI slave side
 */
-localparam IN_SRAM_ADDR_WIDTH = 12;
 localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam IN_SRAM_DEPTH = 2049; /* IV + max 32k AES block */
+localparam IN_SRAM_DEPTH = OUT_SRAM_DEPTH + 1; /* 128-bit IV + max 32kB AES block */
+localparam IN_SRAM_ADDR_WIDTH = clogb2(IN_SRAM_DEPTH);
 
 /*
  * The input FIFO is implemented as 128-bit Block RAM:
