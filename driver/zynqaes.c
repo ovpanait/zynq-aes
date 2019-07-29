@@ -40,10 +40,10 @@ static struct device *dev;
 
 static DEFINE_MUTEX(op_mutex);
 
-struct zynqaes_op {
+struct zynqaes_ctx {
 	u8 key[AES_KEYSIZE_128];
 };
-static struct zynqaes_op *last_op;
+static struct zynqaes_ctx *last_ctx;
 
 static unsigned int zynqaes_ecb_set_txkbuf(u8 *src_buf, u8 *tx_kbuf, int payload_nbytes, const u32 cmd)
 {
@@ -103,7 +103,7 @@ static void axidma_sync_callback(void *completion)
 }
 
 /* Called with op_mutex held */
-static int zynqaes_dma_op(struct zynqaes_op *op, int in_nbytes, int out_nbytes)
+static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int in_nbytes, int out_nbytes)
 {
 	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
@@ -176,17 +176,17 @@ err:
 }
 
 /* Called with op_mutex held */
-static int zynqaes_setkey_hw(struct zynqaes_op *op)
+static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx)
 {
 	const u32 key_cmd = ZYNQAES_ECB_EXPAND_KEY;
 	unsigned int in_nbytes;
 
 	dev_dbg(dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	last_op = op;
+	last_ctx = ctx;
 
-	in_nbytes = zynqaes_ecb_set_txkbuf(op->key, tx_kbuf, AES_KEYSIZE_128, key_cmd);
-	return zynqaes_dma_op(op, in_nbytes, AES_KEYSIZE_128);
+	in_nbytes = zynqaes_ecb_set_txkbuf(ctx->key, tx_kbuf, AES_KEYSIZE_128, key_cmd);
+	return zynqaes_dma_op(ctx, in_nbytes, AES_KEYSIZE_128);
 }
 
 static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
@@ -202,7 +202,7 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 
 	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
-	struct zynqaes_op *op = crypto_tfm_ctx(tfm);
+	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
 
 	dev_dbg(dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
 		cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
@@ -226,9 +226,9 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 
 	scatterwalk_map_and_copy(src_buf, areq->src, 0, nbytes_total, 0);
 
-	if (last_op != op) {
+	if (last_ctx != ctx) {
 		mutex_lock(&op_mutex);
-		ret = zynqaes_setkey_hw(op);
+		ret = zynqaes_setkey_hw(ctx);
 		mutex_unlock(&op_mutex);
 	}
 
@@ -248,7 +248,7 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 
 		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, tx_kbuf, dma_nbytes, cmd);
 
-		ret = zynqaes_dma_op(op, in_nbytes, dma_nbytes);
+		ret = zynqaes_dma_op(ctx, in_nbytes, dma_nbytes);
 		if (ret) {
 			mutex_unlock(&op_mutex);
 			dev_err(dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
@@ -279,12 +279,12 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 			    unsigned int len)
 {
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
-	struct zynqaes_op *op = crypto_tfm_ctx(tfm);
+	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
 
 	dev_dbg(dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
 	mutex_lock(&op_mutex);
-	memcpy(op->key, key, len);
+	memcpy(ctx->key, key, len);
 	mutex_unlock(&op_mutex);
 
 	return 0;
@@ -316,7 +316,7 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_priority		=	100,
 	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_op),
+	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
 	.cra_type		=	&crypto_ablkcipher_type,
 	.cra_module		=	THIS_MODULE,
 	.cra_u			=	{
@@ -336,7 +336,7 @@ static struct crypto_alg zynqaes_cbc_alg = {
 	.cra_priority		=	100,
 	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_op),
+	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
 	.cra_type		=	&crypto_ablkcipher_type,
 	.cra_module		=	THIS_MODULE,
 	.cra_u			=	{
