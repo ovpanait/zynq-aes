@@ -4,6 +4,7 @@
 #include <crypto/algapi.h>
 #include <crypto/aes.h>
 #include <crypto/scatterwalk.h>
+#include <crypto/engine.h>
 #include <asm/io.h>
 #include <linux/of_platform.h>
 
@@ -39,9 +40,12 @@ struct zynqaes_dev {
 	struct mutex op_mutex;
 
 	struct zynqaes_ctx *last_ctx;
+
+	struct crypto_engine *engine;
 };
 
 struct zynqaes_ctx {
+	u32 cmd;
 	u8 key[AES_KEYSIZE_128];
 };
 
@@ -194,9 +198,16 @@ static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx)
 	return zynqaes_dma_op(ctx, in_nbytes, AES_KEYSIZE_128);
 }
 
-static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
+static int zynqaes_crypt_req(struct crypto_engine *engine,
+			      struct ablkcipher_request *areq)
 {
+	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
+	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
+	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+
+	const u32 cmd = ctx->cmd;
 	int ret = 0;
+
 	unsigned int nbytes;
 	unsigned int nbytes_total;
 
@@ -204,10 +215,6 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 
 	u8 *src_buf, *dst_buf;
 	u8 *iv;
-
-	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
-	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
-	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
 
 	dev_dbg(dd->dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
 		cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
@@ -270,6 +277,8 @@ static int zynqaes_crypto_op(struct ablkcipher_request *areq, const u32 cmd)
 
 	scatterwalk_map_and_copy(dst_buf, areq->dst, 0, nbytes_total, 1);
 
+	crypto_finalize_cipher_request(dd->engine, areq, 0);
+
 out_dst_buf:
 	kfree(dst_buf);
 
@@ -278,6 +287,20 @@ out_src_buf:
 out:
 
 	return ret;
+}
+
+static int zynqaes_crypt(struct ablkcipher_request *areq, const u32 cmd)
+{
+	struct zynqaes_ctx *ctx = crypto_ablkcipher_ctx(
+			crypto_ablkcipher_reqtfm(areq));
+
+	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
+
+	mutex_lock(&dd->op_mutex);
+	ctx->cmd = cmd;
+	mutex_unlock(&dd->op_mutex);
+
+	return crypto_transfer_cipher_request_to_engine(dd->engine, areq);
 }
 
 static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
@@ -297,22 +320,22 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 
 static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
 {
-	return zynqaes_crypto_op(areq, ZYNQAES_ECB_ENCRYPT);
+	return zynqaes_crypt(areq, ZYNQAES_ECB_ENCRYPT);
 }
 
 static int zynqaes_ecb_decrypt(struct ablkcipher_request *areq)
 {
-	return zynqaes_crypto_op(areq, ZYNQAES_ECB_DECRYPT);
+	return zynqaes_crypt(areq, ZYNQAES_ECB_DECRYPT);
 }
 
 static int zynqaes_cbc_encrypt(struct ablkcipher_request *areq)
 {
-	return zynqaes_crypto_op(areq, ZYNQAES_CBC_ENCRYPT);
+	return zynqaes_crypt(areq, ZYNQAES_CBC_ENCRYPT);
 }
 
 static int zynqaes_cbc_decrypt(struct ablkcipher_request *areq)
 {
-	return zynqaes_crypto_op(areq, ZYNQAES_CBC_DECRYPT);
+	return zynqaes_crypt(areq, ZYNQAES_CBC_DECRYPT);
 }
 
 static struct crypto_alg zynqaes_ecb_alg = {
@@ -402,8 +425,20 @@ static int zynqaes_probe(struct platform_device *pdev)
 		goto free_tx_kbuf;
 	}
 
-	if ((err = crypto_register_alg(&zynqaes_ecb_alg)))
+	/* Initialize crypto engine */
+	dd->engine = crypto_engine_alloc_init(dd->dev, 1);
+	if (dd->engine == NULL) {
+		err = -ENOMEM;
 		goto free_rx_kbuf;
+	}
+
+	dd->engine->cipher_one_request = zynqaes_crypt_req;
+	err = crypto_engine_start(dd->engine);
+	if (err)
+		goto free_engine;
+
+	if ((err = crypto_register_alg(&zynqaes_ecb_alg)))
+		goto free_engine;
 
 	if ((err = crypto_register_alg(&zynqaes_cbc_alg)))
 		goto free_ecb_alg;
@@ -416,6 +451,10 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 free_ecb_alg:
 	crypto_unregister_alg(&zynqaes_ecb_alg);
+
+free_engine:
+	if (dd->engine)
+		crypto_engine_exit(dd->engine);
 
 free_rx_kbuf:
 	dma_free_coherent(dd->dev, ZYNQAES_FIFO_NBYTES, &dd->rx_dma_handle, GFP_KERNEL);
@@ -450,6 +489,9 @@ static int zynqaes_remove(struct platform_device *pdev)
 
 	dma_release_channel(dd->rx_chan);
 	dma_release_channel(dd->tx_chan);
+
+	crypto_engine_stop(dd->engine);
+	crypto_engine_exit(dd->engine);
 
 	kfree(dd);
 
