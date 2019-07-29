@@ -319,7 +319,8 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
 	.cra_priority		=	100,
-	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
+					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
 	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
 	.cra_type		=	&crypto_ablkcipher_type,
@@ -339,7 +340,8 @@ static struct crypto_alg zynqaes_cbc_alg = {
 	.cra_name		=	"cbc(aes)",
 	.cra_driver_name	=	"zynqaes-cbc",
 	.cra_priority		=	100,
-	.cra_flags		=	CRYPTO_ALG_TYPE_BLKCIPHER,
+	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
+					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
 	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
 	.cra_type		=	&crypto_ablkcipher_type,
