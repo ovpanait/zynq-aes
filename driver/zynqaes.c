@@ -44,8 +44,11 @@ struct zynqaes_dev {
 	struct crypto_engine *engine;
 };
 
-struct zynqaes_ctx {
+struct zynqaes_reqctx {
 	u32 cmd;
+};
+
+struct zynqaes_ctx {
 	u8 key[AES_KEYSIZE_128];
 };
 
@@ -204,8 +207,9 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+	struct zynqaes_reqctx *rctx = ablkcipher_request_ctx(areq);
 
-	const u32 cmd = ctx->cmd;
+	const u32 cmd = rctx->cmd;
 	int ret = 0;
 
 	unsigned int nbytes;
@@ -291,14 +295,11 @@ out:
 
 static int zynqaes_crypt(struct ablkcipher_request *areq, const u32 cmd)
 {
-	struct zynqaes_ctx *ctx = crypto_ablkcipher_ctx(
-			crypto_ablkcipher_reqtfm(areq));
+	struct zynqaes_reqctx *rctx = ablkcipher_request_ctx(areq);
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	mutex_lock(&dd->op_mutex);
-	ctx->cmd = cmd;
-	mutex_unlock(&dd->op_mutex);
+	rctx->cmd = cmd;
 
 	return crypto_transfer_cipher_request_to_engine(dd->engine, areq);
 }
@@ -338,6 +339,13 @@ static int zynqaes_cbc_decrypt(struct ablkcipher_request *areq)
 	return zynqaes_crypt(areq, ZYNQAES_CBC_DECRYPT);
 }
 
+static int zynqaes_cra_init(struct crypto_tfm *tfm)
+{
+	tfm->crt_ablkcipher.reqsize = sizeof(struct zynqaes_reqctx);
+
+	return 0;
+}
+
 static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
@@ -348,6 +356,7 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
 	.cra_type		=	&crypto_ablkcipher_type,
 	.cra_module		=	THIS_MODULE,
+	.cra_init		= 	zynqaes_cra_init,
 	.cra_u			=	{
 		.ablkcipher = {
 			.min_keysize		=	AES_KEYSIZE_128,
@@ -369,6 +378,7 @@ static struct crypto_alg zynqaes_cbc_alg = {
 	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
 	.cra_type		=	&crypto_ablkcipher_type,
 	.cra_module		=	THIS_MODULE,
+	.cra_init		= 	zynqaes_cra_init,
 	.cra_u			=	{
 		.ablkcipher = {
 			.min_keysize		=	AES_KEYSIZE_128,
