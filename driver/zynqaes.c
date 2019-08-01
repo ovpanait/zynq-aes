@@ -113,7 +113,7 @@ static void axidma_sync_callback(void *completion)
 }
 
 /* Called with op_mutex held */
-static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int in_nbytes, int out_nbytes)
+static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int src_nbytes, int dst_nbytes)
 {
 	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
@@ -127,7 +127,7 @@ static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int in_nbytes, int out_nbytes
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 
 	/* Tx Channel */
-	tx_chan_desc = dmaengine_prep_slave_single(dd->tx_chan, dd->tx_dma_handle, in_nbytes, DMA_MEM_TO_DEV, flags);
+	tx_chan_desc = dmaengine_prep_slave_single(dd->tx_chan, dd->tx_dma_handle, src_nbytes, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_single error\n", __func__, __LINE__);
 		ret = -ECOMM;
@@ -142,7 +142,7 @@ static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int in_nbytes, int out_nbytes
 
 	/* Rx Channel */
 	flags |= DMA_PREP_INTERRUPT;
-	rx_chan_desc = dmaengine_prep_slave_single(dd->rx_chan, dd->rx_dma_handle, out_nbytes, DMA_DEV_TO_MEM, flags);
+	rx_chan_desc = dmaengine_prep_slave_single(dd->rx_chan, dd->rx_dma_handle, dst_nbytes, DMA_DEV_TO_MEM, flags);
 	if (!rx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_single error\n", __func__, __LINE__);
 		ret = -ECOMM;
