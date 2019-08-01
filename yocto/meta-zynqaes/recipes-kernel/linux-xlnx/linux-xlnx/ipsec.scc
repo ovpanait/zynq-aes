@@ -1,0 +1,4 @@
+define KFEATURE_DESCRIPTION "Enable ipsec support"
+define KFEATURE_COMPATIBILITY board
+
+kconf non-hardware ipsec.cfg
