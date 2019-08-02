@@ -46,6 +46,8 @@ struct zynqaes_reqctx {
 
 	u8 *tx_buf;
 	u8 *rx_buf;
+
+	struct zynqaes_ctx *ctx;
 };
 
 struct zynqaes_ctx {
@@ -113,7 +115,7 @@ static void axidma_sync_callback(void *completion)
 }
 
 /* Called with op_mutex held */
-static int zynqaes_dma_op(struct zynqaes_ctx *ctx, u8 *tx_buf, u8 *rx_buf, int src_nbytes, int dst_nbytes)
+static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_nbytes)
 {
 	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
@@ -123,6 +125,9 @@ static int zynqaes_dma_op(struct zynqaes_ctx *ctx, u8 *tx_buf, u8 *rx_buf, int s
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
 	enum dma_status status;
 	int ret = 0;
+
+	u8 *tx_buf = rctx->tx_buf;
+	u8 *rx_buf = rctx->rx_buf;
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 
@@ -194,17 +199,18 @@ err:
 }
 
 /* Called with op_mutex held */
-static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx, u8 *tx_buf, u8 *rx_buf)
+static int zynqaes_setkey_hw(struct zynqaes_reqctx *rctx)
 {
 	const u32 key_cmd = ZYNQAES_ECB_EXPAND_KEY;
 	unsigned int in_nbytes;
 
+	struct zynqaes_ctx *ctx;
+	ctx = rctx->ctx;
+
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	dd->last_ctx = ctx;
-
-	in_nbytes = zynqaes_ecb_set_txkbuf(ctx->key, tx_buf, AES_KEYSIZE_128, key_cmd);
-	return zynqaes_dma_op(ctx, tx_buf, rx_buf, in_nbytes, AES_KEYSIZE_128);
+	in_nbytes = zynqaes_ecb_set_txkbuf(ctx->key, rctx->tx_buf, AES_KEYSIZE_128, key_cmd);
+	return zynqaes_dma_op(rctx, in_nbytes, AES_KEYSIZE_128);
 }
 
 static int zynqaes_crypt_req(struct crypto_engine *engine,
@@ -260,11 +266,14 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 		goto free_tx_buf;
 	}
 
+	rctx->ctx = ctx;
+
 	scatterwalk_map_and_copy(src_buf, areq->src, 0, nbytes_total, 0);
 
 	if (dd->last_ctx != ctx) {
 		mutex_lock(&dd->op_mutex);
-		ret = zynqaes_setkey_hw(ctx, rctx->tx_buf, rctx->rx_buf);
+		ret = zynqaes_setkey_hw(rctx);
+		dd->last_ctx = ctx;
 		mutex_unlock(&dd->op_mutex);
 	}
 
@@ -284,7 +293,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, rctx->tx_buf, dma_nbytes, cmd);
 
-		ret = zynqaes_dma_op(ctx, rctx->tx_buf, rctx->rx_buf, in_nbytes, dma_nbytes);
+		ret = zynqaes_dma_op(rctx, in_nbytes, dma_nbytes);
 		if (ret) {
 			mutex_unlock(&dd->op_mutex);
 			dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
