@@ -31,9 +31,6 @@ struct zynqaes_dev {
 	struct dma_chan *tx_chan;
 	struct dma_chan *rx_chan;
 
-	dma_addr_t tx_dma_handle;
-	dma_addr_t rx_dma_handle;
-
 	struct mutex op_mutex;
 
 	struct zynqaes_ctx *last_ctx;
@@ -46,6 +43,9 @@ struct zynqaes_reqctx {
 
 	u8 *tx_buf;
 	u8 *rx_buf;
+
+	dma_addr_t tx_dma_handle;
+	dma_addr_t rx_dma_handle;
 
 	struct completion rx_cmp;
 
@@ -135,11 +135,11 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 
 	init_completion(&rctx->rx_cmp);
 
-	dd->tx_dma_handle = dma_map_single(dd->dev, tx_buf, src_nbytes, DMA_TO_DEVICE);
-	dd->rx_dma_handle = dma_map_single(dd->dev, rx_buf, dst_nbytes, DMA_FROM_DEVICE);
+	rctx->tx_dma_handle = dma_map_single(dd->dev, tx_buf, src_nbytes, DMA_TO_DEVICE);
+	rctx->rx_dma_handle = dma_map_single(dd->dev, rx_buf, dst_nbytes, DMA_FROM_DEVICE);
 
 	/* Tx Channel */
-	tx_chan_desc = dmaengine_prep_slave_single(dd->tx_chan, dd->tx_dma_handle, src_nbytes, DMA_MEM_TO_DEV, flags);
+	tx_chan_desc = dmaengine_prep_slave_single(dd->tx_chan, rctx->tx_dma_handle, src_nbytes, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_single error\n", __func__, __LINE__);
 		ret = -ECOMM;
@@ -154,7 +154,7 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 
 	/* Rx Channel */
 	flags |= DMA_PREP_INTERRUPT;
-	rx_chan_desc = dmaengine_prep_slave_single(dd->rx_chan, dd->rx_dma_handle, dst_nbytes, DMA_DEV_TO_MEM, flags);
+	rx_chan_desc = dmaengine_prep_slave_single(dd->rx_chan, rctx->rx_dma_handle, dst_nbytes, DMA_DEV_TO_MEM, flags);
 	if (!rx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_single error\n", __func__, __LINE__);
 		ret = -ECOMM;
@@ -196,8 +196,8 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 	} while(status != DMA_COMPLETE && !ret);
 
 err:
-	dma_unmap_single(dd->dev, dd->tx_dma_handle, src_nbytes, DMA_TO_DEVICE);
-	dma_unmap_single(dd->dev, dd->rx_dma_handle, dst_nbytes, DMA_FROM_DEVICE);
+	dma_unmap_single(dd->dev, rctx->tx_dma_handle, src_nbytes, DMA_TO_DEVICE);
+	dma_unmap_single(dd->dev, rctx->rx_dma_handle, dst_nbytes, DMA_FROM_DEVICE);
 
 	return ret;
 }
@@ -510,9 +510,6 @@ static int zynqaes_remove(struct platform_device *pdev)
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
 	crypto_unregister_alg(&zynqaes_cbc_alg);
-
-	dma_free_coherent(dd->dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &(dd->tx_dma_handle), GFP_KERNEL);
-	dma_free_coherent(dd->dev, ZYNQAES_FIFO_NBYTES, &(dd->rx_dma_handle), GFP_KERNEL);
 
 	dma_release_channel(dd->rx_chan);
 	dma_release_channel(dd->tx_chan);
