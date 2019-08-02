@@ -34,9 +34,6 @@ struct zynqaes_dev {
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
 
-	u8 *tx_kbuf;
-	u8 *rx_kbuf;
-
 	struct mutex op_mutex;
 
 	struct zynqaes_ctx *last_ctx;
@@ -194,7 +191,7 @@ err:
 }
 
 /* Called with op_mutex held */
-static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx)
+static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx, u8 *tx_buf, u8 *rx_buf)
 {
 	const u32 key_cmd = ZYNQAES_ECB_EXPAND_KEY;
 	unsigned int in_nbytes;
@@ -203,8 +200,8 @@ static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx)
 
 	dd->last_ctx = ctx;
 
-	in_nbytes = zynqaes_ecb_set_txkbuf(ctx->key, dd->tx_kbuf, AES_KEYSIZE_128, key_cmd);
-	return zynqaes_dma_op(ctx, dd->tx_kbuf, dd->rx_kbuf, in_nbytes, AES_KEYSIZE_128);
+	in_nbytes = zynqaes_ecb_set_txkbuf(ctx->key, tx_buf, AES_KEYSIZE_128, key_cmd);
+	return zynqaes_dma_op(ctx, tx_buf, rx_buf, in_nbytes, AES_KEYSIZE_128);
 }
 
 static int zynqaes_crypt_req(struct crypto_engine *engine,
@@ -224,6 +221,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	unsigned int tx_i = 0;
 
 	u8 *src_buf, *dst_buf;
+	u8 *tx_buf, *rx_buf;
 	u8 *iv;
 
 	dev_dbg(dd->dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
@@ -246,11 +244,25 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 		goto out_src_buf;
 	}
 
+	tx_buf = kmalloc(ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, GFP_KERNEL);
+	if (tx_buf == NULL) {
+		dev_err(dd->dev, "[%s:%d] tx: tx_buf: Allocating memory failed\n", __func__, __LINE__);
+		ret = -ENOMEM;
+		goto out_dst_buf;
+	}
+
+	rx_buf = kmalloc(ZYNQAES_FIFO_NBYTES, GFP_KERNEL);
+	if (rx_buf == NULL) {
+		dev_err(dd->dev, "[%s:%d] rx: rx_buf: Allocating memory failed\n", __func__, __LINE__);
+		ret = -ENOMEM;
+		goto free_tx_buf;
+	}
+
 	scatterwalk_map_and_copy(src_buf, areq->src, 0, nbytes_total, 0);
 
 	if (dd->last_ctx != ctx) {
 		mutex_lock(&dd->op_mutex);
-		ret = zynqaes_setkey_hw(ctx);
+		ret = zynqaes_setkey_hw(ctx, tx_buf, rx_buf);
 		mutex_unlock(&dd->op_mutex);
 	}
 
@@ -268,16 +280,16 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 		mutex_lock(&dd->op_mutex);
 
-		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, dd->tx_kbuf, dma_nbytes, cmd);
+		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, tx_buf, dma_nbytes, cmd);
 
-		ret = zynqaes_dma_op(ctx, dd->tx_kbuf, dd->rx_kbuf, in_nbytes, dma_nbytes);
+		ret = zynqaes_dma_op(ctx, tx_buf, rx_buf, in_nbytes, dma_nbytes);
 		if (ret) {
 			mutex_unlock(&dd->op_mutex);
 			dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
-			goto out_dst_buf;
+			goto free_rx_buf;
 		}
 
-		zynqaes_get_rxkbuf(src_buf + tx_i, dst_buf + tx_i, iv, dd->rx_kbuf, dma_nbytes, cmd);
+		zynqaes_get_rxkbuf(src_buf + tx_i, dst_buf + tx_i, iv, rx_buf, dma_nbytes, cmd);
 
 		mutex_unlock(&dd->op_mutex);
 
@@ -288,6 +300,12 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	scatterwalk_map_and_copy(dst_buf, areq->dst, 0, nbytes_total, 1);
 
 	crypto_finalize_cipher_request(dd->engine, areq, 0);
+
+free_rx_buf:
+	kfree(rx_buf);
+
+free_tx_buf:
+	kfree(tx_buf);
 
 out_dst_buf:
 	kfree(dst_buf);
@@ -427,25 +445,11 @@ static int zynqaes_probe(struct platform_device *pdev)
 		goto free_tx_chan;
 	}
 
-	dd->tx_kbuf = kmalloc(ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, GFP_KERNEL);
-	if (dd->tx_kbuf == NULL) {
-		dev_err(dd->dev, "[%s:%d] tx: dd->tx_kbuf: Allocating memory failed\n", __func__, __LINE__);
-		err = -ENOMEM;
-		goto free_rx_chan;
-	}
-
-	dd->rx_kbuf = kmalloc(ZYNQAES_FIFO_NBYTES, GFP_KERNEL);
-	if (dd->rx_kbuf == NULL) {
-		dev_err(dd->dev, "[%s:%d] rx: dd->rx_kbuf: Allocating memory failed\n", __func__, __LINE__);
-		err = -ENOMEM;
-		goto free_tx_kbuf;
-	}
-
 	/* Initialize crypto engine */
 	dd->engine = crypto_engine_alloc_init(dd->dev, 1);
 	if (dd->engine == NULL) {
 		err = -ENOMEM;
-		goto free_rx_kbuf;
+		goto free_rx_chan;
 	}
 
 	dd->engine->cipher_one_request = zynqaes_crypt_req;
@@ -471,12 +475,6 @@ free_ecb_alg:
 free_engine:
 	if (dd->engine)
 		crypto_engine_exit(dd->engine);
-
-free_rx_kbuf:
-	kfree(dd->rx_kbuf);
-
-free_tx_kbuf:
-	kfree(dd->tx_kbuf);
 
 free_rx_chan:
 	dma_release_channel(dd->rx_chan);
