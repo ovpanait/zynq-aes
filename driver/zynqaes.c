@@ -126,6 +126,9 @@ static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int src_nbytes, int dst_nbyte
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 
+	dd->tx_dma_handle = dma_map_single(dd->dev, dd->tx_kbuf, src_nbytes, DMA_TO_DEVICE);
+	dd->rx_dma_handle = dma_map_single(dd->dev, dd->rx_kbuf, dst_nbytes, DMA_FROM_DEVICE);
+
 	/* Tx Channel */
 	tx_chan_desc = dmaengine_prep_slave_single(dd->tx_chan, dd->tx_dma_handle, src_nbytes, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
@@ -184,6 +187,9 @@ static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int src_nbytes, int dst_nbyte
 	} while(status != DMA_COMPLETE && !ret);
 
 err:
+	dma_unmap_single(dd->dev, dd->tx_dma_handle, src_nbytes, DMA_TO_DEVICE);
+	dma_unmap_single(dd->dev, dd->rx_dma_handle, dst_nbytes, DMA_FROM_DEVICE);
+
 	return ret;
 }
 
@@ -421,16 +427,16 @@ static int zynqaes_probe(struct platform_device *pdev)
 		goto free_tx_chan;
 	}
 
-	dd->tx_kbuf = dma_alloc_coherent(dd->dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &(dd->tx_dma_handle), GFP_KERNEL);
+	dd->tx_kbuf = kmalloc(ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, GFP_KERNEL);
 	if (dd->tx_kbuf == NULL) {
-		dev_err(dd->dev, "[%s:%d] tx: dma_alloc_coherent: Allocating DMA memory failed\n", __func__, __LINE__);
+		dev_err(dd->dev, "[%s:%d] tx: dd->tx_kbuf: Allocating memory failed\n", __func__, __LINE__);
 		err = -ENOMEM;
 		goto free_rx_chan;
 	}
 
-	dd->rx_kbuf = dma_alloc_coherent(dd->dev, ZYNQAES_FIFO_NBYTES, &(dd->rx_dma_handle), GFP_KERNEL);
+	dd->rx_kbuf = kmalloc(ZYNQAES_FIFO_NBYTES, GFP_KERNEL);
 	if (dd->rx_kbuf == NULL) {
-		dev_err(dd->dev, "[%s:%d] rx: dma_alloc_coherent: Allocating DMA memory failed\n", __func__, __LINE__);
+		dev_err(dd->dev, "[%s:%d] rx: dd->rx_kbuf: Allocating memory failed\n", __func__, __LINE__);
 		err = -ENOMEM;
 		goto free_tx_kbuf;
 	}
@@ -467,10 +473,10 @@ free_engine:
 		crypto_engine_exit(dd->engine);
 
 free_rx_kbuf:
-	dma_free_coherent(dd->dev, ZYNQAES_FIFO_NBYTES, &dd->rx_dma_handle, GFP_KERNEL);
+	kfree(dd->rx_kbuf);
 
 free_tx_kbuf:
-	dma_free_coherent(dd->dev, ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, &(dd->tx_dma_handle), GFP_KERNEL);
+	kfree(dd->tx_kbuf);
 
 free_rx_chan:
 	dma_release_channel(dd->rx_chan);
