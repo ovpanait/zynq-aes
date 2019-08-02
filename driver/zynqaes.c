@@ -113,7 +113,7 @@ static void axidma_sync_callback(void *completion)
 }
 
 /* Called with op_mutex held */
-static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int src_nbytes, int dst_nbytes)
+static int zynqaes_dma_op(struct zynqaes_ctx *ctx, u8 *tx_buf, u8 *rx_buf, int src_nbytes, int dst_nbytes)
 {
 	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
@@ -126,8 +126,8 @@ static int zynqaes_dma_op(struct zynqaes_ctx *ctx, int src_nbytes, int dst_nbyte
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 
-	dd->tx_dma_handle = dma_map_single(dd->dev, dd->tx_kbuf, src_nbytes, DMA_TO_DEVICE);
-	dd->rx_dma_handle = dma_map_single(dd->dev, dd->rx_kbuf, dst_nbytes, DMA_FROM_DEVICE);
+	dd->tx_dma_handle = dma_map_single(dd->dev, tx_buf, src_nbytes, DMA_TO_DEVICE);
+	dd->rx_dma_handle = dma_map_single(dd->dev, rx_buf, dst_nbytes, DMA_FROM_DEVICE);
 
 	/* Tx Channel */
 	tx_chan_desc = dmaengine_prep_slave_single(dd->tx_chan, dd->tx_dma_handle, src_nbytes, DMA_MEM_TO_DEV, flags);
@@ -204,7 +204,7 @@ static int zynqaes_setkey_hw(struct zynqaes_ctx *ctx)
 	dd->last_ctx = ctx;
 
 	in_nbytes = zynqaes_ecb_set_txkbuf(ctx->key, dd->tx_kbuf, AES_KEYSIZE_128, key_cmd);
-	return zynqaes_dma_op(ctx, in_nbytes, AES_KEYSIZE_128);
+	return zynqaes_dma_op(ctx, dd->tx_kbuf, dd->rx_kbuf, in_nbytes, AES_KEYSIZE_128);
 }
 
 static int zynqaes_crypt_req(struct crypto_engine *engine,
@@ -270,7 +270,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, dd->tx_kbuf, dma_nbytes, cmd);
 
-		ret = zynqaes_dma_op(ctx, in_nbytes, dma_nbytes);
+		ret = zynqaes_dma_op(ctx, dd->tx_kbuf, dd->rx_kbuf, in_nbytes, dma_nbytes);
 		if (ret) {
 			mutex_unlock(&dd->op_mutex);
 			dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
