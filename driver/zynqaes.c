@@ -43,6 +43,9 @@ struct zynqaes_dev {
 
 struct zynqaes_reqctx {
 	u32 cmd;
+
+	u8 *tx_buf;
+	u8 *rx_buf;
 };
 
 struct zynqaes_ctx {
@@ -221,7 +224,6 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	unsigned int tx_i = 0;
 
 	u8 *src_buf, *dst_buf;
-	u8 *tx_buf, *rx_buf;
 	u8 *iv;
 
 	dev_dbg(dd->dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
@@ -244,15 +246,15 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 		goto out_src_buf;
 	}
 
-	tx_buf = kmalloc(ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, GFP_KERNEL);
-	if (tx_buf == NULL) {
+	rctx->tx_buf = kmalloc(ZYNQAES_FIFO_NBYTES + ZYNQAES_CMD_LEN, GFP_KERNEL);
+	if (rctx->tx_buf == NULL) {
 		dev_err(dd->dev, "[%s:%d] tx: tx_buf: Allocating memory failed\n", __func__, __LINE__);
 		ret = -ENOMEM;
 		goto out_dst_buf;
 	}
 
-	rx_buf = kmalloc(ZYNQAES_FIFO_NBYTES, GFP_KERNEL);
-	if (rx_buf == NULL) {
+	rctx->rx_buf = kmalloc(ZYNQAES_FIFO_NBYTES, GFP_KERNEL);
+	if (rctx->rx_buf == NULL) {
 		dev_err(dd->dev, "[%s:%d] rx: rx_buf: Allocating memory failed\n", __func__, __LINE__);
 		ret = -ENOMEM;
 		goto free_tx_buf;
@@ -262,7 +264,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 	if (dd->last_ctx != ctx) {
 		mutex_lock(&dd->op_mutex);
-		ret = zynqaes_setkey_hw(ctx, tx_buf, rx_buf);
+		ret = zynqaes_setkey_hw(ctx, rctx->tx_buf, rctx->rx_buf);
 		mutex_unlock(&dd->op_mutex);
 	}
 
@@ -280,16 +282,16 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 		mutex_lock(&dd->op_mutex);
 
-		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, tx_buf, dma_nbytes, cmd);
+		in_nbytes = zynqaes_set_txkbuf(src_buf + tx_i, iv, rctx->tx_buf, dma_nbytes, cmd);
 
-		ret = zynqaes_dma_op(ctx, tx_buf, rx_buf, in_nbytes, dma_nbytes);
+		ret = zynqaes_dma_op(ctx, rctx->tx_buf, rctx->rx_buf, in_nbytes, dma_nbytes);
 		if (ret) {
 			mutex_unlock(&dd->op_mutex);
 			dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
 			goto free_rx_buf;
 		}
 
-		zynqaes_get_rxkbuf(src_buf + tx_i, dst_buf + tx_i, iv, rx_buf, dma_nbytes, cmd);
+		zynqaes_get_rxkbuf(src_buf + tx_i, dst_buf + tx_i, iv, rctx->rx_buf, dma_nbytes, cmd);
 
 		mutex_unlock(&dd->op_mutex);
 
@@ -302,10 +304,10 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	crypto_finalize_cipher_request(dd->engine, areq, 0);
 
 free_rx_buf:
-	kfree(rx_buf);
+	kfree(rctx->rx_buf);
 
 free_tx_buf:
-	kfree(tx_buf);
+	kfree(rctx->tx_buf);
 
 out_dst_buf:
 	kfree(dst_buf);
