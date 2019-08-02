@@ -30,7 +30,7 @@ struct zynqaes_dev {
 	struct device *dev;
 	struct dma_chan *tx_chan;
 	struct dma_chan *rx_chan;
-	struct completion rx_cmp;
+
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
 
@@ -46,6 +46,8 @@ struct zynqaes_reqctx {
 
 	u8 *tx_buf;
 	u8 *rx_buf;
+
+	struct completion rx_cmp;
 
 	struct zynqaes_ctx *ctx;
 };
@@ -131,6 +133,8 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 
+	init_completion(&rctx->rx_cmp);
+
 	dd->tx_dma_handle = dma_map_single(dd->dev, tx_buf, src_nbytes, DMA_TO_DEVICE);
 	dd->rx_dma_handle = dma_map_single(dd->dev, rx_buf, dst_nbytes, DMA_FROM_DEVICE);
 
@@ -157,7 +161,7 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 		goto err;
 	}
 	rx_chan_desc->callback = axidma_sync_callback;
-	rx_chan_desc->callback_param = &dd->rx_cmp;
+	rx_chan_desc->callback_param = &rctx->rx_cmp;
 	rx_cookie = dmaengine_submit(rx_chan_desc);
 	if (dma_submit_error(rx_cookie)) {
 		dev_err(dd->dev, "[%s:%d] rx_cookie: xdma_prep_buffer error\n", __func__, __LINE__);
@@ -165,7 +169,7 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 		goto err;
 	}
 
-	reinit_completion(&dd->rx_cmp);
+	reinit_completion(&rctx->rx_cmp);
 	dma_async_issue_pending(dd->tx_chan);
 	dma_async_issue_pending(dd->rx_chan);
 
@@ -173,7 +177,7 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 	do {
 		timeout = msecs_to_jiffies(5000);
 
-		timeout = wait_for_completion_timeout(&dd->rx_cmp, timeout);
+		timeout = wait_for_completion_timeout(&rctx->rx_cmp, timeout);
 		status = dma_async_is_tx_complete(dd->rx_chan, rx_cookie, NULL, NULL);
 
 		if (status != DMA_COMPLETE) {
@@ -473,8 +477,6 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 	if ((err = crypto_register_alg(&zynqaes_cbc_alg)))
 		goto free_ecb_alg;
-
-	init_completion(&dd->rx_cmp);
 
 	dev_dbg(dd->dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
 
