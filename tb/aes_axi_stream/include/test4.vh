@@ -1,5 +1,7 @@
 // CBC Encryption/decryption stress test
 task testcase4();
+	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
+
 	localparam AES_KEY_128 = `BLK_S'h5468617473206D79204B756E67204675;
 	localparam AES_KEY_128_RES = `BLK_S'h00000000000000000000000000000000;
 
@@ -33,6 +35,7 @@ task testcase4();
 
         initial_cmp_cnt = comparison_cnt;
 
+	// Set key request
         tester #(32)::packed_to_unpacked(`SET_KEY_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 0);
@@ -42,7 +45,14 @@ task testcase4();
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 1);
 
+	// Encryption requets
         tester::packed_to_unpacked(`CBC_ENCRYPT_128, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 0);
+
+	// Send key alongside encryption payload
+        aes128_in_blk = swap_blk(AES_KEY128);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 0);
 
@@ -76,6 +86,12 @@ task testcase4();
         end
 
         tester::packed_to_unpacked(`CBC_DECRYPT_128, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 0);
+
+	// Send key alongside decryption payload
+        aes128_in_blk = swap_blk(AES_KEY128);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 0);
 

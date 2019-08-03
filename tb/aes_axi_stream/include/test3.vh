@@ -1,6 +1,8 @@
 // Test 3
 // Second independent encryption operation with the same key.
 task testcase3();
+	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
+
         localparam AES_PLAINTEXT_1 = `BLK_S'h54776f204f6e65204e696e652054776f;
         localparam AES_CIPHERTEXT_1 = `BLK_S'h29c3505f571420f6402299b31a02d73a;
 
@@ -15,24 +17,36 @@ task testcase3();
         initial_cmp_cnt = comparison_cnt;
 
         // Encrypt
-        aes128_in_blk =  AES_PLAINTEXT_1;
-        aes128_in_blk = swap_blk(aes128_in_blk);
-
         tester::packed_to_unpacked(`ECB_ENCRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
+
+	// Send key alongside encryption payload
+        aes128_in_blk = swap_blk(AES_KEY128);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 0);
+
+        aes128_in_blk =  AES_PLAINTEXT_1;
+        aes128_in_blk = swap_blk(aes128_in_blk);
 
         tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp, 1);
 
         // Decrypt
-        aes128_in_blk =  AES_CIPHERTEXT_1;
-        aes128_in_blk = swap_blk(aes128_in_blk);
-
         tester::packed_to_unpacked(`ECB_DECRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
+
+	// Send key alongside decryption payload
+        aes128_in_blk = swap_blk(AES_KEY128);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 0);
+
+        aes128_in_blk =  AES_CIPHERTEXT_1;
+        aes128_in_blk = swap_blk(aes128_in_blk);
 
         tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
         tester::print_unpacked(data_tmp);

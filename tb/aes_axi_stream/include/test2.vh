@@ -1,5 +1,7 @@
 // ECB Encryption/decryption stress test
 task testcase2();
+	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
+
         localparam AES_PLAINTEXT_1 = `BLK_S'h54776f204f6e65204e696e652054776f;
         localparam AES_CIPHERTEXT_1 = `BLK_S'h29c3505f571420f6402299b31a02d73a;
 
@@ -26,9 +28,17 @@ task testcase2();
 
         initial_cmp_cnt = comparison_cnt;
 
+	// Prepare encryption request
+
         tester::packed_to_unpacked(`ECB_ENCRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
+
+	// Send key alongside encryption payload
+        aes128_in_blk = swap_blk(AES_KEY128);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 0);
 
         // Encrypt
         for (i = 0; i < blocks_no / 2; i=i+1) begin
@@ -54,9 +64,17 @@ task testcase2();
                         gen_transaction(data_tmp, 0);
         end
 
+	// Prepare decryption request
+
         tester::packed_to_unpacked(`ECB_DECRYPT_128, data_tmp);
         tester::print_unpacked(data_tmp);
         gen_transaction(data_tmp);
+
+	// Send key alongside decryption payload
+        aes128_in_blk = swap_blk(AES_KEY128);
+        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
+        tester::print_unpacked(data_tmp);
+        gen_transaction(data_tmp, 0);
 
         // Now decrypt
         for (i = 0; i < blocks_no / 2; i=i+1) begin
