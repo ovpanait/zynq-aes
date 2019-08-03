@@ -33,9 +33,9 @@ module aes_controller #
 
 localparam [2:0] IDLE = 3'b000; // Initial/idle state
 localparam [2:0] INIT_BLOCK_RAM  = 3'b001;
-localparam [2:0] AES_GET_IV = 3'b010;
-localparam [2:0] AES_START = 3'b011;
-localparam [2:0] AES_PROCESS = 3'b100;
+localparam [2:0] AES_GET_KEY  = 3'b010;
+localparam [2:0] AES_GET_IV = 3'b011;
+localparam [2:0] AES_PROCESS = 3'b101;
 
 reg [2:0]               state;
 reg [`WORD_S-1:0]       read_ptr;
@@ -46,10 +46,12 @@ wire                    aes_done;
 
 reg                     aes_start;
 reg [0: `BLK_S-1]	aes_iv;
+reg [0:`KEY_S-1]	aes_key;
+reg [0:`BLK_S-1]	prev_aes_ecb_in_blk;
+
 wire [0:`BLK_S-1]       aes_ecb_in_blk;
 wire [0:`BLK_S-1]       aes_cbc_in_blk;
 wire [0:`BLK_S-1]       aes_in_blk;
-wire [0:`KEY_S-1]       aes_key;
 
 genvar i;
 
@@ -107,7 +109,6 @@ assign in_fifo_addr = read_ptr;
 assign aes_ecb_in_blk = swap_bytes128(in_fifo_data);
 assign aes_cbc_in_blk = aes_iv ^ aes_ecb_in_blk;
 assign aes_in_blk = is_CBC_enc(aes_cmd) ?  aes_cbc_in_blk : aes_ecb_in_blk;
-assign aes_key = swap_bytes128(in_fifo_data);
 
 always @(posedge clk) begin
         if (reset == 1'b1) begin
@@ -115,6 +116,8 @@ always @(posedge clk) begin
                 write_ptr <= 1'b0;
                 en_o <= 1'b0;
                 aes_iv <= 1'b0;
+                aes_key <= 1'b0;
+                prev_aes_ecb_in_blk <= 1'b0;
                 out_fifo_blk_no <= 1'b0;
         end 
         else begin
@@ -138,43 +141,54 @@ always @(posedge clk) begin
                         end
                         INIT_BLOCK_RAM:
                         begin
-                        	// Clear this here in order to preserve its value
-                        	// while transferring the blocks through the axi 
-                        	// stream master interface
-                        	out_fifo_blk_no <= 1'b0;
+				// Clear this here in order to preserve its value
+				// while transferring the blocks through the axi 
+				// stream master interface
+				out_fifo_blk_no <= 1'b0;
 
-                                state <= AES_START;
+                                state <= AES_GET_KEY;
+
+				// Setup reading from memory every clock
+                                in_fifo_r_e <= 1'b1;
+				read_ptr <= read_ptr + 1'b1;
+                        end
+                        AES_GET_KEY:
+                        begin
+				aes_key <= swap_bytes128(in_fifo_data);
+
+				state <= AES_PROCESS;
+				aes_start <= 1'b1;
+
+				in_fifo_r_e <= 1'b1;
+				read_ptr <= read_ptr + 1'b1;
 
 				// First get the IV if performing CBC operations
                                 if (is_CBC_op(aes_cmd)) begin
-                                	state <= AES_GET_IV;
+					state <= AES_GET_IV;
+					aes_start <= 1'b0;
 				end
                         end
                         AES_GET_IV:
                         begin
-                        	aes_iv <= swap_bytes128(in_fifo_data);
+				aes_iv <= swap_bytes128(in_fifo_data);
 
-                        	in_fifo_r_e <= 1'b1;
+				in_fifo_r_e <= 1'b1;
 				read_ptr <= read_ptr + 1'b1;
 
-                        	state <= AES_START;
+				state <= AES_PROCESS;
+				aes_start <= 1'b1;
                         end
-                        AES_START:
-                        begin
-                                state <= AES_PROCESS;
-                                aes_start <= 1'b1;
-
-                                if (read_ptr == in_fifo_blk_cnt) begin
-                                        aes_start <= 1'b0;
-                                        state <= IDLE;
-                                        en_o <= 1'b1;
-                                        read_ptr <= 1'b0;
-				end
-			end
                         AES_PROCESS:
                         begin
-                                state <= AES_PROCESS;
+				/* If a request is to be started, save the current
+				input data block.
+				   The block will be used later in cbc decryption
+				logic to update the IV.*/
+				if (aes_start == 1'b1) begin
+					prev_aes_ecb_in_blk <= swap_bytes128(in_fifo_data);
+				end
 
+                                state <= AES_PROCESS;
                                 aes_start <= 1'b0;
 
                                 if (aes_done == 1'b1) begin
@@ -185,12 +199,12 @@ always @(posedge clk) begin
 					out_fifo_blk_no <= out_fifo_blk_no + 1'b1;
 
                                         if(is_CBC_enc(aes_cmd)) begin
-                                        	aes_iv <= aes_out_blk;
+						aes_iv <= aes_out_blk;
                                         end
 
                                         if(is_CBC_dec(aes_cmd)) begin
-                                        	out_fifo_data <= swap_bytes128(aes_iv ^ aes_out_blk);
-                                        	aes_iv <= aes_ecb_in_blk;
+						out_fifo_data <= swap_bytes128(aes_iv ^ aes_out_blk);
+						aes_iv <= prev_aes_ecb_in_blk;
                                         end
 
                                         write_ptr <= write_ptr + 1'b1;
@@ -198,8 +212,14 @@ always @(posedge clk) begin
                                         // input FIFO
                                         read_ptr <= read_ptr + 1'b1;
                                         in_fifo_r_e <= 1'b1;
+					aes_start <= 1'b1;
 
-					state <= AES_START;
+					if (read_ptr >= in_fifo_blk_cnt) begin
+						aes_start <= 1'b0;
+						state <= IDLE;
+						en_o <= 1'b1;
+						read_ptr <= 1'b0;
+					end
                                 end
                         end
                         default:
