@@ -10,6 +10,7 @@
 
 `define KEY_S 128
 `define BLK_S 128
+`define IV_BITS 128
 
 `define SET_KEY_128 32'h10
 

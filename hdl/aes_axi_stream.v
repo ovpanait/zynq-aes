@@ -271,7 +271,8 @@ end
 * AXI slave side
 */
 localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam IN_SRAM_DEPTH = OUT_SRAM_DEPTH + 1; /* 128-bit IV + max 32kB AES block */
+/* 128-bit IV + 128-bit key + 32kB AES block */
+localparam IN_SRAM_DEPTH = OUT_SRAM_DEPTH + (`KEY_S + `IV_BITS) / IN_SRAM_DATA_WIDTH;
 localparam IN_SRAM_ADDR_WIDTH = clogb2(IN_SRAM_DEPTH);
 
 /*
