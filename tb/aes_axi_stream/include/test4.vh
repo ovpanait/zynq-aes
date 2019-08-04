@@ -2,9 +2,6 @@
 task testcase4();
 	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
 
-	localparam AES_KEY_128 = `BLK_S'h5468617473206D79204B756E67204675;
-	localparam AES_KEY_128_RES = `BLK_S'h00000000000000000000000000000000;
-
 	localparam AES_IV_1 = `BLK_S'h54776F204F6E65204E696E652054776F;
 
         localparam AES_PLAINTEXT_1 = `BLK_S'h53696e676c6520626c6f636b206d7367;
@@ -19,8 +16,6 @@ task testcase4();
         integer i, j;
         reg [0:`WORD_S-1] expected_results[$] = {};
 
-	tester #(`BLK_S)::q_push_back32_rev(AES_KEY_128_RES, expected_results);
-
         for (i = 0; i < blocks_no / 2; i=i+1) begin
                 tester #(`BLK_S)::q_push_back32_rev(AES_CIPHERTEXT_1, expected_results);
                 tester #(`BLK_S)::q_push_back32_rev(AES_CIPHERTEXT_2, expected_results);
@@ -34,16 +29,6 @@ task testcase4();
         $display("Starting Testcase: CBC Encryption decryption stress test");
 
         initial_cmp_cnt = comparison_cnt;
-
-	// Set key request
-        tester #(32)::packed_to_unpacked(`SET_KEY_128, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 0);
-
-	aes128_in_blk = swap_blk(AES_KEY_128);
-        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
 
 	// Encryption requets
         tester::packed_to_unpacked(`CBC_ENCRYPT_128, data_tmp);
@@ -123,7 +108,7 @@ task testcase4();
                         gen_transaction(data_tmp, 0);
         end
 
-        wait(comparison_cnt == initial_cmp_cnt + 4 + blocks_no * 2 * 4);
+        wait(comparison_cnt == initial_cmp_cnt + blocks_no * 2 * 4);
         for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
                 tester::verify_output(results[i], expected_results[j], errors);
         end
