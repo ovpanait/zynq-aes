@@ -39,6 +39,8 @@ struct zynqaes_reqctx {
 	u8 *tx_buf;
 	u8 *rx_buf;
 
+	dma_cookie_t tx_cookie;
+	dma_cookie_t rx_cookie;
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
 
@@ -122,8 +124,6 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
 	struct dma_async_tx_descriptor *rx_chan_desc;
-	dma_cookie_t tx_cookie;
-	dma_cookie_t rx_cookie;
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
 	enum dma_status status;
 	int ret = 0;
@@ -145,8 +145,8 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 		ret = -ECOMM;
 		goto err;
 	}
-	tx_cookie = dmaengine_submit(tx_chan_desc);
-	if (dma_submit_error(tx_cookie)) {
+	rctx->tx_cookie = dmaengine_submit(tx_chan_desc);
+	if (dma_submit_error(rctx->tx_cookie)) {
 		dev_err(dd->dev, "[%s:%d] tx_cookie: xdma_prep_buffer error\n", __func__, __LINE__);
 		ret = -ECOMM;
 		goto err;
@@ -162,8 +162,8 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 	}
 	rx_chan_desc->callback = axidma_sync_callback;
 	rx_chan_desc->callback_param = &rctx->rx_cmp;
-	rx_cookie = dmaengine_submit(rx_chan_desc);
-	if (dma_submit_error(rx_cookie)) {
+	rctx->rx_cookie = dmaengine_submit(rx_chan_desc);
+	if (dma_submit_error(rctx->rx_cookie)) {
 		dev_err(dd->dev, "[%s:%d] rx_cookie: xdma_prep_buffer error\n", __func__, __LINE__);
 		ret = -ECOMM;
 		goto err;
@@ -173,12 +173,12 @@ static int zynqaes_dma_op(struct zynqaes_reqctx *rctx, int src_nbytes, int dst_n
 	dma_async_issue_pending(dd->tx_chan);
 	dma_async_issue_pending(dd->rx_chan);
 
-	status = dma_async_is_tx_complete(dd->rx_chan, rx_cookie, NULL, NULL);
+	status = dma_async_is_tx_complete(dd->rx_chan, rctx->rx_cookie, NULL, NULL);
 	do {
 		timeout = msecs_to_jiffies(5000);
 
 		timeout = wait_for_completion_timeout(&rctx->rx_cmp, timeout);
-		status = dma_async_is_tx_complete(dd->rx_chan, rx_cookie, NULL, NULL);
+		status = dma_async_is_tx_complete(dd->rx_chan, rctx->rx_cookie, NULL, NULL);
 
 		if (status != DMA_COMPLETE) {
 			dev_err(dd->dev, "[%s:%d] DMA returned completion callback status of: %s\n",
