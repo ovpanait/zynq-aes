@@ -37,6 +37,9 @@ struct zynqaes_reqctx {
 	u32 cmd;
 	u8 iv[AES_BLOCK_SIZE];
 
+	u8 *src_buf;
+	u8 *dst_buf;
+
 	struct zynqaes_ctx *ctx;
 };
 
@@ -270,23 +273,21 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 	unsigned int tx_i = 0;
 
-	u8 *src_buf, *dst_buf;
-
 	dev_dbg(dd->dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
 		cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
 
 	nbytes_total = areq->nbytes;
 	dev_dbg(dd->dev, "[%s:%d] nbytes_total: %d\n", __func__, __LINE__, nbytes_total);
 
-	src_buf = kmalloc(nbytes_total, GFP_KERNEL);
-	if (src_buf == NULL) {
+	rctx->src_buf = kmalloc(nbytes_total, GFP_KERNEL);
+	if (rctx->src_buf == NULL) {
 		dev_err(dd->dev, "[%s:%d] tx: src_buf: Allocating memory failed\n", __func__, __LINE__);
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	dst_buf = kmalloc(nbytes_total, GFP_KERNEL);
-	if (dst_buf == NULL) {
+	rctx->dst_buf = kmalloc(nbytes_total, GFP_KERNEL);
+	if (rctx->dst_buf == NULL) {
 		dev_err(dd->dev, "[%s:%d] rx: dst_buf: Allocating memory failed\n", __func__, __LINE__);
 		ret = -ENOMEM;
 		goto out_src_buf;
@@ -295,7 +296,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	nbytes = nbytes_total;
 	rctx->ctx = ctx;
 
-	scatterwalk_map_and_copy(src_buf, areq->src, 0, nbytes_total, 0);
+	scatterwalk_map_and_copy(rctx->src_buf, areq->src, 0, nbytes_total, 0);
 
 	if (is_cbc_op(cmd))
 		memcpy(rctx->iv, areq->info, AES_BLOCK_SIZE);
@@ -315,7 +316,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 			goto out_dst_buf;
 		}
 
-		in_nbytes = zynqaes_set_txkbuf(rctx, src_buf + tx_i, dma_ctx->tx_buf, dma_nbytes, cmd);
+		in_nbytes = zynqaes_set_txkbuf(rctx, rctx->src_buf + tx_i, dma_ctx->tx_buf, dma_nbytes, cmd);
 		dma_ctx->tx_nbytes = in_nbytes;
 		dma_ctx->rx_nbytes = dma_nbytes;
 
@@ -325,7 +326,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 			goto out_dst_buf;
 		}
 
-		zynqaes_get_rxkbuf(rctx, src_buf + tx_i, dst_buf + tx_i, dma_ctx->rx_buf, dma_ctx->rx_nbytes, cmd);
+		zynqaes_get_rxkbuf(rctx, rctx->src_buf + tx_i, rctx->dst_buf + tx_i, dma_ctx->rx_buf, dma_ctx->rx_nbytes, cmd);
 
 		kfree(dma_ctx->rx_buf);
 		kfree(dma_ctx->tx_buf);
@@ -337,16 +338,16 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 
-	scatterwalk_map_and_copy(dst_buf, areq->dst, 0, nbytes_total, 1);
+	scatterwalk_map_and_copy(rctx->dst_buf, areq->dst, 0, nbytes_total, 1);
 
 	crypto_finalize_cipher_request(dd->engine, areq, 0);
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
 out_dst_buf:
-	kfree(dst_buf);
+	kfree(rctx->dst_buf);
 
 out_src_buf:
-	kfree(src_buf);
+	kfree(rctx->src_buf);
 
 out:
 	return ret;
