@@ -50,13 +50,16 @@ struct zynqaes_ctx {
 struct zynqaes_dma_ctx {
 	u8 *tx_buf;
 	u8 *rx_buf;
+	int tx_nbytes;
+	int rx_nbytes;
+
+	u8 *src_buf_ptr;
+	u8 *dst_buf_ptr;
 
 	dma_cookie_t tx_cookie;
 	dma_cookie_t rx_cookie;
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
-	int tx_nbytes;
-	int rx_nbytes;
 
 	struct completion rx_cmp;
 
@@ -316,7 +319,10 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 			goto out_dst_buf;
 		}
 
-		in_nbytes = zynqaes_set_txkbuf(rctx, rctx->src_buf + tx_i, dma_ctx->tx_buf, dma_nbytes, cmd);
+		dma_ctx->src_buf_ptr = rctx->src_buf + tx_i;
+		dma_ctx->dst_buf_ptr = rctx->dst_buf + tx_i;
+
+		in_nbytes = zynqaes_set_txkbuf(rctx, dma_ctx->src_buf_ptr, dma_ctx->tx_buf, dma_nbytes, cmd);
 		dma_ctx->tx_nbytes = in_nbytes;
 		dma_ctx->rx_nbytes = dma_nbytes;
 
@@ -326,7 +332,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 			goto out_dst_buf;
 		}
 
-		zynqaes_get_rxkbuf(rctx, rctx->src_buf + tx_i, rctx->dst_buf + tx_i, dma_ctx->rx_buf, dma_ctx->rx_nbytes, cmd);
+		zynqaes_get_rxkbuf(rctx, dma_ctx->src_buf_ptr, dma_ctx->dst_buf_ptr, dma_ctx->rx_buf, dma_ctx->rx_nbytes, cmd);
 
 		kfree(dma_ctx->rx_buf);
 		kfree(dma_ctx->tx_buf);
