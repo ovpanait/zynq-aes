@@ -52,6 +52,8 @@ struct zynqaes_dma_ctx {
 	dma_cookie_t rx_cookie;
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
+	int tx_nbytes;
+	int rx_nbytes;
 
 	struct completion rx_cmp;
 
@@ -127,9 +129,14 @@ static void zynqaes_get_rxkbuf(struct zynqaes_reqctx *rctx, u8 *src_buf, u8 *dst
 	}
 }
 
-static void axidma_sync_callback(void *completion)
+static void axidma_sync_callback(void *data)
 {
-	complete(completion);
+	struct zynqaes_dma_ctx *dma_ctx = data;
+
+	dma_unmap_single(dd->dev, dma_ctx->tx_dma_handle, dma_ctx->tx_nbytes, DMA_TO_DEVICE);
+	dma_unmap_single(dd->dev, dma_ctx->rx_dma_handle, dma_ctx->rx_nbytes, DMA_FROM_DEVICE);
+
+	complete(&dma_ctx->rx_cmp);
 }
 
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
@@ -209,7 +216,7 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx, int src_nbytes, int d
 		goto err;
 	}
 	rx_chan_desc->callback = axidma_sync_callback;
-	rx_chan_desc->callback_param = &dma_ctx->rx_cmp;
+	rx_chan_desc->callback_param = dma_ctx;
 	dma_ctx->rx_cookie = dmaengine_submit(rx_chan_desc);
 	if (dma_submit_error(dma_ctx->rx_cookie)) {
 		dev_err(dd->dev, "[%s:%d] rx_cookie: xdma_prep_buffer error\n", __func__, __LINE__);
@@ -242,9 +249,6 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx, int src_nbytes, int d
 			ret = -ETIMEDOUT;
 		}
 	} while(status != DMA_COMPLETE && !ret);
-
-	dma_unmap_single(dd->dev, dma_ctx->tx_dma_handle, src_nbytes, DMA_TO_DEVICE);
-	dma_unmap_single(dd->dev, dma_ctx->rx_dma_handle, dst_nbytes, DMA_FROM_DEVICE);
 
 err:
 	return ret;
@@ -312,6 +316,8 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 		}
 
 		in_nbytes = zynqaes_set_txkbuf(rctx, src_buf + tx_i, dma_ctx->tx_buf, dma_nbytes, cmd);
+		dma_ctx->tx_nbytes = in_nbytes;
+		dma_ctx->rx_nbytes = dma_nbytes;
 
 		ret = zynqaes_dma_op(dma_ctx, in_nbytes, dma_nbytes);
 		if (ret) {
@@ -319,7 +325,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 			goto out_dst_buf;
 		}
 
-		zynqaes_get_rxkbuf(rctx, src_buf + tx_i, dst_buf + tx_i, dma_ctx->rx_buf, dma_nbytes, cmd);
+		zynqaes_get_rxkbuf(rctx, src_buf + tx_i, dst_buf + tx_i, dma_ctx->rx_buf, dma_ctx->rx_nbytes, cmd);
 
 		kfree(dma_ctx->rx_buf);
 		kfree(dma_ctx->tx_buf);
