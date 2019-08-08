@@ -14,6 +14,7 @@
 #include <linux/dmapool.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
+#include <linux/workqueue.h>
 
 #define ZYNQAES_CMD_LEN 4
 
@@ -31,6 +32,8 @@ struct zynqaes_dev {
 	struct dma_chan *rx_chan;
 
 	struct crypto_engine *engine;
+	struct workqueue_struct *wq;
+	void (*zynqaes_done_task)(struct work_struct *);
 };
 
 struct zynqaes_reqctx {
@@ -40,6 +43,11 @@ struct zynqaes_reqctx {
 	u8 *src_buf;
 	u8 *dst_buf;
 
+	struct ablkcipher_request *areq;
+	unsigned int nbytes_total;
+	unsigned int nbytes_remaining;
+	unsigned int nbytes_i;
+
 	struct zynqaes_ctx *ctx;
 };
 
@@ -48,6 +56,8 @@ struct zynqaes_ctx {
 };
 
 struct zynqaes_dma_ctx {
+	struct work_struct work;
+
 	u8 *tx_buf;
 	u8 *rx_buf;
 	int tx_nbytes;
@@ -61,7 +71,7 @@ struct zynqaes_dma_ctx {
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
 
-	struct completion rx_cmp;
+	bool is_last;
 
 	struct zynqaes_reqctx *rctx;
 };
@@ -135,16 +145,6 @@ static void zynqaes_get_rxkbuf(struct zynqaes_reqctx *rctx, u8 *src_buf, u8 *dst
 	}
 }
 
-static void axidma_sync_callback(void *data)
-{
-	struct zynqaes_dma_ctx *dma_ctx = data;
-
-	dma_unmap_single(dd->dev, dma_ctx->tx_dma_handle, dma_ctx->tx_nbytes, DMA_TO_DEVICE);
-	dma_unmap_single(dd->dev, dma_ctx->rx_dma_handle, dma_ctx->rx_nbytes, DMA_FROM_DEVICE);
-
-	complete(&dma_ctx->rx_cmp);
-}
-
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
 {
 	struct zynqaes_dma_ctx *dma_ctx;
@@ -167,8 +167,9 @@ static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rct
 		goto free_tx_buf;
 	}
 
+	INIT_WORK(&dma_ctx->work, dd->zynqaes_done_task);
 	dma_ctx->rctx = rctx;
-	init_completion(&dma_ctx->rx_cmp);
+	dma_ctx->is_last = false;
 
 	return dma_ctx;
 
@@ -182,13 +183,42 @@ err:
 	return NULL;
 }
 
+static void zynqaes_dma_callback(void *data)
+{
+	struct zynqaes_dma_ctx *dma_ctx = data;
+	struct zynqaes_reqctx *rctx = dma_ctx->rctx;
+
+	dma_unmap_single(dd->dev, dma_ctx->tx_dma_handle, dma_ctx->tx_nbytes, DMA_TO_DEVICE);
+	dma_unmap_single(dd->dev, dma_ctx->rx_dma_handle, dma_ctx->rx_nbytes, DMA_FROM_DEVICE);
+
+	zynqaes_get_rxkbuf(rctx, dma_ctx->src_buf_ptr, dma_ctx->dst_buf_ptr, dma_ctx->rx_buf, dma_ctx->rx_nbytes, rctx->cmd);
+
+	if (dma_ctx->is_last) {
+		scatterwalk_map_and_copy(rctx->dst_buf, rctx->areq->dst, 0, rctx->nbytes_total, 1);
+
+		kfree(rctx->dst_buf);
+		kfree(rctx->src_buf);
+
+		crypto_finalize_cipher_request(dd->engine, rctx->areq, 0);
+	} else 	if (is_cbc_op(rctx->cmd)) {
+		/*
+		 * Start the new request from process context, if there are more
+		 * CBC requests to be sent.
+		 */
+		queue_work(dd->wq, &dma_ctx->work);
+		return;
+	}
+
+	kfree(dma_ctx->rx_buf);
+	kfree(dma_ctx->tx_buf);
+	kfree(dma_ctx);
+}
+
 static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx, int src_nbytes, int dst_nbytes)
 {
-	unsigned long timeout;
 	struct dma_async_tx_descriptor *tx_chan_desc;
 	struct dma_async_tx_descriptor *rx_chan_desc;
 	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
-	enum dma_status status;
 	int ret = 0;
 
 	u8 *tx_buf = dma_ctx->tx_buf;
@@ -221,7 +251,7 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx, int src_nbytes, int d
 		ret = -ECOMM;
 		goto err;
 	}
-	rx_chan_desc->callback = axidma_sync_callback;
+	rx_chan_desc->callback = zynqaes_dma_callback;
 	rx_chan_desc->callback_param = dma_ctx;
 	dma_ctx->rx_cookie = dmaengine_submit(rx_chan_desc);
 	if (dma_submit_error(dma_ctx->rx_cookie)) {
@@ -230,34 +260,80 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx, int src_nbytes, int d
 		goto err;
 	}
 
-	reinit_completion(&dma_ctx->rx_cmp);
+err:
+	return ret;
+}
+
+static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
+{
+	struct zynqaes_dma_ctx *dma_ctx;
+	unsigned int dma_nbytes;
+	unsigned int in_nbytes;
+	unsigned int nbytes_remaining;
+	int nbytes_i;
+	int ret;
+
+	nbytes_remaining = rctx->nbytes_remaining;
+	nbytes_i = rctx->nbytes_i;
+
+	dma_nbytes = (nbytes_remaining < ZYNQAES_FIFO_NBYTES) ? nbytes_remaining : ZYNQAES_FIFO_NBYTES;
+	dev_dbg(dd->dev, "[%s:%d] nbytes_remaining: %d\n", __func__, __LINE__, nbytes_remaining);
+	dev_dbg(dd->dev, "[%s:%d] dma_nbytes: %d\n", __func__, __LINE__, dma_nbytes);
+
+	dma_ctx = zynqaes_create_dma_ctx(rctx);
+	if (dma_ctx == NULL) {
+		dev_err(dd->dev, "[%s:%d] zynqaes_create_dma_ctx failed.", __func__, __LINE__);
+		goto out_err;
+	}
+
+	if (nbytes_remaining == dma_nbytes) {
+		dma_ctx->is_last = true;
+	}
+
+	dma_ctx->src_buf_ptr = rctx->src_buf + nbytes_i;
+	dma_ctx->dst_buf_ptr = rctx->dst_buf + nbytes_i;
+
+	in_nbytes = zynqaes_set_txkbuf(rctx, dma_ctx->src_buf_ptr, dma_ctx->tx_buf, dma_nbytes, rctx->cmd);
+	dma_ctx->tx_nbytes = in_nbytes;
+	dma_ctx->rx_nbytes = dma_nbytes;
+
+	ret = zynqaes_dma_op(dma_ctx, in_nbytes, dma_nbytes);
+	if (ret) {
+		dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
+		goto out_err;
+	}
+
+	nbytes_i += dma_nbytes;
+	nbytes_remaining -= dma_nbytes;
+
+	rctx->nbytes_i = nbytes_i;
+	rctx->nbytes_remaining = nbytes_remaining;
+
+	return 0;
+
+out_err:
+	return ret;
+}
+
+static void zynqaes_done_task(struct work_struct *work)
+{
+	struct zynqaes_dma_ctx *dma_ctx =  container_of(work, struct zynqaes_dma_ctx, work);
+	struct zynqaes_reqctx *rctx = dma_ctx->rctx;
+	int ret; 
+
+	ret = zynqaes_enqueue_next_dma_op(rctx);
+	if (ret) {
+		dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
+		goto free_dma_ctx;
+	}
+
 	dma_async_issue_pending(dd->tx_chan);
 	dma_async_issue_pending(dd->rx_chan);
 
-	status = dma_async_is_tx_complete(dd->rx_chan, dma_ctx->rx_cookie, NULL, NULL);
-	do {
-		timeout = msecs_to_jiffies(5000);
-
-		timeout = wait_for_completion_timeout(&dma_ctx->rx_cmp, timeout);
-		status = dma_async_is_tx_complete(dd->rx_chan, dma_ctx->rx_cookie, NULL, NULL);
-
-		if (status != DMA_COMPLETE) {
-			dev_err(dd->dev, "[%s:%d] DMA returned completion callback status of: %s\n",
-			__func__, __LINE__, status == DMA_ERROR ? "error" : "in progress");
-
-			if (status == DMA_ERROR) {
-				ret = -EINVAL;
-			}
-		}
-
-		if (timeout == 0)  {
-			dev_err(dd->dev, "[%s:%d] DMA timed out\n", __func__, __LINE__);
-			ret = -ETIMEDOUT;
-		}
-	} while(status != DMA_COMPLETE && !ret);
-
-err:
-	return ret;
+free_dma_ctx:
+	kfree(dma_ctx->rx_buf);
+	kfree(dma_ctx->tx_buf);
+	kfree(dma_ctx);
 }
 
 static int zynqaes_crypt_req(struct crypto_engine *engine,
@@ -268,16 +344,12 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
 	struct zynqaes_reqctx *rctx = ablkcipher_request_ctx(areq);
 
-	const u32 cmd = rctx->cmd;
-	int ret = 0;
+	int ret;
 
-	unsigned int nbytes;
 	unsigned int nbytes_total;
 
-	unsigned int tx_i = 0;
-
 	dev_dbg(dd->dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
-		cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
+		rctx->cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
 
 	nbytes_total = areq->nbytes;
 	dev_dbg(dd->dev, "[%s:%d] nbytes_total: %d\n", __func__, __LINE__, nbytes_total);
@@ -296,59 +368,38 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 		goto out_src_buf;
 	}
 
-	nbytes = nbytes_total;
+	rctx->nbytes_i = 0;
+	rctx->nbytes_remaining = nbytes_total;
 	rctx->ctx = ctx;
+	rctx->areq = areq;
+	rctx->nbytes_total = nbytes_total;
 
 	scatterwalk_map_and_copy(rctx->src_buf, areq->src, 0, nbytes_total, 0);
 
-	if (is_cbc_op(cmd))
+	if (is_cbc_op(rctx->cmd)) {
 		memcpy(rctx->iv, areq->info, AES_BLOCK_SIZE);
+	}
 
-	while (nbytes != 0) {
-		struct zynqaes_dma_ctx *dma_ctx;
-		unsigned int dma_nbytes;
-		unsigned int in_nbytes;
-
-		dma_nbytes = (nbytes < ZYNQAES_FIFO_NBYTES) ? nbytes : ZYNQAES_FIFO_NBYTES;
-		dev_dbg(dd->dev, "[%s:%d] nbytes: %d\n", __func__, __LINE__, nbytes);
-		dev_dbg(dd->dev, "[%s:%d] dma_nbytes: %d\n", __func__, __LINE__, dma_nbytes);
-
-		dma_ctx = zynqaes_create_dma_ctx(rctx);
-		if (dma_ctx == NULL) {
-			dev_err(dd->dev, "[%s:%d] zynqaes_create_dma_ctx failed with: %d", __func__, __LINE__, ret);
-			goto out_dst_buf;
-		}
-
-		dma_ctx->src_buf_ptr = rctx->src_buf + tx_i;
-		dma_ctx->dst_buf_ptr = rctx->dst_buf + tx_i;
-
-		in_nbytes = zynqaes_set_txkbuf(rctx, dma_ctx->src_buf_ptr, dma_ctx->tx_buf, dma_nbytes, cmd);
-		dma_ctx->tx_nbytes = in_nbytes;
-		dma_ctx->rx_nbytes = dma_nbytes;
-
-		ret = zynqaes_dma_op(dma_ctx, in_nbytes, dma_nbytes);
+	while (rctx->nbytes_remaining != 0) {
+		ret = zynqaes_enqueue_next_dma_op(rctx);
 		if (ret) {
 			dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
 			goto out_dst_buf;
 		}
 
-		zynqaes_get_rxkbuf(rctx, dma_ctx->src_buf_ptr, dma_ctx->dst_buf_ptr, dma_ctx->rx_buf, dma_ctx->rx_nbytes, cmd);
-
-		kfree(dma_ctx->rx_buf);
-		kfree(dma_ctx->tx_buf);
-		kfree(dma_ctx);
-
-		tx_i += dma_nbytes;
-		nbytes -= dma_nbytes;
+		/* Send only the first request for CBC mode. The others will
+		 * be sent using the workqueue. */
+		if (is_cbc_op(rctx->cmd))
+			break;
 	}
 
-	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
-
-	scatterwalk_map_and_copy(rctx->dst_buf, areq->dst, 0, nbytes_total, 1);
-
-	crypto_finalize_cipher_request(dd->engine, areq, 0);
+	dma_async_issue_pending(dd->tx_chan);
+	dma_async_issue_pending(dd->rx_chan);
 
 	dev_dbg(dd->dev, "[%s:%d]", __func__, __LINE__);
+
+	return 0;
+
 out_dst_buf:
 	kfree(rctx->dst_buf);
 
@@ -469,12 +520,18 @@ static int zynqaes_probe(struct platform_device *pdev)
 	}
 
 	dd->dev = &pdev->dev;
+	dd->zynqaes_done_task = zynqaes_done_task;
+	dd->wq = create_workqueue("zynqaes");
+	if (dd->wq == NULL) {
+		dev_err(dd->dev, "[%s:%d] create_workqueue: Allocating memory failed\n", __func__, __LINE__);
+		goto free_zynqaes_dev;
+	}
 
 	dd->tx_chan = dma_request_chan(dd->dev, "axidma0");
 	if (IS_ERR(dd->tx_chan)) {
 		err = PTR_ERR(dd->tx_chan);
 		dev_err(dd->dev, "[%s:%d] xilinx_dmatest: No Tx channel\n", __func__, __LINE__);
-		goto free_zynqaes_dev;
+		goto free_wq;
 	}
 
 	dd->rx_chan = dma_request_chan(dd->dev, "axidma1");
@@ -518,6 +575,9 @@ free_rx_chan:
 
 free_tx_chan:
 	dma_release_channel(dd->tx_chan);
+
+free_wq:
+	destroy_workqueue(dd->wq);
 
 free_zynqaes_dev:
 	kfree(dd);
