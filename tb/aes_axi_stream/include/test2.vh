@@ -8,7 +8,7 @@ task testcase2();
         localparam AES_PLAINTEXT_2 = `BLK_S'h12345678911123456789012345678901;
         localparam AES_CIPHERTEXT_2 = `BLK_S'h2914b1466013ba1e48d6d795e97d3e15;
 
-        localparam blocks_no = 2048;
+        localparam blocks_no = 3000;
 
         integer initial_cmp_cnt; // testcase comparison counter
         integer i, j;
@@ -101,7 +101,8 @@ task testcase2();
 
         wait(comparison_cnt == initial_cmp_cnt + blocks_no * 2 * 4);
         for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
-                tester::verify_output(results[i], expected_results[j], errors);
+                if (tester #(`WORD_S)::verify_output(results[i], expected_results[j], errors) == 0)
+                        $display("Word no. %d from block no %d does not match!", j, j / 4);
         end
 
         $display("Testcase 2 done with %d errors.\n", errors);

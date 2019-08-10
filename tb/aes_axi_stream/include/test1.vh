@@ -35,7 +35,8 @@ task testcase1();
         wait(comparison_cnt == initial_cmp_cnt + 4);
 
         for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
-                tester #(`WORD_S)::verify_output(results[i], expected_results[j], errors);
+                if (tester #(`WORD_S)::verify_output(results[i], expected_results[j], errors) == 0)
+                        $display("Word no. %d from block no %d does not match!", j, j / 4);
         end
 
         $display("Testcase 1 done with %d errors.\n", errors);
