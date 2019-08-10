@@ -5,10 +5,12 @@
 class tester #(
 	       int unsigned WIDTH = 32,
 	       int unsigned UNPACKED_WIDTH = 8);
-   static task verify_output(input [WIDTH-1:0] simulated_value, input [WIDTH-1:0] expected_value, ref integer errors);
+   static function bit verify_output(input [WIDTH-1:0] simulated_value, input [WIDTH-1:0] expected_value, ref integer errors);
       begin
+         verify_output = 1;
 	 if (simulated_value !== expected_value)
 	   begin
+	      verify_output = 0;
 	      errors = errors + 1;
 	      $display("Simulated Value = %h \n Expected Value = %h \n errors = %d \n at time = %d",
 		       simulated_value,
@@ -17,7 +19,7 @@ class tester #(
 		       $time);
 	   end
       end
-   endtask
+   endfunction
 
    static task packed_to_unpacked(input [WIDTH-1:0] data_in, output [UNPACKED_WIDTH-1:0] data_unpacked []);
       begin
