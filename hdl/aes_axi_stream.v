@@ -12,7 +12,15 @@ module aes_axi_stream #
         * Slave side parameters
         */
         // Width of slave side bus
-        parameter integer C_S_AXIS_TDATA_WIDTH = 32
+        parameter integer C_S_AXIS_TDATA_WIDTH = 32,
+
+        /*
+         * Max no. of 32-bit words of payload data,
+         * that can be processed in one go.
+         * 32 kB by default.
+         * Must be a multiple of the AES block size (128 bits).
+         */
+        parameter integer DATA_FIFO_SIZE = 2048
 )
 (
         /*
@@ -57,6 +65,13 @@ WRITE_FIFO  = 1'b1, // Input FIFO is written with the input stream data S_AXIS_T
 PROCESS_STUFF = 2'b11, // Data is being processed and placed into the output FIFO
 
 MASTER_SEND = 2'b10; // Master is sending processed data
+
+/*
+ * 32kB AES block + 2 x 128-bit slots for key and iv.
+ * When the payload is larger than DATA_FIFO_SIZE, the two slots will be used to
+ * store additional data if necessary.
+ */
+localparam FIFO_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_SRAM_DATA_WIDTH;
 
 // =====================================================================
 
@@ -127,7 +142,7 @@ end
 * Master side logic
 */
 localparam OUT_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam OUT_SRAM_DEPTH = 2048; /* max 32k AES block */
+localparam OUT_SRAM_DEPTH = FIFO_DEPTH;
 localparam OUT_SRAM_ADDR_WIDTH = clogb2(OUT_SRAM_DEPTH);
 
 /*
@@ -271,8 +286,7 @@ end
 * AXI slave side
 */
 localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-/* 128-bit IV + 128-bit key + 32kB AES block */
-localparam IN_SRAM_DEPTH = OUT_SRAM_DEPTH + (`KEY_S + `IV_BITS) / IN_SRAM_DATA_WIDTH;
+localparam IN_SRAM_DEPTH = FIFO_DEPTH;
 localparam IN_SRAM_ADDR_WIDTH = clogb2(IN_SRAM_DEPTH);
 
 /*
@@ -320,6 +334,8 @@ reg                          axis_slave_in_fifo_cmd_flag;
 reg                          axis_slave_in_fifo_w_e;
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
 reg                          axis_slave_in_fifo_writes_done;
+reg                          axis_slave_tlast_reg;
+reg                          axis_slave_is_new_cmd;
 
 localparam AXIS_SLAVE_GET_CMD = 1'b0;
 localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
@@ -343,6 +359,8 @@ always @(posedge s00_axis_aclk) begin
                 axis_slave_in_fifo_writes_done <= 1'b0;
                 axis_slave_in_fifo_cmd <= 1'b0;
                 axis_slave_in_fifo_addr_reg <= 1'b0;
+                axis_slave_tlast_reg <= 1'b0;
+                axis_slave_is_new_cmd <= 1'b0;
 
                 axis_blk_cnt <= 1'b0;
                 axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
@@ -351,6 +369,9 @@ always @(posedge s00_axis_aclk) begin
                 case (axis_slave_fsm_state)
                         AXIS_SLAVE_GET_CMD:
                         begin
+                                axis_slave_tlast_reg <= 1'b0;
+                                axis_slave_is_new_cmd <= 1'b1;
+
                                 if (fifo_wren) begin
                                         //first received word is the command
                                         axis_slave_in_fifo_cmd <= s00_axis_tdata;
@@ -371,18 +392,29 @@ always @(posedge s00_axis_aclk) begin
                                                 axis_slave_in_fifo_w_e <= 1'b1;
                                                 axis_slave_in_fifo_word_cnt <= 1'b0;
 
+                                                if (s00_axis_tlast) begin
+                                                       axis_slave_tlast_reg <= 1'b1;
+                                                end
+
+                                                /*
+                                                 * Use the two slots available for key/iv to store data if the payload is
+                                                 * larger than DATA_FIFO_SIZE.
+                                                 */
                                                 if ((axis_slave_in_fifo_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
                                                         axis_slave_in_fifo_blk_cnt <= 1'b0;
                                                         axis_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
                                                         axis_slave_in_fifo_writes_done <= 1'b1;
                                                 end
-
                                         end
                                 end
 
                                 if (processing_done) begin
-                                        axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
                                         axis_slave_in_fifo_writes_done <= 1'b0;
+                                        axis_slave_is_new_cmd <= 1'b0;
+
+                                        if (axis_slave_tlast_reg) begin
+                                                axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
+                                        end
                                 end
                         end
                 endcase
@@ -405,8 +437,10 @@ genvar i;
 wire                          aes_controller_done;
 wire                          aes_controller_start;
 wire [0:`WORD_S-1]            aes_controller_cmd;
+wire                          aes_controller_skip_key_expansion;
 
 assign aes_controller_cmd = axis_slave_in_fifo_cmd;
+assign aes_controller_skip_key_expansion = !axis_slave_is_new_cmd;
 
 // input FIFO signals
 wire                          aes_controller_in_fifo_r_e;
@@ -445,6 +479,7 @@ aes_controller #(
         .en(aes_controller_start),
 
         .aes_cmd(aes_controller_cmd),
+        .aes_skip_key_expansion(aes_controller_skip_key_expansion),
         .in_fifo_r_e(aes_controller_in_fifo_r_e),
         .in_fifo_addr(aes_controller_in_fifo_addr),
         .in_fifo_data(aes_controller_in_fifo_data),
