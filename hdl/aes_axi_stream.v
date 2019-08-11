@@ -81,9 +81,6 @@ localparam FIFO_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_SRAM_DATA_WIDT
 reg              axis_tvalid;
 wire              axis_tlast;
 
-reg               axis_tvalid_delay;
-reg               axis_tlast_delay;
-
 /*
 * Slave side signals
 */
@@ -330,7 +327,6 @@ reg [IN_SRAM_DATA_WIDTH-1:0] axis_slave_in_fifo_blk;      // input FIFO block
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_blk_cnt; // number of 128-bit blocks in the input FIFO
 reg [1:0]                    axis_slave_in_fifo_word_cnt;
 reg [`WORD_S-1:0]            axis_slave_in_fifo_cmd;
-reg                          axis_slave_in_fifo_cmd_flag;
 reg                          axis_slave_in_fifo_w_e;
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
 reg                          axis_slave_in_fifo_writes_done;
