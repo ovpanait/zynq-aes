@@ -20,7 +20,7 @@ module aes_axi_stream #
          * 32 kB by default.
          * Must be a multiple of the AES block size (128 bits).
          */
-        parameter integer DATA_FIFO_SIZE = 4
+        parameter integer DATA_FIFO_SIZE = 2048
 )
 (
         /*
