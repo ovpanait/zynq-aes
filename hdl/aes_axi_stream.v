@@ -20,7 +20,7 @@ module aes_axi_stream #
          * 32 kB by default.
          * Must be a multiple of the AES block size (128 bits).
          */
-        parameter integer DATA_FIFO_SIZE = 2048
+        parameter integer DATA_FIFO_SIZE = 4
 )
 (
         /*
@@ -340,6 +340,7 @@ reg [1:0]                    axis_slave_in_fifo_word_cnt;
 reg [`WORD_S-1:0]            axis_slave_in_fifo_cmd;
 reg                          axis_slave_in_fifo_w_e;
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
+wire                         axis_slave_in_fifo_addr_is_last;
 reg                          axis_slave_in_fifo_writes_done;
 reg                          axis_slave_tlast_reg;
 reg                          axis_slave_is_new_cmd;
@@ -354,7 +355,7 @@ assign in_sram_w_e = axis_slave_in_fifo_w_e;
 assign s00_axis_tready = axis_tready;
 assign axis_tready = ((state == WRITE_FIFO) && !axis_slave_in_fifo_writes_done);
 assign fifo_wren = s00_axis_tvalid && axis_tready;
-
+assign axis_slave_in_fifo_addr_is_last = (axis_slave_in_fifo_addr_reg == IN_SRAM_DEPTH-1);
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_blk_cnt;
 
 always @(posedge s00_axis_aclk) begin
@@ -376,6 +377,7 @@ always @(posedge s00_axis_aclk) begin
                 case (axis_slave_fsm_state)
                         AXIS_SLAVE_GET_CMD:
                         begin
+                                axis_slave_in_fifo_addr_reg <= 1'b0;
                                 axis_slave_tlast_reg <= 1'b0;
                                 axis_slave_is_new_cmd <= 1'b1;
 
@@ -394,10 +396,13 @@ always @(posedge s00_axis_aclk) begin
                                         axis_slave_in_fifo_word_cnt <= axis_slave_in_fifo_word_cnt + 1'b1;
 
                                         if (axis_slave_in_fifo_word_cnt == `Nb - 1'b1) begin
-                                                axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
                                                 axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
                                                 axis_slave_in_fifo_w_e <= 1'b1;
                                                 axis_slave_in_fifo_word_cnt <= 1'b0;
+
+                                                if (!axis_slave_in_fifo_addr_is_last) begin
+                                                        axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
+                                                end
 
                                                 if (s00_axis_tlast) begin
                                                        axis_slave_tlast_reg <= 1'b1;
@@ -416,6 +421,7 @@ always @(posedge s00_axis_aclk) begin
                                 end
 
                                 if (processing_done) begin
+                                        axis_slave_in_fifo_addr_reg <= 1'b0;
                                         axis_slave_in_fifo_writes_done <= 1'b0;
                                         axis_slave_is_new_cmd <= 1'b0;
 
