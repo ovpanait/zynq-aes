@@ -183,9 +183,12 @@ wire [OUT_SRAM_ADDR_WIDTH-1:0] axis_out_fifo_blk_no; // number of 128-bit blocks
 wire [OUT_SRAM_DATA_WIDTH-1:0] axis_out_fifo_blk_next;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_cnt;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_blk_addr;
+wire                           axis_out_fifo_addr_is_last;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_word_cnt;
 wire                           axis_out_fifo_tx_en;
 reg                            axis_out_fifo_tx_done;
+wire                           axis_out_fifo_last_word;
+
 
 assign axis_out_fifo_blk_next = out_sram_o_data;
 
@@ -195,7 +198,9 @@ assign m00_axis_tlast        = axis_tlast;
 assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 
 assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
-assign axis_tlast = (axis_out_fifo_blk_cnt == axis_out_fifo_blk_no - 1'b1) && 
+assign axis_out_fifo_last_word = (axis_out_fifo_blk_cnt == axis_out_fifo_blk_no - 1'b1);
+assign axis_out_fifo_addr_is_last = (axis_out_fifo_blk_addr == axis_out_fifo_blk_no - 1'b1);
+assign axis_tlast =  axis_out_fifo_last_word &&
                                 (axis_out_fifo_word_cnt == `Nb - 1'b1);
 assign axis_out_fifo_tx_en = m00_axis_tready;
 
@@ -225,6 +230,8 @@ always @(posedge m00_axis_aclk) begin
                 case (axis_master_fsm_state)
                 AXIS_MASTER_IDLE:
                 begin
+                        axis_out_fifo_blk <= 1'b0;
+
                         // start reading from SRAM before state is MASTER_SEND, while processing_done is active
                         if ((state == MASTER_SEND | processing_done) && !axis_out_fifo_tx_done) begin
                                 out_sram_r_e <= 1'b1;
@@ -236,13 +243,14 @@ always @(posedge m00_axis_aclk) begin
                         out_sram_r_e <= 1'b1;
                         axis_master_fsm_state <= AXIS_MASTER_INIT_TRANSFER;
                         axis_out_fifo_blk_addr <= 1'b0;
+                        axis_out_fifo_blk <= 1'b0;
                 end
                 AXIS_MASTER_INIT_TRANSFER:
                 begin
                         out_sram_r_e <= 1'b1;
                         axis_out_fifo_blk <= axis_out_fifo_blk_next;
                         axis_tvalid <= 1'b1;
-                        axis_out_fifo_blk_addr <= axis_out_fifo_blk_cnt + 1'b1;
+                        axis_out_fifo_blk_addr <= axis_out_fifo_blk_addr + 1'b1;
 
                         axis_master_fsm_state <= AXIS_MASTER_TRANSFER;
                 end
@@ -256,9 +264,12 @@ always @(posedge m00_axis_aclk) begin
 
                                 if (axis_out_fifo_word_cnt == `Nb - 1'b1) begin
                                         axis_out_fifo_blk <= axis_out_fifo_blk_next;
-                                        axis_out_fifo_blk_addr <= axis_out_fifo_blk_addr + 1'b1;
                                         axis_out_fifo_word_cnt <= 1'b0;
                                         axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
+
+                                        if (!axis_out_fifo_addr_is_last) begin
+                                                axis_out_fifo_blk_addr <= axis_out_fifo_blk_addr + 1'b1;
+                                        end
                                 end
 
                                 if (axis_tlast) begin
