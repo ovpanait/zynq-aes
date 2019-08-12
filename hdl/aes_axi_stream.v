@@ -73,6 +73,8 @@ MASTER_SEND = 2'b10; // Master is sending processed data
  */
 localparam FIFO_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_SRAM_DATA_WIDTH;
 
+reg axis_slave_tlast_reg;
+
 // =====================================================================
 
 /*
@@ -187,6 +189,7 @@ wire                           axis_out_fifo_addr_is_last;
 reg [OUT_SRAM_ADDR_WIDTH-1:0]  axis_out_fifo_word_cnt;
 wire                           axis_out_fifo_tx_en;
 reg                            axis_out_fifo_tx_done;
+wire                           axis_out_fifo_last_blk;
 wire                           axis_out_fifo_last_word;
 
 
@@ -198,10 +201,11 @@ assign m00_axis_tlast        = axis_tlast;
 assign m00_axis_tstrb        = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 
 assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
-assign axis_out_fifo_last_word = (axis_out_fifo_blk_cnt == axis_out_fifo_blk_no - 1'b1);
+assign axis_out_fifo_last_blk = (axis_out_fifo_blk_cnt == axis_out_fifo_blk_no - 1'b1);
+assign axis_out_fifo_last_word = axis_out_fifo_last_blk && 
+		(axis_out_fifo_word_cnt == `Nb - 1'b1);
 assign axis_out_fifo_addr_is_last = (axis_out_fifo_blk_addr == axis_out_fifo_blk_no - 1'b1);
-assign axis_tlast =  axis_out_fifo_last_word &&
-                                (axis_out_fifo_word_cnt == `Nb - 1'b1);
+assign axis_tlast =  axis_out_fifo_last_word && axis_slave_tlast_reg;
 assign axis_out_fifo_tx_en = m00_axis_tready;
 
 localparam AXIS_MASTER_IDLE = 2'b0,
@@ -272,7 +276,7 @@ always @(posedge m00_axis_aclk) begin
                                         end
                                 end
 
-                                if (axis_tlast) begin
+                                if (axis_out_fifo_last_word) begin
                                         // cleanup
                                         axis_out_fifo_blk_addr <= 1'b0;
                                         axis_out_fifo_blk_cnt <= 1'b0;
@@ -342,7 +346,6 @@ reg                          axis_slave_in_fifo_w_e;
 reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
 wire                         axis_slave_in_fifo_addr_is_last;
 reg                          axis_slave_in_fifo_writes_done;
-reg                          axis_slave_tlast_reg;
 reg                          axis_slave_is_new_cmd;
 
 localparam AXIS_SLAVE_GET_CMD = 1'b0;
@@ -378,8 +381,11 @@ always @(posedge s00_axis_aclk) begin
                         AXIS_SLAVE_GET_CMD:
                         begin
                                 axis_slave_in_fifo_addr_reg <= 1'b0;
-                                axis_slave_tlast_reg <= 1'b0;
                                 axis_slave_is_new_cmd <= 1'b1;
+
+				if (axis_out_fifo_tx_done) begin
+					axis_slave_tlast_reg <= 1'b0;
+				end
 
                                 if (fifo_wren) begin
                                         //first received word is the command
