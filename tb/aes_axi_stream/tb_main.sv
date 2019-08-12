@@ -109,7 +109,7 @@ initial begin
         slv_agent.start_slave();
         slv_gen_tready();
 
-        testcase1();
+        //testcase1();
         testcase2();
         testcase3();
         testcase4();
@@ -217,7 +217,7 @@ function print_data(string msg, xil_axi4stream_data_byte data[4]);
         end
 endfunction;
 
-`include "test1.vh"
+//`include "test1.vh"
 `include "test2.vh"
 `include "test3.vh"
 `include "test4.vh"
