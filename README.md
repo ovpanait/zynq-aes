@@ -1,8 +1,8 @@
-# AES hardware accelerator for Xilinx Zynq platform
+# AES hardware engine for Xilinx Zynq platform
 
-- 128 bit keys (yet)
+- 128 bit keys (so far)
 - ECB/CBC support
-
+- IPSEC offloading OK
 
 ## Quick Start for Arty Z7-20 board
 
@@ -76,13 +76,13 @@ aes-128-ecb      20565.61k    23967.59k    25016.06k    25291.09k    25331.03k  
 
 HW acceleration:
 root@arty-zynq7:~# openssl speed  -evp aes-128-ecb -elapsed
-OpenSSL 1.1.1a  20 Nov 2018
-built on: Fri Jun  7 11:04:38 2019 UTC
+OpenSSL 1.1.1c  28 May 2019
+built on: Sat Jul 20 06:22:15 2019 UTC
 options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
-compiler: arm-poky-linux-gnueabi-gcc  -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fdebug-prefix-map= -fdebug-prefix-map= -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
+compiler: arm-poky-linux-gnueabi-gcc  -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fmacro-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-ecb        424.46k     2507.99k     9658.97k    16836.95k    25025.19k    33393.32k    39362.56k    42937.00k    45165.23k    45503.83k
+aes-128-ecb        179.87k      716.76k     2801.24k     9425.92k    14497.11k    23075.50k    31304.36k    36973.23k       40544.94k    43537.75k
 
 
 ```
@@ -108,13 +108,12 @@ aes-128-cbc      17959.16k    21204.69k    22471.77k    22814.04k    22863.87k  
 
 HW acceleration:
 root@arty-zynq7:~# openssl speed  -evp aes-128-cbc -elapsed
-OpenSSL 1.1.1a  20 Nov 2018
-built on: Fri Jun  7 11:04:38 2019 UTC
-options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr)
-compiler: arm-poky-linux-gnueabi-gcc  -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fdebug-prefix-map= -fdebug-prefix-map= -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
+built on: Sat Jul 20 06:22:15 2019 UTC
+options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
+compiler: arm-poky-linux-gnueabi-gcc  -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fmacro-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-cbc        420.98k     2243.52k     9513.30k    16686.76k    24701.61k    33202.18k    39299.75k    42915.16k    45143.38k    45503.83k
+aes-128-cbc        164.58k      684.57k     2752.77k     9492.48k    15233.71k    23097.34k    30135.64k    36776.62k    40239.10k    43166.38k
 ```
 ## Block design and AXI DMA config
 
