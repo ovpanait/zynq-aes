@@ -78,7 +78,7 @@ static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rct
 {
 	struct zynqaes_dma_ctx *dma_ctx;
 
-	dma_ctx = kmalloc(sizeof(struct zynqaes_dma_ctx), GFP_KERNEL);
+	dma_ctx = kzalloc(sizeof(struct zynqaes_dma_ctx), GFP_ATOMIC);
 	if (dma_ctx == NULL) {
 		dev_err(dd->dev, "[%s:%d] tx: tx_buf: Allocating memory failed\n", __func__, __LINE__);
 		goto err;
@@ -180,11 +180,10 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 	struct ablkcipher_request *areq;
 	int ret;
 	unsigned int nsg;
-	unsigned int tx_nbytes_dma;
-	unsigned int rx_nbytes_dma;
 
-	tx_nbytes_dma = rctx->nbytes;
-	rx_nbytes_dma = rctx->nbytes;
+	struct scatterlist *sg;
+	unsigned int src_nbytes;
+
 	ctx = rctx->ctx;
 	areq = rctx->areq;
 
@@ -199,17 +198,29 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 	sg_init_table(dma_ctx->tx_sg, nsg);
 	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->cmd, sizeof(rctx->cmd));
 	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, AES_KEYSIZE_128);
-	tx_nbytes_dma += ZYNQAES_CMD_LEN + AES_KEYSIZE_128;
 	if (is_cbc_op(rctx->cmd)) {
 		sg_set_buf(&dma_ctx->tx_sg[2], rctx->iv, AES_BLOCK_SIZE);
-		tx_nbytes_dma += AES_KEYSIZE_128;
 	}
 	sg_chain(dma_ctx->tx_sg, nsg, areq->src);
 
-	dma_ctx->rx_sg = areq->dst;
+	/*
+	 * In ipsec, the last scatterlist has 12 extra bytes (ESP authenc. data).
+	 * Since the hw expects rctx->nbytes in total, resize it so the total 
+	 * scatterlist array length is rctx->nbytes.
+	 */
+	src_nbytes = 0;
+	for (sg = areq->src; sg; sg = sg_next(sg)) {
+		++dma_ctx->tx_nents;
+		src_nbytes += sg->length;
 
-	dma_ctx->tx_nents = sg_nents_for_len(dma_ctx->tx_sg, tx_nbytes_dma);
-	dma_ctx->rx_nents = sg_nents_for_len(dma_ctx->rx_sg, rx_nbytes_dma);
+		if (sg_is_last(sg) && (src_nbytes > rctx->nbytes)) {
+			sg->length -= (src_nbytes - rctx->nbytes);
+		}
+	}
+
+	dma_ctx->rx_sg = areq->dst;
+	dma_ctx->rx_nents = sg_nents(dma_ctx->rx_sg);
+	dma_ctx->tx_nents += nsg - 1;
 
 	dev_dbg(dd->dev, "[%s:%d] dma_ctx->tx_nents: %d\n", __func__, __LINE__, dma_ctx->tx_nents);
 	dev_dbg(dd->dev, "[%s:%d] dma_ctx->rx_nents: %d\n", __func__, __LINE__, dma_ctx->rx_nents);
@@ -217,10 +228,13 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 	ret = zynqaes_dma_op(dma_ctx);
 	if (ret) {
 		dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
-		goto out_err;
+		goto free_dma_ctx;
 	}
 
 	return 0;
+
+free_dma_ctx:
+	kfree(dma_ctx);
 
 out_err:
 	return ret;
