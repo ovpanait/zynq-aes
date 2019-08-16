@@ -42,7 +42,7 @@
 	};
 
 	axidmatest_1: axidmatest@1 {
-		compatible ="xlnx,axi-dma-test-1.00.a";
+		compatible ="zynqaes-crypto-engine";
 		dmas = <&axi_dma_0 0
 			&axi_dma_0 1>;
 		dma-names = "axidma0", "axidma1";

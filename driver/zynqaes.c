@@ -466,7 +466,7 @@ static int zynqaes_remove(struct platform_device *pdev)
 }
 
 static struct of_device_id zynqaes_of_match[] = {
-	{ .compatible = "xlnx,axi-dma-test-1.00.a", },
+	{ .compatible = "zynqaes-crypto-engine", },
 	{}
 };
 
