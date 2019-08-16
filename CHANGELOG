@@ -1,3 +1,14 @@
+v0.1.1
+------
+- Add scatter-gather support for DMA transfers
+- Rework the Vivado block design to include scatter-gather and use SmartConnect
+IP instead of AXI Interconnect
+- The kernel driver now depends on CONFIG_CRYPTO_ENGINE config
+- Make the engine work with kernel IPSEC offloading
+- Enable the hw engine to receive arbitrary amounts of data (remove the 32kB
+limitation)
+- Set the dtb compatible string to "zynqaes-crypto-engine"
+
 v0.1
 ----
 - 128-bit keys
