@@ -1,0 +1,6 @@
+v0.1
+----
+- 128-bit keys
+- ECB/CBC support
+- Basic engine functionality
+- IPSEC not functional yet
