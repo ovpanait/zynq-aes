@@ -3,8 +3,9 @@
 - 128 bit keys (so far)
 - ECB/CBC support
 - IPSEC offloading OK
+- driver compatible with linux-xlnx v4.14 branch
 
-## Quick Start for Arty Z7-20 board
+## Quick Start for Arty Z7-20 board using Yocto
 
 ### Prerequisites - Build Host Packages
 ```sh
@@ -36,7 +37,9 @@ echo 'DTC_BFLAGS_append = " -@"' >> conf/local.conf
 echo 'PACKAGECONFIG_append_pn-openssl = " cryptodev-linux"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " openssh cryptodev-linux cryptodev-module cryptodev-tests"' >> conf/local.conf
 echo 'IMAGE_INSTALL_append = " openssl-bin openssl openssl-engines"' >> conf/local.conf
-echo 'IMAGE_INSTALL_append = " zynqaes-mod zynqaes-firmware-xc7z020clg400-1"' >> conf/local.conf
+echo 'IMAGE_INSTALL_append = " kernel-modules zynqaes-mod"' >> conf/local.conf
+echo 'VIRTUAL_BITSTREAM = "1"' >> conf/local.conf
+echo 'PREFERRED_PROVIDER_virtual/bitstream = "zynqaes-firmware-xc7z020clg400-1"' >> conf/local.conf
 ```
 
 ### Build a minimal console-only image:
@@ -51,11 +54,11 @@ sudo dd if=tmp/deploy/images/arty-zynq7/core-image-minimal-arty-zynq7.wic of=/de
 
 ### Run benchmarks
 ```sh
-root@arty-zynq7:~# echo zynqaes-firmware-xc7z020clg400-1_0.1.bit.bin > /sys/class/fpga_manager/fpga0/firmware
 root@arty-zynq7:~# mkdir -p /sys/kernel/config/device-tree/overlays/zynqaes
 root@arty-zynq7:~# umount /boot
 root@arty-zynq7:~# cat /boot/devicetree/pl-zynqaes.dtbo > /sys/kernel/config/device-tree/overlays/zynqaes/dtbo
 root@arty-zynq7:~# modprobe cryptodev
+root@arty-zynq7:~# modprobe crypto-engine
 root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
 root@arty-zynq7:~# openssl speed -evp aes-128-cbc -elapsed
 ```
@@ -101,10 +104,8 @@ fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOP
 SSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM 
 -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes 
- 16384 bytes  32768 bytes  65536 bytes
-aes-128-cbc      17959.16k    21204.69k    22471.77k    22814.04k    22863.87k    22882.99k    22915.75k
-    22937.60k    22850.22k    22478.85k
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes   16384 bytes  32768 bytes  65536 bytes
+aes-128-cbc      17959.16k    21204.69k    22471.77k    22814.04k    22863.87k    22882.99k    22915.75k    22937.60k 22850.22k    22478.85k
 
 HW acceleration:
 root@arty-zynq7:~# openssl speed  -evp aes-128-cbc -elapsed
