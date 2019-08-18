@@ -77,22 +77,49 @@ localparam OUT_SRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam OUT_SRAM_DEPTH = FIFO_DEPTH;
 localparam OUT_SRAM_ADDR_WIDTH = clogb2(OUT_SRAM_DEPTH);
 
-reg axis_slave_tlast_reg;
+localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
+localparam IN_SRAM_DEPTH = FIFO_DEPTH;
+localparam IN_SRAM_ADDR_WIDTH = clogb2(IN_SRAM_DEPTH);
 
-// =====================================================================
+// AXI slave signals
+wire slave_write_fifo;
+wire start_processing;
 
-/*
-* Slave side signals
-*/
-wire                             axis_tready;
-genvar                           byte_index;
-wire                             fifo_wren;
+wire [`WORD_S-1:0] axis_slave_in_fifo_cmd;
+wire               axis_slave_tlast_reg;
+wire               axis_slave_in_fifo_writes_done;
+wire               axis_slave_is_new_cmd;
 
-reg                              processing_done;
-wire                             start_processing;
+wire [IN_SRAM_ADDR_WIDTH-1:0] axis_blk_cnt;
+wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_o_data;
+
+// input FIFO signals
+wire                          aes_controller_in_fifo_r_e;
+wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_addr;
+wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
+wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_blk_cnt;
+
+// aes signals
+wire               aes_controller_done;
+wire               aes_controller_start;
+wire [0:`WORD_S-1] aes_controller_cmd;
+wire               aes_controller_skip_key_expansion;
+reg                processing_done;
+// output FIFO signals
+wire                           aes_controller_out_fifo_w_e;
+wire [OUT_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_addr;
+wire [OUT_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
+wire [OUT_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_blk_no;
+
+// AXI master signals
+wire master_send;
+wire [OUT_SRAM_ADDR_WIDTH-1:0] axis_out_fifo_blk_no;
+wire                           axis_out_fifo_tx_done;
 
 // Control state machine implementation
 reg [1:0]                        state;
+
+// =====================================================================
 
 always @(posedge s00_axis_aclk)
 begin
@@ -135,188 +162,52 @@ end
 
 // =====================================================================
 /*
-* AXI slave side
+* AXI slave
 */
-localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam IN_SRAM_DEPTH = FIFO_DEPTH;
-localparam IN_SRAM_ADDR_WIDTH = clogb2(IN_SRAM_DEPTH);
 
-/*
- * The input FIFO is implemented as 128-bit Block RAM:
- * - AXI slave logic writes to it
- * - AES controller reads from it
- */
+assign slave_write_fifo = (state == WRITE_FIFO);
 
-// SRAM signals
-wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_o_data;
-wire [IN_SRAM_DATA_WIDTH-1:0] in_sram_i_data;
-wire [IN_SRAM_ADDR_WIDTH-1:0] in_sram_addr;
-wire in_sram_w_e;
-wire in_sram_r_e;
+aes_axi_stream_slave #(
+	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH),
+	.FIFO_SIZE(OUT_SRAM_DEPTH),
+	.FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
+	.FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
+) axi_stream_slave_controller (
+	.s00_axis_aclk(s00_axis_aclk),
+	.s00_axis_aresetn(s00_axis_aresetn),
+	.s00_axis_tready(s00_axis_tready),
+	.s00_axis_tlast(s00_axis_tlast),
+	.s00_axis_tvalid(s00_axis_tvalid),
+	.s00_axis_tdata(s00_axis_tdata),
+	.s00_axis_tstrb(s00_axis_tstrb),
 
-block_ram #(
-        .ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
-        .DATA_WIDTH(IN_SRAM_DATA_WIDTH),
-        .DEPTH(IN_SRAM_DEPTH)
-) in_fifo(
-        .clk(s00_axis_aclk),
+	.processing_done(processing_done),
+	.axis_out_fifo_tx_done(axis_out_fifo_tx_done),
+	.aes_controller_in_fifo_r_e(aes_controller_in_fifo_r_e),
+	.aes_controller_in_fifo_addr(aes_controller_in_fifo_addr),
 
-        .addr(in_sram_addr),
-        .i_data(in_sram_i_data),
-        .w_e(in_sram_w_e),
+	.axis_slave_in_fifo_cmd(axis_slave_in_fifo_cmd),
+	.axis_slave_is_new_cmd(axis_slave_is_new_cmd),
+	.axis_slave_in_fifo_writes_done(axis_slave_in_fifo_writes_done),
+	.axis_slave_tlast_reg(axis_slave_tlast_reg),
+	.axis_blk_cnt(axis_blk_cnt),
 
-        .o_data(in_sram_o_data),
-        .r_e(in_sram_r_e)
+	.in_sram_o_data(in_sram_o_data),
+	.start_processing(start_processing),
+
+	.slave_write_fifo(slave_write_fifo)
 );
 
-// AXI slave implementation
-/*
- * The AXI slave control logic is:
- * - Take 4 x 32bit words from the AXI bus and fill the axis_slave_in_fifo_blk variable
- * - Store axis_slave_in_fifo_blk as 1 x 128bit word in the in_fifo_sram block RAM
- *       so it can be retrieved later by the AES controller
- */
-
-//AXI signals
-reg [IN_SRAM_DATA_WIDTH-1:0] axis_slave_in_fifo_blk;      // input FIFO block
-reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_blk_cnt; // number of 128-bit blocks in the input FIFO
-reg [1:0]                    axis_slave_in_fifo_word_cnt;
-reg [`WORD_S-1:0]            axis_slave_in_fifo_cmd;
-reg                          axis_slave_in_fifo_w_e;
-reg [IN_SRAM_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
-wire                         axis_slave_in_fifo_addr_is_last;
-reg                          axis_slave_in_fifo_writes_done;
-reg                          axis_slave_is_new_cmd;
-
-localparam AXIS_SLAVE_GET_CMD = 1'b0;
-localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
-reg axis_slave_fsm_state;
-
-assign in_sram_i_data = axis_slave_in_fifo_blk;
-assign in_sram_w_e = axis_slave_in_fifo_w_e;
-
-assign s00_axis_tready = axis_tready;
-assign axis_tready = ((state == WRITE_FIFO) && !axis_slave_in_fifo_writes_done);
-assign fifo_wren = s00_axis_tvalid && axis_tready;
-assign axis_slave_in_fifo_addr_is_last = (axis_slave_in_fifo_addr_reg == IN_SRAM_DEPTH-1);
-reg [IN_SRAM_ADDR_WIDTH-1:0] axis_blk_cnt;
-
-always @(posedge s00_axis_aclk) begin
-        if(!s00_axis_aresetn) begin
-                axis_slave_in_fifo_blk <= 1'b0;
-                axis_slave_in_fifo_blk_cnt <= 1'b0;
-                axis_slave_in_fifo_w_e <= 1'b0;
-                axis_slave_in_fifo_word_cnt <= 1'b0;
-                axis_slave_in_fifo_writes_done <= 1'b0;
-                axis_slave_in_fifo_cmd <= 1'b0;
-                axis_slave_in_fifo_addr_reg <= 1'b0;
-                axis_slave_tlast_reg <= 1'b0;
-                axis_slave_is_new_cmd <= 1'b0;
-
-                axis_blk_cnt <= 1'b0;
-                axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
-        end
-        else begin
-                case (axis_slave_fsm_state)
-                        AXIS_SLAVE_GET_CMD:
-                        begin
-                                axis_slave_in_fifo_addr_reg <= 1'b0;
-                                axis_slave_is_new_cmd <= 1'b1;
-
-				if (axis_out_fifo_tx_done) begin
-					axis_slave_tlast_reg <= 1'b0;
-				end
-
-                                if (fifo_wren) begin
-                                        //first received word is the command
-                                        axis_slave_in_fifo_cmd <= s00_axis_tdata;
-                                        axis_slave_fsm_state <= AXIS_SLAVE_GET_PAYLOAD;
-                                end
-                        end
-                        AXIS_SLAVE_GET_PAYLOAD:
-                        begin
-                                axis_slave_in_fifo_w_e <= 1'b0;
-
-                                if (fifo_wren) begin
-                                        axis_slave_in_fifo_blk <= (axis_slave_in_fifo_blk << `WORD_S) | s00_axis_tdata;
-                                        axis_slave_in_fifo_word_cnt <= axis_slave_in_fifo_word_cnt + 1'b1;
-
-                                        if (axis_slave_in_fifo_word_cnt == `Nb - 1'b1) begin
-                                                axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
-                                                axis_slave_in_fifo_w_e <= 1'b1;
-                                                axis_slave_in_fifo_word_cnt <= 1'b0;
-
-                                                if (!axis_slave_in_fifo_addr_is_last) begin
-                                                        axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
-                                                end
-
-                                                if (s00_axis_tlast) begin
-                                                       axis_slave_tlast_reg <= 1'b1;
-                                                end
-
-                                                /*
-                                                 * Use the two slots available for key/iv to store data if the payload is
-                                                 * larger than DATA_FIFO_SIZE.
-                                                 */
-                                                if ((axis_slave_in_fifo_blk_cnt == IN_SRAM_DEPTH-1) || s00_axis_tlast) begin
-                                                        axis_slave_in_fifo_blk_cnt <= 1'b0;
-                                                        axis_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
-                                                        axis_slave_in_fifo_writes_done <= 1'b1;
-                                                end
-                                        end
-                                end
-
-                                if (processing_done) begin
-                                        axis_slave_in_fifo_addr_reg <= 1'b0;
-                                        axis_slave_in_fifo_writes_done <= 1'b0;
-                                        axis_slave_is_new_cmd <= 1'b0;
-
-                                        if (axis_slave_tlast_reg) begin
-                                                axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
-                                        end
-                                end
-                        end
-                endcase
-        end
-end
-
-// One clock enable
-assign start_processing = (state == WRITE_FIFO && axis_slave_in_fifo_writes_done == 1'b1 && !processing_done);
-
-always @(posedge s00_axis_aclk) begin
-        processing_done <= __processing_done;
-end
-
+// =====================================================================
 /*
 * AES specific stuff
 */
-genvar i;
-
-// aes signals
-wire                          aes_controller_done;
-wire                          aes_controller_start;
-wire [0:`WORD_S-1]            aes_controller_cmd;
-wire                          aes_controller_skip_key_expansion;
-
 assign aes_controller_cmd = axis_slave_in_fifo_cmd;
 assign aes_controller_skip_key_expansion = !axis_slave_is_new_cmd;
 
-// input FIFO signals
-wire                          aes_controller_in_fifo_r_e;
-wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_addr;
-wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
-wire [IN_SRAM_ADDR_WIDTH-1:0] aes_controller_in_fifo_blk_cnt;
-
 assign aes_controller_in_fifo_data = in_sram_o_data;
 assign aes_controller_in_fifo_blk_cnt = axis_blk_cnt;
-assign in_sram_r_e = aes_controller_in_fifo_r_e;
-assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : axis_slave_in_fifo_addr_reg;
 
-// output FIFO signals
-wire                          aes_controller_out_fifo_w_e;
-wire [OUT_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_addr;
-wire [OUT_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
-wire [OUT_SRAM_ADDR_WIDTH-1:0] aes_controller_out_fifo_blk_no;
 /*
 * Delay processing module "done" strobe by one clock to match fsm implementation
 */
@@ -348,38 +239,41 @@ aes_controller #(
         .en_o(aes_controller_done)
 );
 
-// =====================================================================
+always @(posedge s00_axis_aclk) begin
+	processing_done <= __processing_done;
+end
 
-wire master_send;
-wire [OUT_SRAM_ADDR_WIDTH-1:0] axis_out_fifo_blk_no;
-wire                           axis_out_fifo_tx_done;
+// =====================================================================
+/*
+* AXI master
+*/
 
 assign master_send = (state == MASTER_SEND);
 
 aes_axi_stream_master #(
-.C_M_AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH),
-.FIFO_SIZE(OUT_SRAM_DEPTH),
-.FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
-.FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
+	.C_M_AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH),
+	.FIFO_SIZE(OUT_SRAM_DEPTH),
+	.FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
+	.FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
 ) axi_stream_master_controller (
-.m00_axis_aclk(m00_axis_aclk),
-.m00_axis_aresetn(m00_axis_aresetn),
-.m00_axis_tvalid(m00_axis_tvalid),
-.m00_axis_tdata(m00_axis_tdata),
-.m00_axis_tstrb(m00_axis_tstrb),
-.m00_axis_tlast(m00_axis_tlast),
-.m00_axis_tready(m00_axis_tready),
+	.m00_axis_aclk(m00_axis_aclk),
+	.m00_axis_aresetn(m00_axis_aresetn),
+	.m00_axis_tvalid(m00_axis_tvalid),
+	.m00_axis_tdata(m00_axis_tdata),
+	.m00_axis_tstrb(m00_axis_tstrb),
+	.m00_axis_tlast(m00_axis_tlast),
+	.m00_axis_tready(m00_axis_tready),
 
-.master_send(master_send),
-.processing_done(processing_done),
-.axis_slave_tlast_reg(axis_slave_tlast_reg),
+	.master_send(master_send),
+	.processing_done(processing_done),
+	.axis_slave_tlast_reg(axis_slave_tlast_reg),
 
-.aes_controller_out_fifo_w_e(aes_controller_out_fifo_w_e),
-.aes_controller_out_fifo_addr(aes_controller_out_fifo_addr),
-.aes_controller_out_fifo_data(aes_controller_out_fifo_data),
-.aes_controller_out_fifo_blk_no(aes_controller_out_fifo_blk_no),
+	.aes_controller_out_fifo_w_e(aes_controller_out_fifo_w_e),
+	.aes_controller_out_fifo_addr(aes_controller_out_fifo_addr),
+	.aes_controller_out_fifo_data(aes_controller_out_fifo_data),
+	.aes_controller_out_fifo_blk_no(aes_controller_out_fifo_blk_no),
 
-.axis_out_fifo_tx_done(axis_out_fifo_tx_done)
+	.axis_out_fifo_tx_done(axis_out_fifo_tx_done)
 );
 
 endmodule
