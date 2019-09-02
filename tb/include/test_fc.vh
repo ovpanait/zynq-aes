@@ -1,6 +1,12 @@
 // Test setup
 
 `define PRINT_DBG(var) $display("DEBUG: var: %H", var)
+`define VERIFY(size, simulated_val, expected_val, err) \
+	tester #(size)::verify_output(simulated_val, expected_val, err); \
+	if (err) begin \
+		$display("ERROR: %s: : %4d", `__FILE__, `__LINE__); \
+		$finish; \
+	end
 
 class tester #(
 	       int unsigned WIDTH = 32,
