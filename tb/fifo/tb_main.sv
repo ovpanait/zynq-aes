@@ -95,27 +95,15 @@ task write_data(input queue_wrapper#(DATA_WIDTH) fifo_data);
 		`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
 		fifo_write_e = 1'b1;
 
-		$display("Queue before write op:");
-		fifo_data.print_queue();
-
 		std::randomize(fifo_wdata);
 		fifo_data.push_back(fifo_wdata);
-
-		$display("Queue after write op:");
-		fifo_data.print_queue();
 endtask
 
 task read_data(input queue_wrapper#(DATA_WIDTH) fifo_data, input bit is_last);
 	reg [DATA_WIDTH-1:0] data;
 
-	$display("Queue before read op:");
-	fifo_data.print_queue();
-
 	data = fifo_data.pop_front();
 	`VERIFY($size(fifo_rdata), fifo_rdata, data, errors);
-
-	$display("Queue after read op:");
-	fifo_data.print_queue();
 
 	fifo_read_e = 1'b1;
 

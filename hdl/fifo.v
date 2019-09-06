@@ -124,14 +124,20 @@ always @(posedge clk) begin
 		end
 
 		`ifdef SIMULATION
-		if (fifo_write_e && fifo_full) begin
-			$display("ERROR: %s:%4d: Trying to write data to full FIFO! ", `__FILE__, `__LINE__);
-			$finish;
+		if (fifo_write_e) begin
+			$display("Writing %H to address %H", fifo_wdata, write_ptr);
+			if (fifo_full) begin
+				$display("ERROR: %s:%4d: Trying to write data to full FIFO! ", `__FILE__, `__LINE__);
+				$finish;
+			end
 		end
 
-		if (fifo_read_e && fifo_empty) begin
-			$display("ERROR: %s:%4d: Trying to read data from empty FIFO! ", `__FILE__, `__LINE__);
-			$finish;
+		if (fifo_read_e) begin
+			$display("Reading %H from address %H", out_fifo.sram[read_ptr], read_ptr);
+			if (fifo_empty) begin
+				$display("ERROR: %s:%4d: Trying to read data from empty FIFO! ", `__FILE__, `__LINE__);
+				$finish;
+			end
 		end
 		`endif
 	end
