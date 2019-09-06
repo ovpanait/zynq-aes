@@ -2,33 +2,33 @@
 
 module aes_controller #
 (
-        IN_FIFO_ADDR_WIDTH = 9,
-        IN_FIFO_DATA_WIDTH = 128,
-        OUT_FIFO_ADDR_WIDTH = 9,
-        OUT_FIFO_DATA_WIDTH = 128
+	IN_FIFO_ADDR_WIDTH = 9,
+	IN_FIFO_DATA_WIDTH = 128,
+	OUT_FIFO_ADDR_WIDTH = 9,
+	OUT_FIFO_DATA_WIDTH = 128
 )
 (
-        input clk,
-        input reset,
-        input en,
+	input clk,
+	input reset,
+	input en,
 
-        // aes specific signals
-        input [0:`WORD_S-1]                       aes_cmd,
-        input                                     aes_skip_key_expansion,
+	// aes specific signals
+	input aes_skip_key_expansion,
+	input [0:`WORD_S-1] aes_cmd,
 
-        // input FIFO signals
-        input [0:IN_FIFO_DATA_WIDTH-1]            in_fifo_data,
-        input [IN_FIFO_ADDR_WIDTH-1:0]            in_fifo_blk_cnt,
-        output reg                                in_fifo_r_e,
-        output [IN_FIFO_ADDR_WIDTH-1:0]           in_fifo_addr,
+	// input FIFO signals
+	input [0:IN_FIFO_DATA_WIDTH-1]  in_fifo_data,
+	input [IN_FIFO_ADDR_WIDTH-1:0]  in_fifo_blk_cnt,
+	output reg                      in_fifo_r_e,
+	output [IN_FIFO_ADDR_WIDTH-1:0] in_fifo_addr,
 
-        // output FIFO
-        output reg [0:OUT_FIFO_DATA_WIDTH-1]       out_fifo_data,
-        output reg [IN_FIFO_ADDR_WIDTH-1:0]        out_fifo_blk_no,
-        output reg                                 out_fifo_w_e,
-        output reg [OUT_FIFO_ADDR_WIDTH-1:0]       out_fifo_addr,
+	// output FIFO
+	output reg [0:OUT_FIFO_DATA_WIDTH-1] out_fifo_data,
+	output reg [IN_FIFO_ADDR_WIDTH-1:0]  out_fifo_blk_no,
+	output reg                           out_fifo_w_e,
+	output reg [OUT_FIFO_ADDR_WIDTH-1:0] out_fifo_addr,
 
-        output reg                                en_o
+	output reg en_o
 
 );
 
@@ -39,75 +39,74 @@ localparam [2:0] AES_GET_IV = 3'b011;
 localparam [2:0] AES_EXPAND_KEY = 3'b100;
 localparam [2:0] AES_PROCESS = 3'b101;
 
-reg [2:0]               state;
-reg [`WORD_S-1:0]       read_ptr;
-reg [`WORD_S-1:0]       write_ptr;
-wire			read_ptr_is_last;
+reg [2:0]         state;
+reg [`WORD_S-1:0] read_ptr;
+reg [`WORD_S-1:0] write_ptr;
+wire              read_ptr_is_last;
 
-wire [0:`BLK_S-1]       aes_out_blk;
-wire                    aes_done;
+wire [0:`BLK_S-1] aes_out_blk;
+wire              aes_done;
 
-reg                     aes_start;
-reg [0: `BLK_S-1]	aes_iv;
-reg [0:`KEY_S-1]	aes_key;
-reg [0:`WORD_S-1]	__aes_cmd;
-reg [0:`BLK_S-1]	prev_aes_ecb_in_blk;
+reg [0:`BLK_S-1]  prev_aes_ecb_in_blk;
+reg [0:`WORD_S-1] __aes_cmd;
+reg [0: `BLK_S-1] aes_iv;
+reg [0:`KEY_S-1]  aes_key;
+reg               aes_start;
 
-wire [0:`BLK_S-1]       aes_ecb_in_blk;
-wire [0:`BLK_S-1]       aes_cbc_in_blk;
-wire [0:`BLK_S-1]       aes_in_blk;
-
-reg [`WORD_S-1:0]	processed_blocks;
+wire [0:`BLK_S-1] aes_ecb_in_blk;
+wire [0:`BLK_S-1] aes_cbc_in_blk;
+wire [0:`BLK_S-1] aes_in_blk;
+reg [`WORD_S-1:0] processed_blocks;
 
 genvar i;
 
 // Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
 // buffer.
 function [0:`WORD_S-1] swap_bytes32(input [0:`WORD_S-1] data);
-        integer i;
-        begin
-                for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
-                        swap_bytes32[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
-        end
+	integer i;
+	begin
+		for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
+			swap_bytes32[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
+	end
 endfunction
 
 function [0:IN_FIFO_DATA_WIDTH-1] swap_bytes128(input [0:IN_FIFO_DATA_WIDTH-1] data);
-        integer i;
-        begin
-                for (i = 0; i < IN_FIFO_DATA_WIDTH / `WORD_S; i=i+1)
-                        swap_bytes128[i*`WORD_S +: `WORD_S] = swap_bytes32(data[i*`WORD_S +: `WORD_S]);
-        end
+	integer i;
+	begin
+		for (i = 0; i < IN_FIFO_DATA_WIDTH / `WORD_S; i=i+1)
+			swap_bytes128[i*`WORD_S +: `WORD_S] = swap_bytes32(data[i*`WORD_S +: `WORD_S]);
+	end
 endfunction
 
 function is_CBC_op(input [0:`WORD_S-1] cmd);
-        begin
+	begin
 		is_CBC_op = (cmd == `CBC_ENCRYPT_128 || cmd == `CBC_DECRYPT_128);
-        end
+	end
 endfunction
 
 function is_CBC_enc(input [0:`WORD_S-1] cmd);
-        begin
+	begin
 		is_CBC_enc = (cmd == `CBC_ENCRYPT_128);
-        end
+	end
 endfunction
 
 function is_CBC_dec(input [0:`WORD_S-1] cmd);
-        begin
+	begin
 		is_CBC_dec = (cmd == `CBC_DECRYPT_128);
-        end
+	end
 endfunction
 
 aes_top aes_mod(
-        .clk(clk),
-        .reset(reset),
-        .en(aes_start),
+	.clk(clk),
+	.reset(reset),
+	.en(aes_start),
 
-        .aes_cmd(__aes_cmd),
-        .aes_key(aes_key),
-        .aes_in_blk(aes_in_blk),
+	.aes_cmd(__aes_cmd),
+	.aes_key(aes_key),
+	.aes_in_blk(aes_in_blk),
 
-        .aes_out_blk(aes_out_blk),
-        .en_o(aes_done)
+	.aes_out_blk(aes_out_blk),
+	.en_o(aes_done)
 );
 
 assign read_ptr_is_last = (read_ptr == in_fifo_blk_cnt - 1'b1);
@@ -119,41 +118,41 @@ assign aes_cbc_in_blk = aes_iv ^ aes_ecb_in_blk;
 assign aes_in_blk = is_CBC_enc(__aes_cmd) ?  aes_cbc_in_blk : aes_ecb_in_blk;
 
 always @(posedge clk) begin
-        if (reset == 1'b1) begin
-                state <= IDLE;
-                write_ptr <= 1'b0;
-                en_o <= 1'b0;
-                aes_iv <= 1'b0;
-                aes_key <= 1'b0;
-                __aes_cmd <= 1'b0;
-                prev_aes_ecb_in_blk <= 1'b0;
-                out_fifo_blk_no <= 1'b0;
-                processed_blocks <= 1'b0;
-        end 
-        else begin
-                en_o <= 1'b0;
-                in_fifo_r_e <= 1'b0;
-                out_fifo_w_e <= 1'b0;
+	if (reset == 1'b1) begin
+		state <= IDLE;
+		write_ptr <= 1'b0;
+		en_o <= 1'b0;
+		aes_iv <= 1'b0;
+		aes_key <= 1'b0;
+		__aes_cmd <= 1'b0;
+		prev_aes_ecb_in_blk <= 1'b0;
+		out_fifo_blk_no <= 1'b0;
+		processed_blocks <= 1'b0;
+	end
+	else begin
+		en_o <= 1'b0;
+		in_fifo_r_e <= 1'b0;
+		out_fifo_w_e <= 1'b0;
 
-                case (state)
-                        IDLE:
-                        begin
-                                state <= IDLE;
+		case (state)
+			IDLE:
+			begin
+				state <= IDLE;
 
-                                aes_start <= 1'b0;
-                                read_ptr <= 1'b0;
-                                write_ptr <= 1'b0;
+				aes_start <= 1'b0;
+				read_ptr <= 1'b0;
+				write_ptr <= 1'b0;
 				__aes_cmd <= 1'b0;
 				processed_blocks <= 1'b0;
 
-                                if (en == 1'b1) begin
+				if (en == 1'b1) begin
 					__aes_cmd <= aes_cmd;
-                                        state <= INIT_BLOCK_RAM;
-                                        in_fifo_r_e <= 1'b1;
-                                end
-                        end
-                        INIT_BLOCK_RAM:
-                        begin
+					state <= INIT_BLOCK_RAM;
+					in_fifo_r_e <= 1'b1;
+				end
+			end
+			INIT_BLOCK_RAM:
+			begin
 				// Clear this here in order to preserve its value
 				// while transferring the blocks through the axi 
 				// stream master interface
@@ -175,9 +174,9 @@ always @(posedge clk) begin
 				end else begin
 					state <= AES_GET_KEY;
 				end
-                        end
-                        AES_GET_KEY:
-                        begin
+			end
+			AES_GET_KEY:
+			begin
 				aes_key <= swap_bytes128(in_fifo_data);
 
 				state <= AES_EXPAND_KEY;
@@ -186,23 +185,23 @@ always @(posedge clk) begin
 				processed_blocks <= processed_blocks + 1'b1;
 
 				// Get the IV if performing CBC operations.
-                                if (is_CBC_op(__aes_cmd)) begin
+				if (is_CBC_op(__aes_cmd)) begin
 					state <= AES_GET_IV;
 					read_ptr <= read_ptr + 1'b1;
 					in_fifo_r_e <= 1'b1;
 					aes_start <= 1'b0;
 				end
-                        end
-                        AES_GET_IV:
-                        begin
+			end
+			AES_GET_IV:
+			begin
 				aes_iv <= swap_bytes128(in_fifo_data);
 
 				state <= AES_EXPAND_KEY;
 				aes_start <= 1'b1;
 				processed_blocks <= processed_blocks + 1'b1;
-                        end
-                        AES_EXPAND_KEY:
-                        begin
+			end
+			AES_EXPAND_KEY:
+			begin
 				state <= AES_EXPAND_KEY;
 				aes_start <= 1'b0;
 
@@ -213,9 +212,9 @@ always @(posedge clk) begin
 					aes_start <= 1'b1;
 					state <= AES_PROCESS;
 				end
-                        end
-                        AES_PROCESS:
-                        begin
+			end
+			AES_PROCESS:
+			begin
 				/* If a request is to be started, save the current
 				 * input data block.
 				 * The block will be used later in cbc decryption
@@ -225,28 +224,28 @@ always @(posedge clk) begin
 					prev_aes_ecb_in_blk <= swap_bytes128(in_fifo_data);
 					processed_blocks <= processed_blocks + 1'b1;
 				end
-                                state <= AES_PROCESS;
-                                aes_start <= 1'b0;
+				state <= AES_PROCESS;
+				aes_start <= 1'b0;
 
-                                if (aes_done == 1'b1) begin
-                                        // output FIFO
-                                        out_fifo_w_e <= 1'b1;
-                                        out_fifo_addr <= write_ptr;
-                                        out_fifo_data <= swap_bytes128(aes_out_blk);
+				if (aes_done == 1'b1) begin
+					// output FIFO
+					out_fifo_w_e <= 1'b1;
+					out_fifo_addr <= write_ptr;
+					out_fifo_data <= swap_bytes128(aes_out_blk);
 					out_fifo_blk_no <= out_fifo_blk_no + 1'b1;
 
 					write_ptr <= write_ptr + 1'b1;
 					in_fifo_r_e <= 1'b1;
 					aes_start <= 1'b1;
 
-                                        if(is_CBC_enc(__aes_cmd)) begin
+					if(is_CBC_enc(__aes_cmd)) begin
 						aes_iv <= aes_out_blk;
-                                        end
+					end
 
-                                        if(is_CBC_dec(__aes_cmd)) begin
+					if(is_CBC_dec(__aes_cmd)) begin
 						out_fifo_data <= swap_bytes128(aes_iv ^ aes_out_blk);
 						aes_iv <= prev_aes_ecb_in_blk;
-                                        end
+					end
 
 					if (!read_ptr_is_last) begin
 						read_ptr <= read_ptr + 1'b1;
@@ -258,11 +257,11 @@ always @(posedge clk) begin
 						en_o <= 1'b1;
 						read_ptr <= 1'b0;
 					end
-                                end
-                        end
-                        default:
-                                state <= IDLE;
-                endcase
-        end
+				end
+			end
+			default:
+				state <= IDLE;
+		endcase
+	end
 end
 endmodule
