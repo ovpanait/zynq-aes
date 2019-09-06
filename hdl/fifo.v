@@ -2,13 +2,14 @@
  ** FIFO abstraction over single port BRAM module.
  ** It supports concurrent r/w every other clock.
  *
- * @fifo_wdata   - data to be enqueued
- * @fifo_write_e - write enable
- * @fifo_read_e  - read enable
- * @fifo_rdata   - dequeued data
- * @fifo_full    - fifo is full
- * @fifo_empty   - fifo is empty
- * @fifo_ready   - fifo is ready to process a new transaction
+ * @fifo_wdata       - data to be enqueued
+ * @fifo_write_e     - write enable
+ * @fifo_read_e      - read enable
+ * @fifo_rdata       - dequeued data
+ * @fifo_almost_full - fifo is almost full
+ * @fifo_full        - fifo is full
+ * @fifo_empty       - fifo is empty
+ * @fifo_ready       - fifo is ready to process a new transaction
  */
 
 module fifo #(
@@ -28,6 +29,7 @@ module fifo #(
 	input fifo_read_e,
 
 	// Control signals
+	output fifo_almost_full,
 	output fifo_full,
 	output fifo_empty,
 	output fifo_ready
@@ -82,6 +84,7 @@ assign is_last_read = (read_ptr == DEPTH - 1);
 assign write_ptr_next = is_last_write ? {ADDR_WIDTH{1'b0}} : (write_ptr + 1'b1);
 assign read_ptr_next = is_last_read ? {ADDR_WIDTH{1'b0}} : (read_ptr + 1'b1);
 
+assign fifo_almost_full = (write_ptr_next == read_ptr);
 assign fifo_empty = ~fifo_has_data;
 assign fifo_full = is_full;
 assign fifo_ready = !fifo_busy;
@@ -108,7 +111,7 @@ always @(posedge clk) begin
 			if (!fifo_has_data)
 				fifo_has_data <= 1'b1;
 
-			if (write_ptr_next == read_ptr) begin
+			if (fifo_almost_full) begin
 				is_full = 1'b1;
 			end
 		end
