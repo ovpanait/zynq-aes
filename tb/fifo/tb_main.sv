@@ -21,7 +21,7 @@ wire [DATA_WIDTH-1:0] fifo_rdata;
 
 wire fifo_full;
 wire fifo_empty;
-wire fifo_valid;
+wire fifo_ready;
 
 integer words_no = 50;
 
@@ -41,7 +41,7 @@ fifo #(
 	
 	.fifo_full(fifo_full),
 	.fifo_empty(fifo_empty),
-	.fifo_valid(fifo_valid)
+	.fifo_ready(fifo_ready)
 );
 
 // Test functions
@@ -72,19 +72,16 @@ initial begin
 
 	// Testcase
 	`VERIFY($size(fifo_empty), fifo_empty, 1'b1, errors);
-	`VERIFY($size(fifo_valid), fifo_valid, 1'b0, errors);
 
 	rw_cycle(words_no);
 
 	`VERIFY($size(fifo_empty), fifo_empty, 1'b1, errors);
 	@(negedge clk);
-	`VERIFY($size(fifo_valid), fifo_valid, 1'b0, errors);
 
 	concurrent_rw_cycle(words_no);
 
 	@(negedge clk);
 	@(negedge clk);
-	`VERIFY($size(fifo_valid), fifo_valid, 1'b0, errors);
 
 	// Testcase end
 	@(negedge clk) reset = 1;
@@ -95,6 +92,7 @@ initial begin
 end
 
 task write_data(input queue_wrapper#(DATA_WIDTH) fifo_data);
+		`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
 		fifo_write_e = 1'b1;
 
 		$display("Queue before write op:");
@@ -146,17 +144,12 @@ task rw_cycle(integer words_no);
 		end
 
 		if (fifo_full) begin
+			`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
 			fifo_write_e = 1'b0;
 			fifo_read_e = 1'b1;
 			read_pending = 1'b1;
 		end else begin
 			fifo_read_e = 1'b0;
-
-			if (fifo_data.size() == 0) begin
-				`VERIFY($size(fifo_valid), fifo_valid, 1'b0, errors);
-			end else begin
-				`VERIFY($size(fifo_valid), fifo_valid, 1'b1, errors);
-			end
 
 			write_data(fifo_data);
 		end
@@ -172,11 +165,12 @@ task rw_cycle(integer words_no);
 
 	// Read until fifo is empty
 	@(negedge clk);
+	`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
 	fifo_read_e = 1'b1;
 
 	while (fifo_data.size() != 0) begin
 		@(negedge clk);
-			`VERIFY($size(fifo_valid), fifo_valid, 1'b1, errors);
+			`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
 			read_data(fifo_data, 1'b0);
 	end
 
@@ -196,12 +190,10 @@ task concurrent_rw_cycle(integer words_no);
 
 	// Load 1 word into the FIFO to allow for concurrent r/w
 	@(negedge clk);
-	`VERIFY($size(fifo_valid), fifo_valid, 1'b0, errors);
 	write_data(fifo_data);
 
 	// Start concurrent r/w operations
 	@(negedge clk);
-	`VERIFY($size(fifo_valid), fifo_valid, 1'b1, errors);
 	fifo_write_e = 1'b0;
 
 	for (i=0 ;i < words_no; i=i+1) begin
@@ -209,7 +201,7 @@ task concurrent_rw_cycle(integer words_no);
 		write_data(fifo_data);
 		fifo_read_e = 1'b1;
 		@(negedge clk);
-		`VERIFY($size(fifo_valid), fifo_valid, 1'b0, errors);
+		`VERIFY($size(fifo_ready), fifo_ready, 1'b0, errors);
 		fifo_read_e = 1'b0;
 		fifo_write_e = 1'b0;
 		read_data(fifo_data, 1'b1);
