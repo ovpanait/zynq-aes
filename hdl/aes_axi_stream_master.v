@@ -1,3 +1,15 @@
+// AXI master implementation
+/*
+ * The AXI master control logic is:
+ * - Read 1 x 128-bit AES block from out_fifo
+ * - Split it in 4 x 32-bit words and push them on the AXI bus
+ *
+ *
+ * The FIFO is implemented as 128-bit Block RAM:
+ * - AES controller writes AES blocks to it
+ * - AXI master controller reads from it
+ */
+
 `include "aes.vh"
 
 module aes_axi_stream_master #
@@ -13,171 +25,152 @@ module aes_axi_stream_master #
 	/*
 	* Master side ports
 	*/
-	input                   m00_axis_aclk,
-	input                   m00_axis_aresetn,
-	output                  m00_axis_tvalid,
+	input                                     m00_axis_aclk,
+	input                                     m00_axis_aresetn,
+	output                                    m00_axis_tvalid,
 	output  [C_M_AXIS_TDATA_WIDTH-1 : 0]      m00_axis_tdata,
 	output  [(C_M_AXIS_TDATA_WIDTH/8)-1 : 0]  m00_axis_tstrb,
-	output                  m00_axis_tlast,
-	input                   m00_axis_tready,
+	output                                    m00_axis_tlast,
+	input                                     m00_axis_tready,
 
-	input                   master_send,
-	input                   processing_done,
-	input                   axis_slave_tlast_reg,
+	input                                     processing_done,
 
-	input                        aes_controller_out_fifo_w_e,
-	input  [FIFO_ADDR_WIDTH-1:0] aes_controller_out_fifo_addr,
-	input  [FIFO_DATA_WIDTH-1:0] aes_controller_out_fifo_data,
-	input [FIFO_ADDR_WIDTH-1:0]  aes_controller_out_fifo_blk_no,
+	input                                     aes_controller_out_fifo_w_e,
+	input  [FIFO_DATA_WIDTH-1:0]              aes_controller_out_fifo_data,
 
-	output reg                  axis_out_fifo_tx_done
+	output                                    out_fifo_almost_full,
+	output                                    out_fifo_empty,
+	output                                    out_fifo_full,
+	output                                    out_fifo_ready,
+
+	output reg                                axis_master_done
 );
 
-/*
- * The output FIFO is implemented as 128-bit Block RAM:
- * - AES controller writes ciphertexts to it
- * - AXI master reads from it
- */
+// FIFO signals
 
-// SRAM signals
-wire [FIFO_DATA_WIDTH-1:0] out_sram_o_data;
-wire [FIFO_DATA_WIDTH-1:0] out_sram_i_data;
-wire [FIFO_ADDR_WIDTH-1:0] out_sram_addr;
-wire out_sram_w_e;
-reg out_sram_r_e;
+wire fifo_almost_full;
+wire fifo_write_e;
+wire fifo_read_e;
+wire fifo_empty;
+wire fifo_ready;
+wire fifo_full;
 
-block_ram #(
-	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
-	.DATA_WIDTH(FIFO_DATA_WIDTH),
-	.DEPTH(FIFO_SIZE)
-) out_fifo(
-	.clk(m00_axis_aclk),
+wire [FIFO_DATA_WIDTH-1:0] fifo_wdata;
+wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 
-	.addr(out_sram_addr),
-	.i_data(out_sram_i_data),
-	.w_e(out_sram_w_e),
+wire out_fifo_can_read;
+reg out_fifo_r_e;
 
-	.o_data(out_sram_o_data),
-	.r_e(out_sram_r_e)
-);
+// AXI signals
 
-assign out_sram_w_e = aes_controller_out_fifo_w_e;
-assign out_sram_addr = aes_controller_out_fifo_w_e ? aes_controller_out_fifo_addr : axis_out_fifo_blk_addr;
-assign out_sram_i_data = aes_controller_out_fifo_data;
-
-// AXI master implementation
-/*
- * The AXI master control logic is:
- * - Read 1 x 128bit ciphertext from out_fifo
- * - Split it in 4 x 32bit words and push them on the AXI bus
- */
-
+wire [FIFO_DATA_WIDTH-1:0] axis_blk_shift;
+reg [FIFO_ADDR_WIDTH-1:0]  axis_word_cnt;
+wire [FIFO_DATA_WIDTH-1:0] axis_blk;
+wire axis_transaction;
+wire axis_last_blk;
+wire axis_last_word;
 reg  axis_tvalid;
 wire axis_tlast;
 
-wire [FIFO_DATA_WIDTH-1:0] axis_out_fifo_blk_shift;
-reg [FIFO_DATA_WIDTH-1:0]  axis_out_fifo_blk;
-wire [FIFO_DATA_WIDTH-1:0] axis_out_fifo_blk_next;
-reg [FIFO_ADDR_WIDTH-1:0]  axis_out_fifo_blk_cnt;
-reg [FIFO_ADDR_WIDTH-1:0]  axis_out_fifo_blk_addr;
-reg [FIFO_ADDR_WIDTH-1:0]  axis_out_fifo_word_cnt;
-wire axis_out_fifo_addr_is_last;
-wire axis_out_fifo_tx_en;
-wire axis_out_fifo_last_blk;
-wire axis_out_fifo_last_word;
+// FIFO logic
 
-assign axis_out_fifo_blk_next = out_sram_o_data;
+fifo #(
+	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
+	.DATA_WIDTH(FIFO_DATA_WIDTH),
+	.DEPTH(FIFO_SIZE)
+) master_fifo (
+	.clk(m00_axis_aclk),
+	.reset(!m00_axis_aresetn),
 
-assign m00_axis_tvalid = axis_tvalid;
-assign m00_axis_tdata  = axis_out_fifo_blk_shift[FIFO_DATA_WIDTH-`WORD_S +: `WORD_S];
-assign m00_axis_tlast  = axis_tlast;
+	.fifo_write_e(fifo_write_e),
+	.fifo_wdata(fifo_wdata),
+
+	.fifo_read_e(fifo_read_e),
+	.fifo_rdata(fifo_rdata),
+
+	.fifo_almost_full(fifo_almost_full),
+	.fifo_full(fifo_full),
+	.fifo_empty(fifo_empty),
+	.fifo_ready(fifo_ready)
+);
+
+assign fifo_write_e = aes_controller_out_fifo_w_e;
+assign fifo_wdata = aes_controller_out_fifo_data;
+
+assign out_fifo_almost_full = fifo_almost_full;
+assign out_fifo_full = fifo_full;
+assign out_fifo_empty = fifo_empty;
+assign out_fifo_ready = fifo_ready;
+
+assign fifo_read_e = out_fifo_r_e;
+assign axis_blk = fifo_rdata;
+
+// AXI logic
+
+localparam AXIS_MASTER_IDLE = 2'b00;
+localparam AXIS_MASTER_INIT_SRAM = 2'b01;
+localparam AXIS_MASTER_INIT_TRANSFER = 2'b10;
+localparam AXIS_MASTER_TRANSFER = 2'b11;
+
+reg [0:1] axis_fsm_state;
+
+assign m00_axis_tdata  = axis_blk_shift[FIFO_DATA_WIDTH-`WORD_S +: `WORD_S];
 assign m00_axis_tstrb  = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
+assign m00_axis_tvalid = axis_tvalid;
+assign m00_axis_tlast  = axis_tlast;
 
-assign axis_out_fifo_blk_shift = axis_out_fifo_blk << axis_out_fifo_word_cnt * `WORD_S;
-assign axis_out_fifo_last_blk = (axis_out_fifo_blk_cnt == aes_controller_out_fifo_blk_no - 1'b1);
-assign axis_out_fifo_last_word = axis_out_fifo_last_blk && 
-		(axis_out_fifo_word_cnt == `Nb - 1'b1);
-assign axis_out_fifo_addr_is_last = (axis_out_fifo_blk_addr == aes_controller_out_fifo_blk_no - 1'b1);
-assign axis_tlast =  axis_out_fifo_last_word && axis_slave_tlast_reg;
-assign axis_out_fifo_tx_en = m00_axis_tready;
+assign axis_last_word = axis_last_blk && (axis_word_cnt == `Nb - 1'b1);
+assign axis_blk_shift = axis_blk << axis_word_cnt * `WORD_S;
+assign axis_last_blk = processing_done && out_fifo_empty;
+assign axis_transaction = m00_axis_tready && axis_tvalid;
+assign axis_tlast =  axis_last_word;
 
-localparam AXIS_MASTER_IDLE = 2'b0,
-	AXIS_MASTER_INIT_SRAM = 2'b1,
-	AXIS_MASTER_INIT_TRANSFER = 2'b10,
-	AXIS_MASTER_TRANSFER = 2'b11;
-
-reg [0:1] axis_master_fsm_state;
+assign out_fifo_can_read = !out_fifo_r_e && fifo_ready && !fifo_empty;
 
 always @(posedge m00_axis_aclk) begin
 	if(!m00_axis_aresetn) begin
-		axis_out_fifo_blk <= 1'b0;
-		axis_out_fifo_blk_addr <= 1'b0;
-		axis_out_fifo_word_cnt <= 1'b0;
-		axis_out_fifo_blk_cnt <= 1'b0;
-		axis_out_fifo_tx_done <= 1'b0;
-
+		axis_fsm_state <= AXIS_MASTER_IDLE;
+		axis_master_done <= 1'b0;
+		out_fifo_r_e <= 1'b0;
+		axis_word_cnt <= 1'b0;
 		axis_tvalid <= 1'b0;
-		axis_master_fsm_state <= AXIS_MASTER_IDLE;
 	end 
 	else begin
-		out_sram_r_e <= 1'b0;
-		axis_out_fifo_tx_done <= 1'b0;
+		out_fifo_r_e <= 1'b0;
 		axis_tvalid <= 1'b0;
 
-		case (axis_master_fsm_state)
+		case (axis_fsm_state)
 		AXIS_MASTER_IDLE:
 		begin
-			axis_out_fifo_blk <= 1'b0;
+			axis_fsm_state <= AXIS_MASTER_IDLE;
+			axis_master_done <= 1'b0;
 
-			// start reading from SRAM before state is MASTER_SEND, while processing_done is active
-			if ((master_send | processing_done) && !axis_out_fifo_tx_done) begin
-				out_sram_r_e <= 1'b1;
-				axis_master_fsm_state <= AXIS_MASTER_INIT_SRAM;
+			if (out_fifo_can_read) begin
+				axis_fsm_state <= AXIS_MASTER_INIT_SRAM;
+				out_fifo_r_e <= 1'b1;
 			end
 		end
 		AXIS_MASTER_INIT_SRAM:
 		begin
-			out_sram_r_e <= 1'b1;
-			axis_master_fsm_state <= AXIS_MASTER_INIT_TRANSFER;
-			axis_out_fifo_blk_addr <= 1'b0;
-			axis_out_fifo_blk <= 1'b0;
-		end
-		AXIS_MASTER_INIT_TRANSFER:
-		begin
-			out_sram_r_e <= 1'b1;
-			axis_out_fifo_blk <= axis_out_fifo_blk_next;
-			axis_tvalid <= 1'b1;
-			axis_out_fifo_blk_addr <= axis_out_fifo_blk_addr + 1'b1;
-
-			axis_master_fsm_state <= AXIS_MASTER_TRANSFER;
+			axis_fsm_state <= AXIS_MASTER_TRANSFER;
 		end
 		AXIS_MASTER_TRANSFER:
 		begin
-			out_sram_r_e <= 1'b1;
+			axis_fsm_state <= AXIS_MASTER_TRANSFER;
 			axis_tvalid <= 1'b1;
 
-			if (axis_out_fifo_tx_en) begin
-				axis_out_fifo_word_cnt <= axis_out_fifo_word_cnt + 1'b1;
+			if (axis_transaction) begin
+				axis_word_cnt <= axis_word_cnt + 1'b1;
 
-				if (axis_out_fifo_word_cnt == `Nb - 1'b1) begin
-					axis_out_fifo_blk <= axis_out_fifo_blk_next;
-					axis_out_fifo_word_cnt <= 1'b0;
-					axis_out_fifo_blk_cnt <= axis_out_fifo_blk_cnt + 1'b1;
-
-					if (!axis_out_fifo_addr_is_last) begin
-						axis_out_fifo_blk_addr <= axis_out_fifo_blk_addr + 1'b1;
-					end
+				if (axis_word_cnt == `Nb - 1'b1) begin
+					axis_fsm_state <= AXIS_MASTER_IDLE;
+					axis_word_cnt <= 1'b0;
+					axis_tvalid <= 1'b0;
 				end
 
-				if (axis_out_fifo_last_word) begin
-					// cleanup
-					axis_out_fifo_blk_addr <= 1'b0;
-					axis_out_fifo_blk_cnt <= 1'b0;
-					axis_out_fifo_word_cnt <= 1'b0;
-					axis_out_fifo_tx_done <= 1'b1;
-
+				if (axis_last_word) begin
+					axis_master_done <= 1'b1;
 					axis_tvalid <= 1'b0;
-					axis_master_fsm_state <= AXIS_MASTER_IDLE;
 				end
 			end
 		end

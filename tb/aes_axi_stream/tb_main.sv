@@ -171,6 +171,7 @@ initial begin
                                                                            // to match the values
                                                                            // as seen by the kernel
                         comparison_cnt++;
+                        $display("comparison_cnt: %d", comparison_cnt);
                 end  
         end
 end // initial begin
@@ -178,49 +179,6 @@ end // initial begin
 // Benchmarks
 `define AES_AXI_STREAM DUT.design_1_i.aes_axi_stream_0.inst
 `define AES_CONTROLLER `AES_AXI_STREAM.controller
-
-initial begin
-	forever begin
-		integer aes_blocks_no;
-		time aes_time;
-
-		wait (`AES_CONTROLLER.en == 1'b1);
-		aes_time = $time;
-		wait (`AES_CONTROLLER.en_o == 1'b1);
-		aes_time = $time - aes_time;
-		aes_blocks_no = `AES_CONTROLLER.processed_blocks;
-
-		$display("BENCHMARK: Processing %4d AES blocks took %t", aes_blocks_no, aes_time);
-	end
-end
-
-initial begin
-	time axis_slave_time;
-
-	forever begin
-		wait (`AES_AXI_STREAM.s00_axis_tvalid && `AES_AXI_STREAM.s00_axis_tready);
-		axis_slave_time = $time;
-		wait (`AES_AXI_STREAM.s00_axis_tlast == 1'b1);
-		wait (`AES_AXI_STREAM.s00_axis_tlast == 1'b0);
-		axis_slave_time = $time - axis_slave_time;
-
-		$display("BENCHMARK: Receiving %4d AES blocks took %t", `AES_AXI_STREAM.axis_blk_cnt, axis_slave_time);
-	end
-end
-
-initial begin
-	time axis_master_time;
-
-	forever begin
-		wait (`AES_AXI_STREAM.m00_axis_tvalid && `AES_AXI_STREAM.m00_axis_tready);
-		axis_master_time = $time;
-		wait (`AES_AXI_STREAM.m00_axis_tlast == 1'b1);
-		wait (`AES_AXI_STREAM.m00_axis_tlast == 1'b0);
-		axis_master_time = $time - axis_master_time;
-
-		$display("BENCHMARK: Transmitting %4d AES blocks took %t", `AES_AXI_STREAM.axis_blk_cnt, axis_master_time);
-	end
-end
 
 initial begin
 	time total_time;
@@ -232,7 +190,7 @@ initial begin
 		wait (`AES_AXI_STREAM.m00_axis_tlast == 1'b0);
 		total_time = $time - total_time;
 
-		$display("BENCHMARK: Request took %t in total.", total_time);
+		$display("BENCHMARK: Request took %t.", total_time);
 	end
 end
 

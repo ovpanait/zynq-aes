@@ -1,3 +1,16 @@
+// AXI slave implementation
+/*
+ * The AXI slave control logic is:
+ * - Take 4 x 32-bit words from the AXI bus and fill the axis_blk variable
+ * - Store axis_blk as 1 x 128-bit word in the FIFO so it can be retrieved later
+ *   by the AES controller.
+ *
+ *
+ * The input FIFO is implemented as 128-bit Block RAM:
+ * - AXI slave logic writes to it
+ * - AES controller reads from it
+ */
+
 module aes_axi_stream_slave #(
 	// Width of slave side bus
 	parameter integer C_S_AXIS_TDATA_WIDTH = 32,
@@ -10,173 +23,135 @@ module aes_axi_stream_slave #(
 	* Slave side ports
 	*/
 
-	input   s00_axis_aclk,
-	input   s00_axis_aresetn,
-	output  s00_axis_tready,
-	input   s00_axis_tlast,
-	input   s00_axis_tvalid,
+	input                                   s00_axis_aclk,
+	input                                   s00_axis_aresetn,
+	output                                  s00_axis_tready,
+	input                                   s00_axis_tlast,
+	input                                   s00_axis_tvalid,
 	input [C_S_AXIS_TDATA_WIDTH-1 : 0]      s00_axis_tdata,
 	input [(C_S_AXIS_TDATA_WIDTH/8)-1 : 0]  s00_axis_tstrb,
 
-	input                       processing_done,
-	input                       axis_out_fifo_tx_done,
-	input                       aes_controller_in_fifo_r_e,
-	input [FIFO_ADDR_WIDTH-1:0] aes_controller_in_fifo_addr,
+	input                                   axis_master_done,
+	input                                   aes_controller_in_fifo_r_e,
 
-	output reg [`WORD_S-1:0]     axis_slave_in_fifo_cmd,
-	output reg                   axis_slave_is_new_cmd,
-	output reg                   axis_slave_in_fifo_writes_done,
-	output reg                   axis_slave_tlast_reg,
+	output reg [`WORD_S-1:0]                axis_cmd,
+	output reg                              axis_slave_done,
 
-	output reg [FIFO_ADDR_WIDTH-1:0]  axis_blk_cnt,
-	output [FIFO_DATA_WIDTH-1:0]      in_sram_o_data,
-	output                            start_processing,
-
-	input slave_write_fifo
+	output [FIFO_DATA_WIDTH-1:0]            in_fifo_rdata,
+	output                                  in_fifo_almost_full,
+	output                                  in_fifo_empty,
+	output                                  in_fifo_full,
+	output                                  in_fifo_ready
 );
 
-/*
- * The input FIFO is implemented as 128-bit Block RAM:
- * - AXI slave logic writes to it
- * - AES controller reads from it
- */
-
 // AXI related signals
-wire     axis_tready;
-wire     fifo_wren;
+wire axis_data_available;
+wire aes_block_available;
+wire axis_tready;
+wire fifo_wren;
 
-reg [FIFO_ADDR_WIDTH-1:0] axis_slave_in_fifo_addr_reg;
-reg [FIFO_DATA_WIDTH-1:0] axis_slave_in_fifo_blk;     // input FIFO block
-reg [FIFO_ADDR_WIDTH-1:0] axis_slave_in_fifo_blk_cnt; // number of 128-bit blocks in the input FIFO
+wire [FIFO_DATA_WIDTH-1:0] axis_blk_next;
+reg [FIFO_DATA_WIDTH-1:0]  axis_blk;
 
-reg [1:0]         axis_slave_in_fifo_word_cnt;
-reg               axis_slave_in_fifo_w_e;
-wire              axis_slave_in_fifo_addr_is_last;
-reg               axis_slave_fsm_state;
+wire      axis_slave_in_fifo_addr_is_last;
+reg [1:0] axis_word_cnt;
+reg       axis_fsm_state;
 
+// FIFO signals
+wire fifo_write_e;
+wire fifo_read_e;
 
-// SRAM signals
-wire [FIFO_DATA_WIDTH-1:0] in_sram_i_data;
-wire [FIFO_ADDR_WIDTH-1:0] in_sram_addr;
-wire in_sram_w_e;
-wire in_sram_r_e;
+wire [FIFO_DATA_WIDTH-1:0] fifo_wdata;
+wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 
-assign in_sram_r_e = aes_controller_in_fifo_r_e;
-assign in_sram_addr = aes_controller_in_fifo_r_e ? aes_controller_in_fifo_addr : axis_slave_in_fifo_addr_reg;
+wire fifo_almost_full;
+wire fifo_full;
+wire fifo_empty;
+wire fifo_ready;
 
-block_ram #(
+// FIFO logic
+
+fifo #(
 	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
 	.DATA_WIDTH(FIFO_DATA_WIDTH),
 	.DEPTH(FIFO_SIZE)
-) in_fifo(
+) slave_fifo (
 	.clk(s00_axis_aclk),
+	.reset(!s00_axis_aresetn),
 
-	.addr(in_sram_addr),
-	.i_data(in_sram_i_data),
-	.w_e(in_sram_w_e),
+	.fifo_write_e(fifo_write_e),
+	.fifo_wdata(fifo_wdata),
 
-	.o_data(in_sram_o_data),
-	.r_e(in_sram_r_e)
+	.fifo_read_e(fifo_read_e),
+	.fifo_rdata(fifo_rdata),
+
+	.fifo_almost_full(fifo_almost_full),
+	.fifo_full(fifo_full),
+	.fifo_empty(fifo_empty),
+	.fifo_ready(fifo_ready)
 );
 
-// AXI slave implementation
-/*
- * The AXI slave control logic is:
- * - Take 4 x 32bit words from the AXI bus and fill the axis_slave_in_fifo_blk variable
- * - Store axis_slave_in_fifo_blk as 1 x 128bit word in the in_fifo_sram block RAM
- *       so it can be retrieved later by the AES controller
- */
+assign fifo_read_e = aes_controller_in_fifo_r_e;
+assign fifo_wdata = axis_blk_next;
+assign fifo_write_e = fifo_wren;
+
+assign in_fifo_almost_full = fifo_almost_full;
+assign in_fifo_rdata = fifo_rdata;
+assign in_fifo_empty = fifo_empty;
+assign in_fifo_ready = fifo_ready;
+assign in_fifo_full = fifo_full;
+
+// AXI logic
+
 localparam AXIS_SLAVE_GET_CMD = 1'b0;
 localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
 
-assign in_sram_i_data = axis_slave_in_fifo_blk;
-assign in_sram_w_e = axis_slave_in_fifo_w_e;
-
+assign aes_block_available = axis_data_available && (axis_word_cnt == `Nb - 1'b1);
+assign axis_blk_next = (axis_blk << `WORD_S) | s00_axis_tdata;
+assign axis_tready = (!axis_slave_done && fifo_ready && !fifo_full);
+assign axis_data_available = s00_axis_tvalid && axis_tready;
+assign fifo_wren = aes_block_available;
 assign s00_axis_tready = axis_tready;
-assign axis_tready = (slave_write_fifo && !axis_slave_in_fifo_writes_done);
-assign fifo_wren = s00_axis_tvalid && axis_tready;
-assign axis_slave_in_fifo_addr_is_last = (axis_slave_in_fifo_addr_reg == FIFO_SIZE-1);
 
 always @(posedge s00_axis_aclk) begin
 	if(!s00_axis_aresetn) begin
-		axis_slave_in_fifo_blk <= 1'b0;
-		axis_slave_in_fifo_blk_cnt <= 1'b0;
-		axis_slave_in_fifo_w_e <= 1'b0;
-		axis_slave_in_fifo_word_cnt <= 1'b0;
-		axis_slave_in_fifo_writes_done <= 1'b0;
-		axis_slave_in_fifo_cmd <= 1'b0;
-		axis_slave_in_fifo_addr_reg <= 1'b0;
-		axis_slave_tlast_reg <= 1'b0;
-		axis_slave_is_new_cmd <= 1'b0;
-
-		axis_blk_cnt <= 1'b0;
-		axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
+		axis_fsm_state <= AXIS_SLAVE_GET_CMD;
+		axis_slave_done <= 1'b0;
+		axis_word_cnt <= 1'b0;
+		axis_blk <= 1'b0;
+		axis_cmd <= 1'b0;
 	end
 	else begin
-		case (axis_slave_fsm_state)
+		case (axis_fsm_state)
 			AXIS_SLAVE_GET_CMD:
 			begin
-				axis_slave_in_fifo_addr_reg <= 1'b0;
-				axis_slave_is_new_cmd <= 1'b1;
-
-				if (axis_out_fifo_tx_done) begin
-					axis_slave_tlast_reg <= 1'b0;
+				if (axis_master_done) begin
+					axis_slave_done <= 1'b0;
 				end
 
-				if (fifo_wren) begin
-					//first received word is the command
-					axis_slave_in_fifo_cmd <= s00_axis_tdata;
-					axis_slave_fsm_state <= AXIS_SLAVE_GET_PAYLOAD;
+				if (axis_data_available) begin
+					axis_fsm_state <= AXIS_SLAVE_GET_PAYLOAD;
+					axis_cmd <= s00_axis_tdata;
 				end
 			end
 			AXIS_SLAVE_GET_PAYLOAD:
 			begin
-				axis_slave_in_fifo_w_e <= 1'b0;
+				if (axis_data_available) begin
+					axis_word_cnt <= axis_word_cnt + 1'b1;
+					axis_blk <= axis_blk_next;
 
-				if (fifo_wren) begin
-					axis_slave_in_fifo_blk <= (axis_slave_in_fifo_blk << `WORD_S) | s00_axis_tdata;
-					axis_slave_in_fifo_word_cnt <= axis_slave_in_fifo_word_cnt + 1'b1;
-
-					if (axis_slave_in_fifo_word_cnt == `Nb - 1'b1) begin
-						axis_slave_in_fifo_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
-						axis_slave_in_fifo_w_e <= 1'b1;
-						axis_slave_in_fifo_word_cnt <= 1'b0;
-
-						if (!axis_slave_in_fifo_addr_is_last) begin
-							axis_slave_in_fifo_addr_reg <= axis_slave_in_fifo_blk_cnt;
-						end
-
-						if (s00_axis_tlast) begin
-						       axis_slave_tlast_reg <= 1'b1;
-						end
-
-						/*
-						 * Use the two slots available for key/iv to store data if the payload is
-						 * larger than DATA_FIFO_SIZE.
-						 */
-						if ((axis_slave_in_fifo_blk_cnt == FIFO_SIZE-1) || s00_axis_tlast) begin
-							axis_slave_in_fifo_blk_cnt <= 1'b0;
-							axis_blk_cnt <= axis_slave_in_fifo_blk_cnt + 1'b1;
-							axis_slave_in_fifo_writes_done <= 1'b1;
-						end
+					if (aes_block_available) begin
+						axis_word_cnt <= 1'b0;
 					end
-				end
 
-				if (processing_done) begin
-					axis_slave_in_fifo_addr_reg <= 1'b0;
-					axis_slave_in_fifo_writes_done <= 1'b0;
-					axis_slave_is_new_cmd <= 1'b0;
-
-					if (axis_slave_tlast_reg) begin
-						axis_slave_fsm_state <= AXIS_SLAVE_GET_CMD;
+					if (s00_axis_tlast) begin
+						axis_fsm_state <= AXIS_SLAVE_GET_CMD;
+						axis_slave_done <= 1'b1;
 					end
 				end
 			end
 		endcase
 	end
 end
-
-// One clock enable
-assign start_processing = (slave_write_fifo && axis_slave_in_fifo_writes_done == 1'b1 && !processing_done);
 
 endmodule
