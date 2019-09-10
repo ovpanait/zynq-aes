@@ -76,14 +76,14 @@ type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   
 aes-128-ecb      20565.61k    23967.59k    25016.06k    25291.09k    25331.03k    25340.59k    25329.66k    25285.97k    24958.29k    24226.47k
 
 HW acceleration:
-root@arty-zynq7:~# openssl speed  -evp aes-128-ecb -elapsed
+root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
 OpenSSL 1.1.1c  28 May 2019
 built on: Sat Jul 20 06:22:15 2019 UTC
 options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
 compiler: arm-poky-linux-gnueabi-gcc  -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fmacro-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-ecb        179.87k      716.76k     2801.24k     9425.92k    14497.11k    23075.50k    31304.36k    36973.23k       40544.94k    43537.75k
+aes-128-ecb        181.45k      714.37k     2824.53k     9630.04k    16084.99k    23508.31k    33174.87k    41817.43k    48136.19k    52035.58k
 
 
 ```
@@ -107,12 +107,13 @@ aes-128-cbc      17959.16k    21204.69k    22471.77k    22814.04k    22863.87k  
 
 HW acceleration:
 root@arty-zynq7:~# openssl speed  -evp aes-128-cbc -elapsed
+OpenSSL 1.1.1c  28 May 2019
 built on: Sat Jul 20 06:22:15 2019 UTC
 options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
 compiler: arm-poky-linux-gnueabi-gcc  -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fmacro-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-cbc        164.58k      684.57k     2752.77k     9492.48k    15233.71k    23097.34k    30135.64k    36776.62k    40239.10k    43166.38k
+aes-128-cbc        185.83k      736.51k     2920.36k     9456.64k    15788.71k    23217.49k    32904.53k    41659.05k    47983.27k    51970.05k
 ```
 ## Block design and AXI DMA config
 
