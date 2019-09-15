@@ -1,0 +1,15 @@
+#Vim
+*.swp
+
+#Emacs files
+*#
+.#*
+*~
+
+# Vivado files
+*.jou
+*.log
+*.str
+
+# Simulation
+simulation
