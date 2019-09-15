@@ -1,6 +1,6 @@
 `include "aes.vh"
 
-module aes_axi_stream #
+module zynq_aes_top #
 (
         /*
         * Master side parameters
