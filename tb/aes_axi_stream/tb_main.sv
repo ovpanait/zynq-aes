@@ -177,7 +177,7 @@ initial begin
 end // initial begin
 
 // Benchmarks
-`define AES_AXI_STREAM DUT.design_1_i.aes_axi_stream_0.inst
+`define AES_AXI_STREAM DUT.design_1_i.zynq_aes_0.inst
 `define AES_CONTROLLER `AES_AXI_STREAM.controller
 
 initial begin
