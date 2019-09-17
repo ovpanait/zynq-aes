@@ -1,7 +1,7 @@
-#Vim
+# Vim
 *.swp
 
-#Emacs files
+# Emacs files
 *#
 .#*
 *~
@@ -10,6 +10,8 @@
 *.jou
 *.log
 *.str
+NA
 
-# Simulation
+# Make workflow
 simulation
+synthesis
