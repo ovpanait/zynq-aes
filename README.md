@@ -102,8 +102,8 @@ fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOP
 SSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM 
 -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes   16384 bytes  32768 bytes  65536 bytes
-aes-128-cbc      17959.16k    21204.69k    22471.77k    22814.04k    22863.87k    22882.99k    22915.75k    22937.60k 22850.22k    22478.85k
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-128-ecb        173.85k      706.39k     2848.09k    12089.69k    20168.02k    28099.93k    40547.67k    50320.73k    57256.62k    61123.24k
 
 HW acceleration:
 root@arty-zynq7:~# openssl speed  -evp aes-128-cbc -elapsed
@@ -113,7 +113,7 @@ options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr)
 compiler: arm-poky-linux-gnueabi-gcc  -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fmacro-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
 The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-cbc        185.83k      736.51k     2920.36k     9456.64k    15788.71k    23217.49k    32904.53k    41659.05k    47983.27k    51970.05k
+aes-128-cbc        185.63k      804.84k     2948.10k    10928.47k    19571.37k    28144.98k    40072.53k    50145.96k    56404.65k    60948.48k
 ```
 ## Block design and AXI DMA config
 
