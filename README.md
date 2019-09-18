@@ -5,6 +5,22 @@
 - IPSEC offloading OK
 - driver compatible with linux-xlnx v4.14 branch
 
+## Quick Start
+Generate bitstream for your platform (must have vivado environment sourced).  
+In my case, the part code for ARTY Z7-20 board is xc7z020clg400-1:  
+```sh
+make PART="xc7z020clg400-1" bitstream
+```
+Get the bitstream from:
+```sh
+$ ls -lah synthesis/zynq_aes/zynq_aes.runs/impl_1/*bit
+-rw-rw-r-- 1 xxx xxx 2,0M sep 17 22:31 synthesis/zynq_aes/zynq_aes.runs/impl_1/zynq_aes_bd_wrapper.bit
+```
+Run regression tests (XSIM) (not in a good shape at the moment):
+```sh
+make test
+```
+
 ## Quick Start for Arty Z7-20 board using Yocto
 
 ### Prerequisites - Build Host Packages
