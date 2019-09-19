@@ -15,24 +15,24 @@
 
 #define AES_BLOCK_SIZE 16
 
-#define ITER_NO 100
-#define PAYLOAD_AES_BLOCKS 555
+#define ITER_NO 1
+#define PAYLOAD_AES_BLOCKS 1000
 #define PAYLOAD_SIZE (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
 
-static void dump_aes_buffer(FILE *file, char *msg, char *aes_buf, int blocks_no)
+static void dump_aes_buffer(FILE *file, char *msg, uint8_t *aes_buf, int blocks_no)
 {
-        int i =0, j = 0;
+	int i =0, j = 0;
 
-        fprintf(file, "%s \n", msg);
-        for (i = 0; i < blocks_no; ++i) {
-                for (j = 0; j < AES_BLOCK_SIZE; ++j)
-                fprintf(file, "%02x", aes_buf[i * AES_BLOCK_SIZE + j]);
-                fprintf(file, "\n");
-        }
-        fprintf(file, "\n");
+	fprintf(file, "%s \n", msg);
+	for (i = 0; i < blocks_no; ++i) {
+		for (j = 0; j < AES_BLOCK_SIZE; ++j)
+			fprintf(file, "%02x", aes_buf[i * AES_BLOCK_SIZE + j]);
+		fprintf(file, "\n");
+	}
+	fprintf(file, "\n");
 }
 
-static void check_aes_buffers(char *aes_buf_in, char *aes_buf_out, int blocks_no)
+static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blocks_no)
 {
         int i =0;
 
@@ -59,16 +59,16 @@ static int do_ecb_stress(void)
         };
         struct msghdr msg = {};
         struct cmsghdr *cmsg;
-        char cbuf[CMSG_SPACE(4)] = {0};
+        uint8_t cbuf[CMSG_SPACE(4)] = {0};
 
         struct iovec iov;
 
         int ret;
 
         // Allocate buffers
-	char *plaintext_in = malloc(PAYLOAD_SIZE + 1);
-	char *plaintext_out = malloc(PAYLOAD_SIZE + 1);
-	char *ciphertext = malloc(PAYLOAD_SIZE + 1);
+	uint8_t *plaintext_in = malloc(PAYLOAD_SIZE + 1);
+	uint8_t *plaintext_out = malloc(PAYLOAD_SIZE + 1);
+	uint8_t *ciphertext = malloc(PAYLOAD_SIZE + 1);
 	if (plaintext_in == NULL || ciphertext == NULL || plaintext_out == NULL) {
 		perror("Could not allocate buffers!");
 		exit(EXIT_FAILURE);
@@ -190,7 +190,7 @@ static int do_cbc_stress(void)
         };
         struct msghdr msg = {};
         struct cmsghdr *cmsg;
-        char cbuf[CMSG_SPACE(4) + CMSG_SPACE(20)] = {0};
+        uint8_t cbuf[CMSG_SPACE(4) + CMSG_SPACE(20)] = {0};
 
         struct af_alg_iv *iv; // init vector needed for CBC
         struct iovec iov;
@@ -198,9 +198,9 @@ static int do_cbc_stress(void)
         int ret;
 
         // Allocate buffers
-        char *plaintext_in = malloc(PAYLOAD_SIZE + 1);
-        char *plaintext_out = malloc(PAYLOAD_SIZE + 1);
-        char *ciphertext = malloc(PAYLOAD_SIZE + 1);
+        uint8_t *plaintext_in = malloc(PAYLOAD_SIZE + 1);
+        uint8_t *plaintext_out = malloc(PAYLOAD_SIZE + 1);
+        uint8_t *ciphertext = malloc(PAYLOAD_SIZE + 1);
         if (plaintext_in == NULL || ciphertext == NULL || plaintext_out == NULL) {
                 perror("Could not allocate buffers!");
                 exit(EXIT_FAILURE);
