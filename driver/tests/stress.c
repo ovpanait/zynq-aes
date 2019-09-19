@@ -39,9 +39,9 @@ static void check_aes_buffers(char *aes_buf_in, char *aes_buf_out, int blocks_no
         for (i = 0; i < blocks_no; ++i) {
                 if(strncmp(aes_buf_in + i * AES_BLOCK_SIZE,
                         aes_buf_out + i * AES_BLOCK_SIZE, AES_BLOCK_SIZE) != 0) {
-                        fprintf(stderr, "Block no. %d verification failed!\n");
-                                dump_aes_buffer(stderr, "Block 1: ", aes_buf_in + i * AES_BLOCK_SIZE, 1);
-                                dump_aes_buffer(stderr, "Block 2: ", aes_buf_out + i * AES_BLOCK_SIZE, 1);
+                        fprintf(stderr, "Block no. %d verification failed!\n", i);
+                        dump_aes_buffer(stderr, "Block 1: ", aes_buf_in + i * AES_BLOCK_SIZE, 1);
+                        dump_aes_buffer(stderr, "Block 2: ", aes_buf_out + i * AES_BLOCK_SIZE, 1);
 
                         exit(EXIT_FAILURE);
                 }
