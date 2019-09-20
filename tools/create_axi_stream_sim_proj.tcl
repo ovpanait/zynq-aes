@@ -12,6 +12,9 @@ OUTPUT_DIR        output directory for the generated project/simulation env
 exit 1
 }
 
+set hdl_include $env(HDL_INCLUDE)
+set tb_include $env(TB_INCLUDE)
+
 set ip_repo_dir [lindex $argv 0]
 set tb_dir [lindex $argv 1]
 set out_dir [lindex $argv 2]
@@ -42,7 +45,7 @@ launch_runs -jobs 8 {design_1_axi4stream_vip_0_0_synth_1 design_1_axi4stream_vip
 
 # Simulation
 set_property SOURCE_SET sources_1 [get_filesets sim_1]
-add_files -fileset [get_filesets sim_1] -norecurse ${tb_dir}/tb_main.sv
+add_files -fileset [get_filesets sim_1] ${tb_dir}
 
 foreach ip [get_ips] {
 	add_files -fileset [get_filesets sim_1] [get_files -compile_order sources -used_in simulation -of [get_files [set ip].xci]]
@@ -64,7 +67,7 @@ export_simulation \
     -use_ip_compiled_libs \
     -force \
     -directory "$outputDir/export_sim" \
-    -include [list "[pwd]/hdl/include" "${tb_dir}/include" "[pwd]/tb/include"] \
+    -include [list ${tb_dir}/include ${hdl_include} ${tb_include}] \
     -define [list {SIMULATION=1}]
 
 close_project

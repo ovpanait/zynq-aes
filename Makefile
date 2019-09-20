@@ -1,5 +1,10 @@
 HDL_DIR = $(shell readlink -f hdl)
-TB_DIR = $(shell readlink -f tb/zynq_aes_top)
+HDL_INCLUDE = $(HDL_DIR)/include
+
+TB_TOP = $(shell readlink -f tb)
+TB_INCLUDE = $(TB_TOP)/include
+TB_DIR = $(TB_TOP)/zynq_aes_top
+
 TOOLS_DIR = $(shell readlink -f tools)
 SIM_DIR = $(shell readlink -f simulation)
 XSIM_DIR = $(SIM_DIR)/export_sim/xsim
@@ -30,7 +35,7 @@ $(IP_REPO_DIR): $(HDL_SOURCES)
 
 $(SIM_PROJ): $(IP_REPO_DIR)
 	rm -rf $@
-	vivado -mode tcl \
+	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) vivado -mode tcl \
 	-source "$(TOOLS_DIR)/create_axi_stream_sim_proj.tcl" \
 	-nolog -nojour \
 	-tclargs $(IP_REPO_DIR) $(TB_DIR) $(SIM_DIR)
