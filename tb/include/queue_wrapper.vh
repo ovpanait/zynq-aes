@@ -81,8 +81,11 @@ class queue_wrapper #(
 		integer i;
 
 		for (i = 0; i < cmp_queue.size(); i=i+1) begin
-			if (queue[i] !== cmp_queue.get(i))
-				$display("Word no. %d from block no %d does not match!", i, i / 4);
+			if (queue[i] !== cmp_queue.get(i)) begin
+				$display("Data at index %d doesn't match!", i);
+				$display("Value 1: %H", queue[i]);
+				$display("Value 2: %H", cmp_queue.get(i));
+			end
 		end
 	endtask
 
