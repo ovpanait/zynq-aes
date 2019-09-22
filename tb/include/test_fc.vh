@@ -1,67 +1,54 @@
-// Test setup
+`ifndef TEST_FC_VH
+`define TEST_FC_VH
+
+`include "queue_wrapper.vh"
 
 `define PRINT_DBG(var) $display("DEBUG: var: %H", var)
-`define VERIFY(size, simulated_val, expected_val, err) \
-	tester #(size)::verify_output(simulated_val, expected_val, err); \
+`define VERIFY(size, simulated_val, expected_val) \
+	tester #(size)::verify_output(simulated_val, expected_val); \
 	if (err) begin \
 		$display("ERROR: %s: : %4d", `__FILE__, `__LINE__); \
 		$finish; \
 	end
 
 class tester #(
-	       int unsigned WIDTH = 32,
-	       int unsigned UNPACKED_WIDTH = 8);
-   static function bit verify_output(input [WIDTH-1:0] simulated_value, input [WIDTH-1:0] expected_value, ref integer errors);
-      begin
-         verify_output = 1;
-	 if (simulated_value !== expected_value)
-	   begin
-	      verify_output = 0;
-	      errors = errors + 1;
-	      $display("Simulated Value = %h \n Expected Value = %h \n errors = %d \n at time = %d",
-		       simulated_value,
-		       expected_value,
-		       errors,
-		       $time);
-	   end
-      end
-   endfunction
+	int unsigned WIDTH = 32,
+	int unsigned UNPACKED_WIDTH = 8,
+	int unsigned QUEUE_DATA_WIDTH = 32);
 
-   static task packed_to_unpacked(input [WIDTH-1:0] data_in, output [UNPACKED_WIDTH-1:0] data_unpacked []);
-      begin
-	 data_unpacked.delete();
-	 data_unpacked = new [WIDTH/UNPACKED_WIDTH];
-	 
-	 for (int i = 0; i < $size(data_unpacked); ++i)
-	   data_unpacked[i] = data_in[WIDTH - (i + 1)*UNPACKED_WIDTH +: UNPACKED_WIDTH];
-      end
-   endtask
+	static task pack(input [UNPACKED_WIDTH-1:0] data[], output [WIDTH-1:0] out);
+		begin
+		for (int i = 0; i < $size(data); ++i)
+			out[i*UNPACKED_WIDTH +: UNPACKED_WIDTH] = data[i];
+		end
+	endtask
 
-   static task pack(input [UNPACKED_WIDTH-1:0] data[], output [WIDTH-1:0] out);
-      begin
-         for (int i = 0; i < $size(data); ++i)
-            out[i*UNPACKED_WIDTH +: UNPACKED_WIDTH] = data[i];
-      end
-   endtask
+	function bit verify_output(input [WIDTH-1:0] simulated_value, input [WIDTH-1:0] expected_value);
+	begin
+		verify_output = 1;
+		if (simulated_value !== expected_value)
+		begin
+			verify_output = 0;
+			$display("Simulated Value = %h \n Expected Value = %h \n at time = %d",
+				simulated_value,
+				expected_value,
+				$time);
+		end
+	end
+	endfunction
 
-   static task print_unpacked(input [UNPACKED_WIDTH-1:0] data_unpacked[]);
-      begin
-	 $write("debug: 0x");
-	 for(int i = 0; i < $size(data_unpacked); i++) begin
-	    $write("%H", data_unpacked[i]);
-	 end
-	 $display("");
-      end
-   endtask
+	// The bit direction is reversed
+	task q_push_back32_rev(input [0:WIDTH-1] data, input queue_wrapper#(QUEUE_DATA_WIDTH) queue);
+		if (QUEUE_DATA_WIDTH != 32) begin
+			$display("ERROR: %s %l: QUEUE_DATA_WIDTH must be 32!", `__FILE__, `__LINE__);
+			$finish;
+		end
 
-   // The bit direction is reversed
-   static task q_push_back32_rev(input [0:WIDTH-1] data, ref reg [0:31] queue[$]);
-   begin
-        for (integer i = 0; i < WIDTH / 32; i=i+1) begin
-                // Workaround because push_back/push_front doesn't work (?)
-                queue[queue.size()] = data[i*32 +: 32];
-        end
-   end
-   endtask
+		for (integer i = 0; i < WIDTH / 32; i=i+1) begin
+			queue.push_back(data[i*32 +: 32]);
+		end
+	endtask
 
 endclass
+
+`endif
