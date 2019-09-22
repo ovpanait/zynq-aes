@@ -35,6 +35,10 @@ class queue_wrapper #(
 		get = queue[i];
 	endfunction
 
+	task clear;
+		queue = {};
+	endtask
+
 	// Unpack the fifo, but reverse the bytes for every fifo entry
 	// This is used when the fifo stores data in the opposite bit direction ([0:MAX-1])
 	task unpack_8b_rev(queue_wrapper#(8) data_unpacked);
