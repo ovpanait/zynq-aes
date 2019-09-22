@@ -1,67 +1,56 @@
-// Test 3
-// Second independent encryption operation with the same key.
+// ECB decryption stress test
 task testcase3();
 	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
 
-        localparam AES_PLAINTEXT_1 = `BLK_S'h54776f204f6e65204e696e652054776f;
-        localparam AES_CIPHERTEXT_1 = `BLK_S'h29c3505f571420f6402299b31a02d73a;
+	localparam test_blocks_no = 256;
 
-        integer initial_cmp_cnt; // testcase comparison counter
-        integer i, j;
-        reg [0:`WORD_S-1] expected_results[$] = {};
+	localparam plaintext_fn = "ecb_plaintext.txt";
+	localparam ciphertext_fn = "ecb_ciphertext.txt";
 
-        $display("Starting Testcase: Second independent encryption operation with the same key.");
+	integer total_blocks;
+	integer i, j;
 
-        tester #(`BLK_S)::q_push_back32_rev(AES_CIPHERTEXT_1, expected_results);
-        tester #(`BLK_S)::q_push_back32_rev(AES_PLAINTEXT_1, expected_results);
-        initial_cmp_cnt = comparison_cnt;
+	reg [0:`WORD_S-1]  cmd;
+	reg [0:`KEY_S-1]   key;
+	reg [0:`IV_BITS-1] iv;
 
-        // Encrypt
-        tester::packed_to_unpacked(`ECB_ENCRYPT_128, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
+	queue_wrapper#(`BLK_S) plaintext_queue;
+	queue_wrapper#(`BLK_S) ciphertext_queue;
+	queue_wrapper#(`WORD_S) expected_results_queue;
 
-	// Send key alongside encryption payload
-        aes128_in_blk = swap_blk(AES_KEY128);
-        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 0);
+	comparison_cnt = 0;
 
-        aes128_in_blk =  AES_PLAINTEXT_1;
-        aes128_in_blk = swap_blk(aes128_in_blk);
+	ciphertext_queue = new();
+	plaintext_queue = new();
+	expected_results_queue = new();
 
-        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
+	plaintext_queue.fill_from_file(plaintext_fn);
+	ciphertext_queue.fill_from_file(ciphertext_fn);
 
-        // Decrypt
-        tester::packed_to_unpacked(`ECB_DECRYPT_128, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp);
+	if (test_blocks_no > plaintext_queue.size()) begin
+		$display("ERROR: Cannot send %d blocks!", test_blocks_no);
+		$display("ERROR: Only %d precomputed blocks available!", plaintext_queue.size());
+		$finish;
+	end
+	total_blocks = test_blocks_no;
+	$display("Sending %d AES blocks.", total_blocks);
 
-	// Send key alongside decryption payload
-        aes128_in_blk = swap_blk(AES_KEY128);
-        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 0);
+	for (i = 0; i < total_blocks; i++)
+		queue_tester.q_push_back32_rev(plaintext_queue.get(i), expected_results_queue);
 
-        aes128_in_blk =  AES_CIPHERTEXT_1;
-        aes128_in_blk = swap_blk(aes128_in_blk);
+	$display("Starting Testcase: ECB encryption stress test");
 
-        tester #($size(aes128_in_blk))::packed_to_unpacked(aes128_in_blk, data_tmp);
-        tester::print_unpacked(data_tmp);
-        gen_transaction(data_tmp, 1);
+	// Prepare encryption request
+	cmd = `ECB_DECRYPT_128;
+	key = AES_KEY128;
+	iv = {`IV_BITS{1'b0}};
 
-        wait(comparison_cnt == initial_cmp_cnt + 8);
+	aes_tester.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks);
 
-        for (i = initial_cmp_cnt, j=0; i < comparison_cnt; i=i+1, j=j+1) begin
-                if (tester #(`WORD_S)::verify_output(results[i], expected_results[j], errors) == 0)
-                        $display("Word no. %d from block no %d does not match!", j, j / 4);
-        end
+	wait(comparison_cnt == total_blocks * 4);
 
-        $display("Testcase 3 done with %d errors.\n", errors);
-        if (errors != 0)
-                $finish;
+	results.compare(expected_results_queue);
+	$display("Testcase 3 done without errors.\n");
 
-        // No cleanup
+	// No cleanup
 endtask
