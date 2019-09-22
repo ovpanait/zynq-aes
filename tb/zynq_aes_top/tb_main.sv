@@ -3,6 +3,7 @@ import design_1_axi4stream_vip_0_0_pkg::*;
 import design_1_axi4stream_vip_1_0_pkg::*;
 
 `include "test_fc.vh"
+`include "aes_test.vh"
 `include "aes.vh"
 
 module tb_main(
@@ -43,14 +44,15 @@ bit                                     clock;
 // Reset signal
 bit                                     reset;
 
-// Test signals
-reg [0:7]               data_tmp[];
+queue_wrapper #(`WORD_S) results;
+tester #(
+	.WIDTH(`BLK_S),
+	.QUEUE_DATA_WIDTH(`WORD_S)
+	) queue_tester;
 
-reg [0:`BLK_S-1]        aes128_in_blk;
-reg [0:`BLK_S-1]        aes128_out_blk;
-
-//  Expected results
-reg [0:`WORD_S-1] results[$];
+aes_test #(
+	.master_agent_t(design_1_axi4stream_vip_0_0_mst_t)
+	) aes_tester;
 
 // instantiate bd
 design_1_wrapper DUT(
@@ -88,33 +90,37 @@ end
 
 //Main process
 initial begin
-        mst_monitor_transaction = new("master monitor transaction");
-        slv_monitor_transaction = new("slave monitor transaction");
+	mst_monitor_transaction = new("master monitor transaction");
+	slv_monitor_transaction = new("slave monitor transaction");
 
-        mst_agent = new("master vip agent",DUT.design_1_i.axi4stream_vip_0.inst.IF);
-        slv_agent = new("slave vip agent",DUT.design_1_i.axi4stream_vip_1.inst.IF);
-        $timeformat (-12, 1, " ps", 1);
+	mst_agent = new("master vip agent",DUT.design_1_i.axi4stream_vip_0.inst.IF);
+	slv_agent = new("slave vip agent",DUT.design_1_i.axi4stream_vip_1.inst.IF);
+	$timeformat (-12, 1, " ps", 1);
 
-        mst_agent.vif_proxy.set_dummy_drive_type(XIL_AXI4STREAM_VIF_DRIVE_NONE);
-        slv_agent.vif_proxy.set_dummy_drive_type(XIL_AXI4STREAM_VIF_DRIVE_NONE);
+	aes_tester = new(mst_agent);
+	queue_tester = new();
+	results = new();
 
-        mst_agent.set_agent_tag("Master VIP");
-        slv_agent.set_agent_tag("Slave VIP");
+	mst_agent.vif_proxy.set_dummy_drive_type(XIL_AXI4STREAM_VIF_DRIVE_NONE);
+	slv_agent.vif_proxy.set_dummy_drive_type(XIL_AXI4STREAM_VIF_DRIVE_NONE);
 
-        // set print out verbosity level.
-        mst_agent.set_verbosity(mst_agent_verbosity);
-        slv_agent.set_verbosity(slv_agent_verbosity);
+	mst_agent.set_agent_tag("Master VIP");
+	slv_agent.set_agent_tag("Slave VIP");
 
-        mst_agent.start_master();
-        slv_agent.start_slave();
-        slv_gen_tready();
+	// set print out verbosity level.
+	mst_agent.set_verbosity(mst_agent_verbosity);
+	slv_agent.set_verbosity(slv_agent_verbosity);
 
-        //testcase1();
-        testcase2();
-        testcase3();
-        testcase4();
+	mst_agent.start_master();
+	slv_agent.start_slave();
+	slv_gen_tready();
 
-        $finish;
+	//testcase1();
+	testcase2();
+	//testcase3();
+	//testcase4();
+
+	$finish;
 end
 
 task slv_gen_tready();
@@ -166,12 +172,10 @@ initial begin
                         slv_scb_transaction.get_data(slv_data);
 
                         tester#($size(slv_data_packed))::pack(slv_data, slv_data_packed);
-
                         results.push_back(swap_bytes32(slv_data_packed));  // swap bytes again 
                                                                            // to match the values
                                                                            // as seen by the kernel
                         comparison_cnt++;
-                        $display("comparison_cnt: %d", comparison_cnt);
                 end  
         end
 end // initial begin
@@ -194,49 +198,10 @@ initial begin
 	end
 end
 
-// Tasks
-task automatic gen_rand_transaction(ref axi4stream_transaction wr_transaction);
-        wr_transaction = mst_agent.driver.create_transaction("Master VIP write transaction");
-        wr_transaction.set_xfer_alignment(XIL_AXI4STREAM_XFER_RANDOM);
-        WR_TRANSACTION_FAIL: assert(wr_transaction.randomize());
-endtask
-
-task gen_transaction(input [0:7] data[], input last = 0);
-        for (int i = 0; i < $size(data); i = i + 4)
-        begin
-                xil_axi4stream_data_byte data_dbg[4];
-                axi4stream_transaction                         wr_transaction; 
-
-                gen_rand_transaction(wr_transaction);
-                wr_transaction.set_data('{data[i+3], data[i+2], data[i+1], data[i]});
-
-                wr_transaction.set_last(0);
-                if (i == $size(data) - 4 && last == 1)
-                        wr_transaction.set_last(1);
-
-                wr_transaction.get_data(data_dbg);
-
-                mst_agent.driver.send(wr_transaction);
-        end
-endtask;
-
-function print_data(string msg, xil_axi4stream_data_byte data[4]);
-        begin
-                $write({msg, " "});
-
-                // data is stored in litle endian
-                $write("0x");
-                for(int i = $size(data) - 1; i >= 0; i--) begin
-                        $write("%H", data[i]);
-                end
-                $display("");
-        end
-endfunction;
-
 //`include "test1.vh"
 `include "test2.vh"
-`include "test3.vh"
-`include "test4.vh"
+//`include "test3.vh"
+//`include "test4.vh"
 
 endmodule
 
