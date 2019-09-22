@@ -50,7 +50,6 @@ task testcase2();
 	wait(comparison_cnt == total_blocks * 4);
 
 	results.compare(expected_results_queue);
+	results.clear();
 	$display("Testcase 2 done without errors.\n");
-
-	// No cleanup
 endtask
