@@ -16,7 +16,7 @@ Get the bitstream from:
 $ ls -lah synthesis/zynq_aes/zynq_aes.runs/impl_1/*bit
 -rw-rw-r-- 1 xxx xxx 2,0M sep 17 22:31 synthesis/zynq_aes/zynq_aes.runs/impl_1/zynq_aes_bd_wrapper.bit
 ```
-Run regression tests (XSIM) (not in a good shape at the moment):
+Run regression tests (XSIM):
 ```sh
 make test
 ```
