@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdint.h>
-
 #include "aes.h"
 
 #define inv_get_sbox(num) (rsbox[(num)])
