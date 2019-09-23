@@ -1,8 +1,6 @@
 # Proc to create BD design_1
 
-puts "pula2"
 proc cr_bd_design_1 { parentCell } {
-	puts "pula3"
   # CHANGE DESIGN NAME HERE
   set design_name design_1
 
