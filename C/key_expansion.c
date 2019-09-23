@@ -26,6 +26,7 @@ const uint8_t sbox[256] = {
 const uint8_t Rcon[11] = {
   0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36 };
 
+#ifdef DEBUG
 static void print_keys(uint8_t *sched)
 {
 	int i, j;
@@ -37,6 +38,7 @@ static void print_keys(uint8_t *sched)
 		printf("\n");
 	}
 }
+#endif
 
 void key_expansion(uint8_t *sched, uint8_t *key)
 {
