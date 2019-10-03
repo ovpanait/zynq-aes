@@ -71,11 +71,11 @@ initial begin
 	@(negedge clk) reset = 0;
 
 	// Testcase
-	`VERIFY($size(fifo_empty), fifo_empty, 1'b1, errors);
+	`VERIFY(fifo_empty, 1'b1);
 
 	rw_cycle(words_no);
 
-	`VERIFY($size(fifo_empty), fifo_empty, 1'b1, errors);
+	`VERIFY(fifo_empty, 1'b1);
 	@(negedge clk);
 
 	concurrent_rw_cycle(words_no);
@@ -92,7 +92,7 @@ initial begin
 end
 
 task write_data(input queue_wrapper#(DATA_WIDTH) fifo_data);
-		`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
+		`VERIFY(fifo_ready, 1'b1);
 		fifo_write_e = 1'b1;
 
 		std::randomize(fifo_wdata);
@@ -103,7 +103,7 @@ task read_data(input queue_wrapper#(DATA_WIDTH) fifo_data, input bit is_last);
 	reg [DATA_WIDTH-1:0] data;
 
 	data = fifo_data.pop_front();
-	`VERIFY($size(fifo_rdata), fifo_rdata, data, errors);
+	`VERIFY(fifo_rdata, data);
 
 	fifo_read_e = 1'b1;
 
@@ -116,6 +116,7 @@ task rw_cycle(integer words_no);
 	bit read_pending;
 
 	queue_wrapper#(DATA_WIDTH) fifo_data;
+	fifo_data = new();
 
 	// Reset queue state
 	@(negedge clk);
@@ -132,7 +133,7 @@ task rw_cycle(integer words_no);
 		end
 
 		if (fifo_full) begin
-			`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
+			`VERIFY(fifo_ready, 1'b1);
 			fifo_write_e = 1'b0;
 			fifo_read_e = 1'b1;
 			read_pending = 1'b1;
@@ -153,12 +154,12 @@ task rw_cycle(integer words_no);
 
 	// Read until fifo is empty
 	@(negedge clk);
-	`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
+	`VERIFY(fifo_ready, 1'b1);
 	fifo_read_e = 1'b1;
 
 	while (fifo_data.size() != 0) begin
 		@(negedge clk);
-			`VERIFY($size(fifo_ready), fifo_ready, 1'b1, errors);
+			`VERIFY(fifo_ready, 1'b1);
 			read_data(fifo_data, 1'b0);
 	end
 
@@ -173,6 +174,7 @@ task concurrent_rw_cycle(integer words_no);
 	integer i;
 	queue_wrapper#(DATA_WIDTH) fifo_data;
 
+	fifo_data = new();
 	fifo_write_e = 1'b0;
 	fifo_read_e = 1'b0;
 
@@ -189,7 +191,7 @@ task concurrent_rw_cycle(integer words_no);
 		write_data(fifo_data);
 		fifo_read_e = 1'b1;
 		@(negedge clk);
-		`VERIFY($size(fifo_ready), fifo_ready, 1'b0, errors);
+                `VERIFY(fifo_ready, 1'b0);
 		fifo_read_e = 1'b0;
 		fifo_write_e = 1'b0;
 		read_data(fifo_data, 1'b1);
@@ -203,7 +205,8 @@ task concurrent_rw_cycle(integer words_no);
 	@(negedge clk);
 	fifo_read_e = 1'b0;
 
-	`VERIFY($size(integer), fifo_data.size(), 0, errors);
+        i = fifo_data.size();
+	`VERIFY(i, 0);
 endtask
 
 endmodule
