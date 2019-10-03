@@ -50,8 +50,6 @@ initial begin
 end
 
 initial begin
-        errors = 0; // reset error count
-
         // Testcase init
         wait(reset)
         @(posedge clk);
@@ -78,7 +76,7 @@ initial begin
         // Test en_o clock cycle
         @(negedge clk);
         @(negedge clk);
-        tester #($size(en_o))::verify_output(en_o, 1'b0);
+        `VERIFY(en_o, 1'b0);
 
         // Testcase 1
         `define T1_AES_PLAINTEXT `BLK_S'h54776f204f6e65204e696e652054776f
@@ -98,12 +96,12 @@ initial begin
         @(posedge en_o);
 
         @(negedge clk) begin
-                tester #($size(aes_out_blk))::verify_output(aes_out_blk, `T1_AES_CIPHERTEXT);
+                `VERIFY(aes_out_blk, `T1_AES_CIPHERTEXT);
         end
 
         // Test en_o clock cycle
         @(negedge clk);
-        tester #($size(en_o))::verify_output(en_o, 1'h0);
+        `VERIFY(en_o, 1'h0);
 
         // Test decryption
         @(negedge clk) begin
@@ -118,12 +116,12 @@ initial begin
 
         @(posedge en_o);
         @(negedge clk) begin
-                tester #($size(aes_out_blk))::verify_output(aes_out_blk, `T1_AES_PLAINTEXT);
+                `VERIFY(aes_out_blk, `T1_AES_PLAINTEXT);
         end
 
         // Test en_o clock cycle
         @(negedge clk);
-        tester #($size(en_o))::verify_output(en_o, 1'h0);
+        `VERIFY(en_o, 1'h0);
 
         // Testcase 2
         // Test encryption without changing keys
@@ -143,11 +141,11 @@ initial begin
 
         @(posedge en_o);
         @(negedge clk); 
-        tester #($size(aes_out_blk))::verify_output(aes_out_blk, `T2_AES_CIPHERTEXT);
+        `VERIFY(aes_out_blk, `T2_AES_CIPHERTEXT);
 
         // Test en_o clock cycle
         @(negedge clk);
-        tester #($size(en_o))::verify_output(en_o, 1'h0);
+        `VERIFY(en_o, 1'h0);
 
         // Test decryption
         @(negedge clk) begin
@@ -162,19 +160,19 @@ initial begin
 
         @(posedge en_o);
         @(negedge clk) begin
-                tester #($size(aes_out_blk))::verify_output(aes_out_blk, `T2_AES_PLAINTEXT);
+                `VERIFY(aes_out_blk, `T2_AES_PLAINTEXT);
         end
 
         // Test en_o clock cycle
         @(negedge clk);
-        tester #($size(en_o))::verify_output(en_o, 1'h0);
+        `VERIFY(en_o, 1'h0);
 
 
         // Testcase end
         @(negedge clk) reset = 1;
         @(negedge clk);
 
-        $display("\nSimulation completed with %d errors\n", errors);
+        $display("Testcase successful!");
         $stop;
 end // initial begin
 endmodule
