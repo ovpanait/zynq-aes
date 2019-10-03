@@ -4,12 +4,11 @@
 `include "queue_wrapper.vh"
 
 `define PRINT_DBG(var) $display("DEBUG: var: %H", var)
-`define VERIFY(size, simulated_val, expected_val) \
-	tester #(size)::verify_output(simulated_val, expected_val); \
-	if (err) begin \
-		$display("ERROR: %s: : %4d", `__FILE__, `__LINE__); \
-		$finish; \
-	end
+`define VERIFY(sim_val, exp_val) \
+        if (!tester #(.WIDTH($size(sim_val)))::verify_output(sim_val, exp_val)) begin \
+                        $display("ERROR: %s: : %4d", `__FILE__, `__LINE__); \
+		        $finish; \
+        end
 
 class tester #(
 	int unsigned WIDTH = 32,
@@ -23,8 +22,7 @@ class tester #(
 		end
 	endtask
 
-	function bit verify_output(input [WIDTH-1:0] simulated_value, input [WIDTH-1:0] expected_value);
-	begin
+	static function bit verify_output(input [WIDTH-1:0] simulated_value, input [WIDTH-1:0] expected_value);
 		verify_output = 1;
 		if (simulated_value !== expected_value)
 		begin
@@ -34,7 +32,6 @@ class tester #(
 				expected_value,
 				$time);
 		end
-	end
 	endfunction
 
 	// The bit direction is reversed
