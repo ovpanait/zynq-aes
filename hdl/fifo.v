@@ -1,15 +1,24 @@
 /*
  ** FIFO abstraction over single port BRAM module.
- ** It supports concurrent r/w every other clock.
  *
- * @fifo_wdata       - data to be enqueued
- * @fifo_write_e     - write enable
- * @fifo_read_e      - read enable
- * @fifo_rdata       - dequeued data
- * @fifo_almost_full - fifo is almost full
- * @fifo_full        - fifo is full
- * @fifo_empty       - fifo is empty
- * @fifo_ready       - fifo is ready to process a new transaction
+ ** It uses TVALID / TREADY handshake for both the read and write ports and
+ ** allows concurrent r/w.
+ *
+ ** A successful read takes place when both fifo_read_tvalid and
+ ** fifo_read_tready are HIGH.
+ *
+ ** A successful write takes place when both fifo_write_tavlid and
+ ** fifo_write_tready are HIGH.
+ *
+ * @fifo_wdata
+ * @fifo_write_tvalid
+ * @fifo_write_tready
+ * @fifo_read_tready
+ * @fifo_read_tvalid
+ * @fifo_rdata
+ * @fifo_almost_full
+ * @fifo_full
+ * @fifo_empty 
  */
 
 module fifo #(
@@ -22,17 +31,18 @@ module fifo #(
 
 	// Write port
 	input [DATA_WIDTH-1:0] fifo_wdata,
-	input fifo_write_e,
+	output fifo_write_tready,
+	input fifo_write_tvalid,
 
 	// Read port
 	output [DATA_WIDTH-1:0] fifo_rdata,
-	input fifo_read_e,
+	output reg fifo_read_tvalid,
+	input fifo_read_tready,
 
 	// Control signals
 	output fifo_almost_full,
 	output fifo_full,
-	output fifo_empty,
-	output fifo_ready
+	output fifo_empty
 );
 
 wire [ADDR_WIDTH-1:0] read_ptr_next;
@@ -40,10 +50,8 @@ wire [ADDR_WIDTH-1:0] write_ptr_next;
 reg [ADDR_WIDTH-1:0] write_ptr;
 reg [ADDR_WIDTH-1:0] read_ptr;
 
-reg [DATA_WIDTH-1:0] fifo_wdata_reg;
-reg [ADDR_WIDTH-1:0] write_ptr_reg;
+wire fifo_read_transaction;
 wire concurrent_rw;
-reg fifo_busy;
 
 wire is_last_write;
 wire is_last_read;
@@ -52,7 +60,6 @@ wire [DATA_WIDTH-1:0] bram_o_data;
 wire [DATA_WIDTH-1:0] bram_i_data;
 wire [ADDR_WIDTH-1:0] bram_addr;
 wire bram_w_e;
-wire bram_r_e;
 
 reg fifo_has_data;
 reg is_full;
@@ -68,15 +75,13 @@ block_ram #(
 	.i_data(bram_i_data),
 	.w_e(bram_w_e),
 
-	.o_data(bram_o_data),
-	.r_e(bram_r_e)
+	.o_data(bram_o_data)
 );
 
-assign bram_addr = (fifo_busy ? write_ptr_reg : (bram_r_e ? read_ptr : write_ptr));
-assign bram_i_data = (fifo_busy ? fifo_wdata_reg : fifo_wdata);
+assign bram_addr = fifo_write_tready ? write_ptr : read_ptr;
+assign bram_w_e = fifo_write_tready;
+assign bram_i_data = fifo_wdata;
 assign fifo_rdata = bram_o_data;
-assign bram_w_e = fifo_busy ? fifo_busy : (concurrent_rw ? 1'b0 : fifo_write_e);
-assign bram_r_e = fifo_read_e;
 
 assign is_last_write = (write_ptr == DEPTH - 1);
 assign is_last_read = (read_ptr == DEPTH - 1);
@@ -84,66 +89,74 @@ assign is_last_read = (read_ptr == DEPTH - 1);
 assign write_ptr_next = is_last_write ? {ADDR_WIDTH{1'b0}} : (write_ptr + 1'b1);
 assign read_ptr_next = is_last_read ? {ADDR_WIDTH{1'b0}} : (read_ptr + 1'b1);
 
+
+assign fifo_read_transaction = fifo_read_tvalid && fifo_read_tready;
+assign fifo_write_tready = fifo_write_tvalid && !fifo_full;
+
 assign fifo_almost_full = (write_ptr_next == read_ptr);
 assign fifo_empty = ~fifo_has_data;
 assign fifo_full = is_full;
-assign fifo_ready = !fifo_busy;
 
-assign concurrent_rw = (fifo_write_e && fifo_read_e);
+assign concurrent_rw = (fifo_write_tready && fifo_read_transaction);
 
 always @(posedge clk) begin
 	if (reset) begin
-		fifo_wdata_reg <= {DATA_WIDTH{1'b0}};
-		write_ptr_reg <= {ADDR_WIDTH{1'b0}};
 		write_ptr <= {ADDR_WIDTH{1'b0}};
 		read_ptr <= {ADDR_WIDTH{1'b0}};
 		fifo_has_data <= 1'b0;
-		fifo_busy <= 1'b0;
 		is_full <= 1'b0;
 	end else begin
-		fifo_wdata_reg <= fifo_wdata;
-		write_ptr_reg <= write_ptr;
-		fifo_busy <= concurrent_rw;
-
-		if (fifo_write_e && !fifo_full) begin
+		if (fifo_write_tready) begin
 			write_ptr <= write_ptr_next;
 
 			if (!fifo_has_data)
 				fifo_has_data <= 1'b1;
 
 			if (fifo_almost_full) begin
-				is_full = 1'b1;
+				is_full <= 1'b1;
 			end
 		end
 
-		if (fifo_read_e && ~fifo_empty) begin
+		if (fifo_read_transaction) begin
 			read_ptr <= read_ptr_next;
 
 			if (is_full)
-				is_full = 1'b0;
+				is_full <= 1'b0;
 
 			if (read_ptr_next == write_ptr && !concurrent_rw)
-				fifo_has_data = 1'b0;
+				fifo_has_data <= 1'b0;
 		end
-
-		`ifdef SIMULATION
-		if (fifo_write_e) begin
-			$display("Writing %H to address %H", fifo_wdata, write_ptr);
-			if (fifo_full) begin
-				$display("ERROR: %s:%4d: Trying to write data to full FIFO! ", `__FILE__, `__LINE__);
-				$finish;
-			end
-		end
-
-		if (fifo_read_e) begin
-			$display("Reading %H from address %H", out_fifo.sram[read_ptr], read_ptr);
-			if (fifo_empty) begin
-				$display("ERROR: %s:%4d: Trying to read data from empty FIFO! ", `__FILE__, `__LINE__);
-				$finish;
-			end
-		end
-		`endif
 	end
 end
+
+always @(posedge clk) begin
+	if (reset) begin
+		fifo_read_tvalid <= 1'b0;
+	end else begin
+		if (!fifo_empty && !fifo_read_tvalid && !fifo_write_tready) begin 
+			fifo_read_tvalid <= 1'b1;
+		end
+
+		if ((fifo_read_transaction) || fifo_write_tready) begin
+			fifo_read_tvalid <= 1'b0;
+		end
+	end
+end
+
+`ifdef SIMULATION
+always @(posedge clk) begin
+	if (concurrent_rw) begin
+		$display("Concurrent r/w access!");
+	end
+
+	if (fifo_write_tready) begin
+		$display("Writing %H to address %H", fifo_wdata, write_ptr);
+	end
+
+	if (fifo_read_transaction) begin
+		$display("Reading %H from address %H", out_fifo.sram[read_ptr], read_ptr);
+	end
+end
+`endif
 
 endmodule
