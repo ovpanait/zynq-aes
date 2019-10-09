@@ -10,6 +10,7 @@ module aes_top(
         input [0:`BLK_S-1]      aes_in_blk,
 
         output [0:`BLK_S-1]     aes_out_blk,
+	output reg              aes_op_in_progress,
         output                  en_o
 );
 
@@ -38,7 +39,6 @@ wire [0:`BLK_S-1] __aes_out_blk_decrypt;
 // SRAM signals
 wire            w_e;
 wire [0:3]      addr;
-wire            r_e;
 
 // Key expansion
 assign en_i_round_key = (en && aes_cmd == `SET_KEY_128);
@@ -58,8 +58,7 @@ round_key round_key_gen(
 );
 
 // round keys SRAM block
-assign addr = w_e ? key_round_no : (r_e_encrypt ? encrypt_round_no : decrypt_round_no);
-assign r_e = r_e_encrypt | r_e_decrypt;
+assign addr = w_e ? key_round_no : (encrypt_op ? encrypt_round_no : decrypt_round_no);
 
 block_ram #(
         .ADDR_WIDTH(4),
@@ -71,13 +70,12 @@ block_ram #(
         .i_data(round_key_in),
         .w_e(w_e),
 
-        .o_data(round_key_out),
-        .r_e(r_e)
+        .o_data(round_key_out)
 );
 
 // Encryption / Decryption blocks
-
-assign en_i_cipher = (en && (aes_cmd == `ECB_ENCRYPT_128 || aes_cmd == `CBC_ENCRYPT_128));
+assign encrypt_op = (aes_cmd == `ECB_ENCRYPT_128 || aes_cmd == `CBC_ENCRYPT_128);
+assign en_i_cipher = (en && encrypt_op);
 assign en_i_decipher = (en && (aes_cmd == `ECB_DECRYPT_128 || aes_cmd == `CBC_DECRYPT_128));
 
 cipher encrypt_blk(
@@ -88,7 +86,6 @@ cipher encrypt_blk(
         .plaintext(aes_in_blk),
         .key(round_key_out),
         .round_no(encrypt_round_no),
-        .r_e(r_e_encrypt),
 
         .ciphertext(__aes_out_blk_encrypt),
         .en_o(en_o_cipher)
@@ -111,5 +108,12 @@ decipher decrypt_blk(
 assign aes_out_blk = en_o_cipher ? __aes_out_blk_encrypt :
                 (en_o_decipher ? __aes_out_blk_decrypt : {`BLK_S{1'b0}});
 assign en_o = en_o_cipher | en_o_decipher | en_o_round_key;
+
+always @(posedge clk) begin
+	if (en) 
+		aes_op_in_progress <= 1'b1;
+	else if (en_o)
+		aes_op_in_progress <= 1'b0;
+end
 
 endmodule
