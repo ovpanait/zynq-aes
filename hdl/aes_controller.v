@@ -51,7 +51,11 @@ reg [0:`BLK_S-1]  prev_aes_ecb_in_blk;
 reg [0:`WORD_S-1] __aes_cmd;
 reg [0: `BLK_S-1] aes_iv;
 reg [0:`KEY_S-1]  aes_key;
+
 reg               aes_start;
+wire              aes_cipher_mode;
+wire              aes_decipher_mode;
+wire              aes_key_exp_mode;
 
 wire [0:`BLK_S-1] aes_ecb_in_blk;
 wire [0:`BLK_S-1] aes_cbc_in_blk;
@@ -100,14 +104,38 @@ function is_CBC_dec(input [0:`WORD_S-1] cmd);
 	end
 endfunction
 
+function is_cipher_op(input [0:`WORD_S - 1] cmd);
+	is_cipher_op = (cmd == `CBC_ENCRYPT_128) || (cmd == `ECB_ENCRYPT_128);
+endfunction
+
+function is_decipher_op(input [0:`WORD_S - 1] cmd);
+	is_decipher_op = (cmd == `CBC_DECRYPT_128) || (cmd == `ECB_DECRYPT_128);
+endfunction
+
+function is_key_exp_op(input [0:`WORD_S - 1] cmd);
+	is_key_exp_op = (cmd == `SET_KEY_128);
+endfunction
+
+assign aes_cipher_mode = is_cipher_op(__aes_cmd);
+assign aes_start_cipher = aes_start && aes_cipher_mode;
+
+assign aes_decipher_mode = is_decipher_op(__aes_cmd);
+assign aes_start_decipher = aes_start && aes_decipher_mode;
+
+assign aes_key_exp_mode = is_key_exp_op(__aes_cmd);
+assign aes_start_key_exp = aes_start && aes_key_exp_mode;
+
 aes_top aes_mod(
 	.clk(clk),
 	.reset(reset),
+
 	.en(aes_start),
+	.cipher_mode(aes_cipher_mode),
+	.decipher_mode(aes_decipher_mode),
+	.key_exp_mode(aes_key_exp_mode),
 
 	.aes_op_in_progress(aes_op_in_progress),
 
-	.aes_cmd(__aes_cmd),
 	.aes_key(aes_key),
 	.aes_in_blk(aes_in_blk_reg),
 
