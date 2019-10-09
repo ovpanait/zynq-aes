@@ -83,10 +83,11 @@ wire                          aes_controller_in_fifo_r_e;
 wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
 wire [IN_SRAM_DATA_WIDTH-1:0] in_fifo_rdata;
 
+wire in_fifo_read_tready;
 wire in_fifo_almost_full;
 wire in_fifo_full;
 wire in_fifo_empty;
-wire in_fifo_ready;
+wire in_fifo_read_tvalid;
 
 // aes signals
 wire               aes_controller_done;
@@ -96,13 +97,13 @@ wire               aes_controller_skip_key_expansion;
 wire               processing_done;
 
 // output FIFO signals
-wire                           aes_controller_out_fifo_w_e;
 wire [OUT_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
 
 wire out_fifo_almost_full;
 wire out_fifo_full;
 wire out_fifo_empty;
-wire out_fifo_ready;
+wire out_fifo_write_tready;
+wire out_fifo_write_tvalid;
 
 // AXI master signals
 wire axis_master_done;
@@ -127,13 +128,13 @@ aes_axi_stream_slave #(
 	.s00_axis_tstrb(s00_axis_tstrb),
 
 	.axis_master_done(axis_master_done),
-	.aes_controller_in_fifo_r_e(aes_controller_in_fifo_r_e),
+	.aes_controller_in_fifo_r_e(in_fifo_read_tready),
 
 	.axis_cmd(axis_cmd),
 	.axis_slave_done(axis_slave_done),
 
 	.in_fifo_rdata(in_fifo_rdata),
-	.in_fifo_ready(in_fifo_ready),
+	.in_fifo_read_tvalid(in_fifo_read_tvalid),
 	.in_fifo_full(in_fifo_full),
 	.in_fifo_empty(in_fifo_empty),
 	.in_fifo_almost_full(in_fifo_almost_full)
@@ -159,16 +160,16 @@ aes_controller #(
 	.aes_cmd(aes_controller_cmd),
 
 	.axis_slave_done(axis_slave_done),
-	.in_fifo_r_e(aes_controller_in_fifo_r_e),
+	.in_fifo_read_tvalid(in_fifo_read_tvalid),
 	.in_fifo_data(aes_controller_in_fifo_data),
-	.in_fifo_ready(in_fifo_ready),
+	.in_fifo_read_tready(in_fifo_read_tready),
 	.in_fifo_full(in_fifo_full),
 	.in_fifo_empty(in_fifo_empty),
 	.in_fifo_almost_full(in_fifo_almost_full),
 
 	.out_fifo_data(aes_controller_out_fifo_data),
-	.out_fifo_w_e(aes_controller_out_fifo_w_e),
-	.out_fifo_ready(out_fifo_ready),
+	.out_fifo_write_tvalid(out_fifo_write_tvalid),
+	.out_fifo_write_tready(out_fifo_write_tready),
 	.out_fifo_full(out_fifo_full),
 	.out_fifo_empty(out_fifo_empty),
 	.out_fifo_almost_full(out_fifo_almost_full),
@@ -197,10 +198,10 @@ aes_axi_stream_master #(
 
 	.processing_done(processing_done),
 
-	.aes_controller_out_fifo_w_e(aes_controller_out_fifo_w_e),
 	.aes_controller_out_fifo_data(aes_controller_out_fifo_data),
 
-	.out_fifo_ready(out_fifo_ready),
+	.out_fifo_write_tvalid(out_fifo_write_tvalid),
+	.out_fifo_write_tready(out_fifo_write_tready),
 	.out_fifo_full(out_fifo_full),
 	.out_fifo_empty(out_fifo_empty),
 	.out_fifo_almost_full(out_fifo_almost_full),
