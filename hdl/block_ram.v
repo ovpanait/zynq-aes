@@ -10,17 +10,16 @@ module block_ram #
     input [0:DATA_WIDTH-1] 	i_data,
     input [0:ADDR_WIDTH-1] 	addr,
     input 			w_e,
-    input 			r_e,
 
     output reg [0:DATA_WIDTH-1] o_data
     );
 
-   reg [0:DATA_WIDTH-1] 	sram [0:DEPTH-1];
+	reg [0:DATA_WIDTH-1] sram [0:DEPTH-1];
 
-   always @ (posedge clk) begin
-      if (w_e)
-        sram[addr] <= i_data;
-      else if (r_e)
-        o_data <= sram[addr];
-   end
+	always @ (posedge clk) begin
+	o_data <= sram[addr];
+
+	if (w_e)
+		sram[addr] <= i_data;
+	end
 endmodule
