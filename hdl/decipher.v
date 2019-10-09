@@ -8,7 +8,6 @@ module decipher (
         input [0:`BLK_S-1] ciphertext,
         input [0:`KEY_S-1] round_key,
 
-        output reg r_e,
         output [0:`Nk-1] round_no,
         output reg [0:`BLK_S-1] plaintext,
         output reg en_o
@@ -43,7 +42,6 @@ end
 
 always @(posedge clk) begin
         if (reset == 1'b1) begin
-                r_e <= 1'b0;
                 _round_no <= 1'b0;
                 plaintext <= 1'b0;
                 en_o <= 1'b0;
@@ -53,27 +51,22 @@ always @(posedge clk) begin
                 case (fsm_state)
                 IDLE:
                 begin
-                        r_e <= 1'b0;
-
                         if (en == 1'b1) begin
                                 plaintext <= ciphertext;
                                 _round_no <= `Nr + 1;
 
                                 fsm_state <= INIT_SRAM;
-                                r_e <= 1'b1;
                         end
                 end
                 INIT_SRAM:
                 // Wait one clock cycle for the block RAM data to be available
                 begin
                         fsm_state <= FIRST_DECRYPT_ROUND;
-                        r_e <= 1'b1;
                         
                         _round_no <= round_no;
                 end
                 FIRST_DECRYPT_ROUND:
                 begin
-                        r_e <= 1'b1;
                         _round_no <= round_no;
 
                         plaintext <= plaintext ^ round_key;
@@ -82,7 +75,6 @@ always @(posedge clk) begin
                 end
                 DECRYPT_ROUND:
                 begin
-                        r_e <= 1'b1;
                         _round_no <= round_no;
 
                         plaintext <= decrypt_round_state;
@@ -90,7 +82,6 @@ always @(posedge clk) begin
                         if (_round_no == 1'b0) begin
                                 fsm_state <= IDLE;
                                 en_o <= 1'b1;
-                                r_e <= 1'b0;
                         end
                 end
                 default:

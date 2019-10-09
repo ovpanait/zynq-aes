@@ -21,9 +21,6 @@ wire [0:`Nk-1]       key_round_no;
 wire [0:`Nk-1]       encrypt_round_no;
 wire [0:`Nk-1]       decrypt_round_no;
 
-wire            r_e_encrypt;
-wire            r_e_decrypt;
-
 wire            en_i_round_key;
 wire            en_o_round_key;
 
@@ -99,7 +96,6 @@ decipher decrypt_blk(
         .ciphertext(aes_in_blk),
         .round_key(round_key_out),
         .round_no(decrypt_round_no),
-        .r_e(r_e_decrypt),
 
         .plaintext(__aes_out_blk_decrypt),
         .en_o(en_o_decipher)
