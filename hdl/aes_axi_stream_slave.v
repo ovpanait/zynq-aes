@@ -38,17 +38,18 @@ module aes_axi_stream_slave #(
 	output reg                              axis_slave_done,
 
 	output [FIFO_DATA_WIDTH-1:0]            in_fifo_rdata,
+	output                                  in_fifo_read_tvalid,
 	output                                  in_fifo_almost_full,
 	output                                  in_fifo_empty,
-	output                                  in_fifo_full,
-	output                                  in_fifo_ready
+	output                                  in_fifo_full
 );
 
 // AXI related signals
+reg axis_packet_end;
+
 wire axis_data_available;
 wire aes_block_available;
 wire axis_tready;
-wire fifo_wren;
 
 wire [FIFO_DATA_WIDTH-1:0] axis_blk_next;
 reg [FIFO_DATA_WIDTH-1:0]  axis_blk;
@@ -58,8 +59,10 @@ reg [1:0] axis_word_cnt;
 reg       axis_fsm_state;
 
 // FIFO signals
-wire fifo_write_e;
-wire fifo_read_e;
+wire fifo_write_tready;
+reg  fifo_write_tvalid;
+wire fifo_read_tready;
+wire fifo_read_tvalid;
 
 wire [FIFO_DATA_WIDTH-1:0] fifo_wdata;
 wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
@@ -67,7 +70,6 @@ wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 wire fifo_almost_full;
 wire fifo_full;
 wire fifo_empty;
-wire fifo_ready;
 
 // FIFO logic
 
@@ -79,26 +81,26 @@ fifo #(
 	.clk(s00_axis_aclk),
 	.reset(!s00_axis_aresetn),
 
-	.fifo_write_e(fifo_write_e),
+	.fifo_write_tvalid(fifo_write_tvalid),
+	.fifo_write_tready(fifo_write_tready),
 	.fifo_wdata(fifo_wdata),
 
-	.fifo_read_e(fifo_read_e),
+	.fifo_read_tready(fifo_read_tready),
+	.fifo_read_tvalid(fifo_read_tvalid),
 	.fifo_rdata(fifo_rdata),
 
 	.fifo_almost_full(fifo_almost_full),
 	.fifo_full(fifo_full),
-	.fifo_empty(fifo_empty),
-	.fifo_ready(fifo_ready)
+	.fifo_empty(fifo_empty)
 );
 
-assign fifo_read_e = aes_controller_in_fifo_r_e;
-assign fifo_wdata = axis_blk_next;
-assign fifo_write_e = fifo_wren;
+assign fifo_read_tready = aes_controller_in_fifo_r_e;
+assign fifo_wdata = axis_blk;
 
+assign in_fifo_read_tvalid = fifo_read_tvalid;
 assign in_fifo_almost_full = fifo_almost_full;
 assign in_fifo_rdata = fifo_rdata;
 assign in_fifo_empty = fifo_empty;
-assign in_fifo_ready = fifo_ready;
 assign in_fifo_full = fifo_full;
 
 // AXI logic
@@ -108,7 +110,7 @@ localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
 
 assign aes_block_available = axis_data_available && (axis_word_cnt == `Nb - 1'b1);
 assign axis_blk_next = (axis_blk << `WORD_S) | s00_axis_tdata;
-assign axis_tready = (!axis_slave_done && fifo_ready && !fifo_full);
+assign axis_tready = (!axis_slave_done && !fifo_write_tvalid && !fifo_full);
 assign axis_data_available = s00_axis_tvalid && axis_tready;
 assign fifo_wren = aes_block_available;
 assign s00_axis_tready = axis_tready;
@@ -116,7 +118,6 @@ assign s00_axis_tready = axis_tready;
 always @(posedge s00_axis_aclk) begin
 	if(!s00_axis_aresetn) begin
 		axis_fsm_state <= AXIS_SLAVE_GET_CMD;
-		axis_slave_done <= 1'b0;
 		axis_word_cnt <= 1'b0;
 		axis_blk <= 1'b0;
 		axis_cmd <= 1'b0;
@@ -125,10 +126,6 @@ always @(posedge s00_axis_aclk) begin
 		case (axis_fsm_state)
 			AXIS_SLAVE_GET_CMD:
 			begin
-				if (axis_master_done) begin
-					axis_slave_done <= 1'b0;
-				end
-
 				if (axis_data_available) begin
 					axis_fsm_state <= AXIS_SLAVE_GET_PAYLOAD;
 					axis_cmd <= s00_axis_tdata;
@@ -146,11 +143,52 @@ always @(posedge s00_axis_aclk) begin
 
 					if (s00_axis_tlast) begin
 						axis_fsm_state <= AXIS_SLAVE_GET_CMD;
-						axis_slave_done <= 1'b1;
 					end
 				end
-			end
+		end
 		endcase
+	end
+end
+
+always @(posedge s00_axis_aclk) begin
+	if (!s00_axis_aresetn) begin
+		fifo_write_tvalid <= 1'b0;
+	end else begin
+		if (aes_block_available) begin
+			fifo_write_tvalid <= 1'b1;
+		end
+
+		if (fifo_write_tvalid && fifo_write_tready) begin
+			fifo_write_tvalid <= 1'b0;
+		end
+	end
+end
+
+always @(posedge s00_axis_aclk) begin
+	if (!s00_axis_aresetn) begin
+		axis_packet_end <= 1'b0;
+	end else begin
+		if (s00_axis_tlast) begin
+			axis_packet_end <= 1'b1;
+		end
+
+		if (axis_master_done) begin
+			axis_packet_end <= 1'b0;
+		end
+	end
+end
+
+always @(posedge s00_axis_aclk) begin
+	if (!s00_axis_aresetn) begin
+		axis_slave_done <= 1'b0;
+	end else begin
+		if (axis_packet_end && fifo_write_tvalid && fifo_write_tready) begin
+			axis_slave_done <= 1'b1;
+		end
+
+		if (axis_master_done) begin
+			axis_slave_done <= 1'b0;
+		end
 	end
 end
 
