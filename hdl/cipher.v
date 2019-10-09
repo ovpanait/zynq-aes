@@ -10,7 +10,6 @@ module cipher(
 
 	      output reg [0:`BLK_S-1] ciphertext,
 	      output reg [0:`Nk-1]    round_no,
-	      output reg 	      r_e,
 	      output reg 	      en_o
 	      );
 
@@ -40,7 +39,6 @@ module cipher(
       if (reset == 1'b1) begin
 	 ciphertext <= {`BLK_S{1'b0}};
       round_no <= 4'b0;
-      r_e <= 1'b0;
       en_o <= 1'b0;
    end
       else begin
@@ -48,14 +46,11 @@ module cipher(
 	   IDLE:
 	     begin
 		en_o <= 1'b0;
-		r_e <= 1'b0;
 
 		if (en == 1'b1) begin
 		   ciphertext <= plaintext;
 
 		   round_no <= 1'b0;
-		   r_e <= 1'b1;
-
 		   fsm_state <= INIT_SRAM;
 		end
 	     end
@@ -63,7 +58,6 @@ module cipher(
 	     begin
 		// one clock delay to start reading from SRAM
 		round_no <= round_no + 1'b1;
-		r_e <= 1'b1;
 
 		fsm_state <= FIRST_ROUND;
 	     end
@@ -72,7 +66,6 @@ module cipher(
 		ciphertext <= ciphertext ^ key;
 
 		round_no <= round_no + 1'b1;
-		r_e <= 1'b1;
 
 		fsm_state <= AES_ROUND;
 	     end
@@ -80,7 +73,6 @@ module cipher(
 	     begin
 		ciphertext <= aes_state_add_rkey;
 		round_no <= round_no + 1'b1;
-		r_e <= 1'b1;
 
 		if (round_no == `Nr + 1) begin
 		   fsm_state <= IDLE;
