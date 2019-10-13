@@ -143,7 +143,7 @@ aes_top aes_mod(
 	.en_o(aes_done)
 );
 
-assign aes_in_blk = is_CBC_enc(__aes_cmd) ?  aes_cbc_in_blk : aes_ecb_in_blk;
+assign aes_in_blk = is_CBC_enc(aes_cmd) ?  aes_cbc_in_blk : aes_ecb_in_blk;
 assign aes_ecb_in_blk = swap_bytes128(in_fifo_data);
 assign aes_cbc_in_blk = aes_iv ^ aes_ecb_in_blk;
 
@@ -200,12 +200,12 @@ always @(posedge clk) begin
 			AES_START:
 			begin
 				state <= AES_START;
-				__aes_cmd <= aes_cmd;
 
 				if (!aes_op_in_progress)
 					in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
+					__aes_cmd <= aes_cmd;
 					in_fifo_read_tready <= 1'b0;
 					aes_in_blk_reg <= aes_in_blk;
 					state <= AES_WAIT;
@@ -226,11 +226,11 @@ always @(posedge clk) begin
 					out_fifo_data <= swap_bytes128(aes_out_blk);
 					state <= AES_STORE_BLOCK;
 
-					if(is_CBC_enc(__aes_cmd)) begin
+					if(is_CBC_enc(aes_cmd)) begin
 						aes_iv <= aes_out_blk;
 					end
 
-					if(is_CBC_dec(__aes_cmd)) begin
+					if(is_CBC_dec(aes_cmd)) begin
 						out_fifo_data <= swap_bytes128(aes_iv ^ aes_out_blk);
 						aes_iv <= aes_in_blk_reg;
 					end
