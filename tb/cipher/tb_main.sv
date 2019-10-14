@@ -6,6 +6,8 @@
 
 module tb_main();
 
+	integer ret;
+
    // Module instantiation
    reg clk;
    reg reset;
@@ -14,9 +16,8 @@ module tb_main();
    reg [0:`BLK_S-1] plaintext;
    reg [0:`KEY_S-1] key;
 
-   wire [0:3] 	    round_no;
+   wire [0:3] 	    round_key_no;
    wire [0:`BLK_S-1] ciphertext;
-   wire 	     r_e;
    wire 	     en_o;
 
    cipher DUT (
@@ -28,8 +29,7 @@ module tb_main();
 	       .key(key),
 
 	       .ciphertext(ciphertext),
-	       .round_no(round_no),
-	       .r_e(r_e),
+	       .round_key_no(round_key_no),
 	       .en_o(en_o)
 	       );
 
@@ -69,8 +69,6 @@ module tb_main();
    end
 
    initial begin
-      errors = 0; // reset error count
-
       // Testcase init
       wait(reset)
 	@(posedge clk);
@@ -94,20 +92,23 @@ module tb_main();
       @(posedge DUT.en_o);
       @(negedge clk);
 
-      tester #($size(expected_ciphertext))::verify_output(DUT.ciphertext, expected_ciphertext);
+	ret = tester #($size(expected_ciphertext))::verify_output(DUT.ciphertext, expected_ciphertext);
+
+	if (ret)
+		$display("Test cipher: PASS");
+	else
+		$display("Test cipher: FAIL");
 
       // Testcase end
       @(negedge clk) reset = 1;
       @(negedge clk);
 
-      $display("\nSimulation completed with %d errors\n", errors);
       $stop;
    end // initial begin
 
-   // simulate key sram behavior
-   always @(posedge clk) begin
-      if (r_e == 1'b1) begin
-	 key <= key_sram[round_no];
-      end
-   end
+// simulate key sram behavior
+always @(posedge clk) begin
+	 key <= key_sram[round_key_no];
+end
+
 endmodule

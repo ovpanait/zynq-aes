@@ -76,16 +76,16 @@ round_key round_key_gen(
 );
 
 cipher encrypt_blk(
-        .clk(clk),
-        .reset(reset),
-        .en(en_cipher),
+	.clk(clk),
+	.reset(reset),
+	.en(en_cipher),
 
-        .plaintext(aes_in_blk),
-        .key(round_key_out),
-        .round_no(encrypt_round_no),
+	.plaintext(aes_in_blk),
+	.key(round_key_out),
+	.round_key_no(encrypt_round_no),
 
-        .ciphertext(__aes_out_blk_encrypt),
-        .en_o(en_o_cipher)
+	.ciphertext(__aes_out_blk_encrypt),
+	.en_o(en_o_cipher)
 );
 
 decipher decrypt_blk(
