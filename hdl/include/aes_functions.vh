@@ -172,21 +172,63 @@ function [0:`BLK_S-1] shift_rows;
    end
 endfunction
 
+function [7:0] gm2;
+input [7:0] op;
+begin
+	gm2 = {op[6:0], 1'b0} ^ (8'h1b & {8{op[7]}});
+end
+endfunction
+
+function [0:`BYTE_S-1] gm3;
+input [0:`BYTE_S-1] op;
+begin
+	gm3 = gm2(op) ^ op;
+end
+endfunction
+
+function [7:0] gm4;
+input [7:0] op;
+begin
+	gm4 = gm2(gm2(op));
+end
+endfunction
+
+function [7:0] gm8;
+input [7:0] op;
+begin
+	gm8 = gm2(gm4(op));
+end
+endfunction
+
+function [7:0] gm9;
+input [7:0] op;
+begin
+	gm9 = gm8(op) ^ op;
+end
+endfunction
+
+function [7:0] gm11;
+input [7:0] op;
+begin
+	gm11 = gm8(op) ^ gm2(op) ^ op;
+end
+endfunction
+
+function [7:0] gm13;
+input [7:0] op;
+begin
+	gm13 = gm8(op) ^ gm4(op) ^ op;
+end
+endfunction
+
+function [7:0] gm14;
+input [7:0] op;
+begin
+	gm14 = gm8(op) ^ gm4(op) ^ gm2(op);
+end
+endfunction
+
 // mixColumns
-function [0:`BYTE_S-1] mul2;
-   input [0:`BYTE_S-1] op;
-   begin
-      mul2 = ((op << 1) ^ (((op >> 7) & 1'b1) * 8'h1b));
-   end
-endfunction // mul2
-
-function [0:`BYTE_S-1] mul3;
-   input [0:`BYTE_S-1] op;
-   begin
-      mul3 = mul2(op) ^ op;
-   end
-endfunction // mul3
-
 function [0:`WORD_S-1] mix_word;
    input [0:`WORD_S-1] word;
 
@@ -200,10 +242,10 @@ function [0:`WORD_S-1] mix_word;
       byte2 = get_byte(word, 2);
       byte3 = get_byte(word, 3);
 
-      mix_word[0*`BYTE_S +: `BYTE_S] = mul2(byte0) ^ mul3(byte1) ^ byte2 ^ byte3;
-      mix_word[1*`BYTE_S +: `BYTE_S] = byte0 ^ mul2(byte1) ^ mul3(byte2) ^ byte3;
-      mix_word[2*`BYTE_S +: `BYTE_S] = byte0 ^ byte1 ^ mul2(byte2) ^ mul3(byte3);
-      mix_word[3*`BYTE_S +: `BYTE_S] = mul3(byte0) ^ byte1 ^ byte2 ^mul2(byte3);
+	mix_word[0*`BYTE_S +: `BYTE_S] = gm2(byte0) ^ gm3(byte1) ^ byte2 ^ byte3;
+	mix_word[1*`BYTE_S +: `BYTE_S] = byte0 ^ gm2(byte1) ^ gm3(byte2) ^ byte3;
+	mix_word[2*`BYTE_S +: `BYTE_S] = byte0 ^ byte1 ^ gm2(byte2) ^ gm3(byte3);
+	mix_word[3*`BYTE_S +: `BYTE_S] = gm3(byte0) ^ byte1 ^ byte2 ^gm2(byte3);
    end
 endfunction
 
@@ -236,25 +278,6 @@ function [0:`BLK_S-1] inv_sub_bytes;
    end
 endfunction
 
-function [0:`BYTE_S-1] xtime;
-        input [0:`BYTE_S-1] x;
-        begin
-                xtime = ((x<<1) ^ (((x>>7) & 1'b1) * 8'h1b));
-        end
-endfunction
-
-function [0:`BYTE_S-1] multiply;
-        input [0:`BYTE_S-1] x;
-        input [0:`BYTE_S-1] y;
-        begin
-        multiply = (  ((y & 1) * x) ^
-                ((y>>1 & 1) * xtime(x)) ^
-                ((y>>2 & 1) * xtime(xtime(x))) ^
-                ((y>>3 & 1) * xtime(xtime(xtime(x)))) ^
-                ((y>>4 & 1) * xtime(xtime(xtime(xtime(x))))));
-        end
-endfunction
-
 function [0:`WORD_S-1] inv_mix_word;
    input [0:`WORD_S-1] word;
 
@@ -268,10 +291,10 @@ function [0:`WORD_S-1] inv_mix_word;
       byte2 = get_byte(word, 2);
       byte3 = get_byte(word, 3);
 
-      inv_mix_word[0*`BYTE_S +: `BYTE_S] = multiply(byte0, 8'h0e) ^ multiply(byte1, 8'h0b) ^ multiply(byte2, 8'h0d) ^ multiply(byte3, 8'h09);
-      inv_mix_word[1*`BYTE_S +: `BYTE_S] = multiply(byte0, 8'h09) ^ multiply(byte1, 8'h0e) ^ multiply(byte2, 8'h0b) ^ multiply(byte3, 8'h0d);
-      inv_mix_word[2*`BYTE_S +: `BYTE_S] = multiply(byte0, 8'h0d) ^ multiply(byte1, 8'h09) ^ multiply(byte2, 8'h0e) ^ multiply(byte3, 8'h0b);
-      inv_mix_word[3*`BYTE_S +: `BYTE_S] = multiply(byte0, 8'h0b) ^ multiply(byte1, 8'h0d) ^ multiply(byte2, 8'h09) ^ multiply(byte3, 8'h0e);
+	inv_mix_word[0*`BYTE_S +: `BYTE_S] = gm14(byte0) ^ gm11(byte1) ^ gm13(byte2) ^ gm9(byte3);
+	inv_mix_word[1*`BYTE_S +: `BYTE_S] = gm9(byte0) ^ gm14(byte1) ^ gm11(byte2) ^ gm13(byte3);
+	inv_mix_word[2*`BYTE_S +: `BYTE_S] = gm13(byte0) ^ gm9(byte1) ^ gm14(byte2) ^ gm11(byte3);
+	inv_mix_word[3*`BYTE_S +: `BYTE_S] = gm11(byte0) ^ gm13(byte1) ^ gm9(byte2) ^ gm14(byte3);
    end
 endfunction
 
