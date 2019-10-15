@@ -20,7 +20,7 @@ module aes_top(
 wire [0:`KEY_S-1]       round_key_in;
 wire [0:`KEY_S-1]       round_key_out;
 
-wire [0:`Nk-1]       key_round_no;
+wire [0:`Nk-1]       round_key_addr;
 wire [0:`Nk-1]       encrypt_round_no;
 wire [0:`Nk-1]       decrypt_round_no;
 
@@ -44,7 +44,7 @@ assign en_decipher = en && decipher_mode;
 assign en_key_exp = en && key_exp_mode;
 
 assign addr =
-	key_exp_mode ? key_round_no :
+	key_exp_mode ? round_key_addr :
 	cipher_mode ? encrypt_round_no :
 	decipher_mode ? decrypt_round_no : {4{1'b0}};
 
@@ -69,7 +69,7 @@ round_key round_key_gen(
         .key(aes_key),
 
         .round_key(round_key_in),
-        .round_no(key_round_no),
+        .round_key_addr(round_key_addr),
         .w_e(w_e),
 
         .en_o(en_o_round_key)
