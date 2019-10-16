@@ -78,8 +78,8 @@ function [0:`BLK_S-1] swap_blk(input [0:`BLK_S-1] blk);
         end
 endfunction
 
-// 100 MHz clock
-always #5 clock <= ~clock;
+// 125 MHz clock
+always #4 clock <= ~clock;
 
 initial
 begin

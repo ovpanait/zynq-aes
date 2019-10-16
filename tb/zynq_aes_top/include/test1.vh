@@ -3,7 +3,7 @@ task testcase1();
 	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
 	localparam AES_IV = `BLK_S'h54776F204F6E65204E696E652054776F;
 
-	localparam test_blocks_no = 256;
+	localparam test_blocks_no = 1000;
 
 	localparam plaintext_fn = "cbc_plaintext.txt";
 	localparam ciphertext_fn = "cbc_ciphertext.txt";

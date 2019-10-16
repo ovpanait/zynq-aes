@@ -15,12 +15,12 @@ proc cr_bd_zynq_aes_bd { parentCell } {
   set bCheckIPs 1
   if { $bCheckIPs == 1 } {
      set list_check_ips "\ 
-  xilinx.com:ip:axi_dma:7.1\
-  xilinx.com:ip:smartconnect:1.0\
-  xilinx.com:ip:processing_system7:5.5\
-  xilinx.com:ip:proc_sys_reset:5.0\
-  xilinx.com:ip:xlconcat:2.1\
-  user.org:user:zynq_aes:1.0\
+  xilinx.com:ip:axi_dma:7.*\
+  xilinx.com:ip:smartconnect:1.*\
+  xilinx.com:ip:processing_system7:5.*\
+  xilinx.com:ip:proc_sys_reset:5.*\
+  xilinx.com:ip:xlconcat:2.*\
+  user.org:user:zynq_aes:1.*\
   "
 
    set list_ips_missing ""
@@ -79,7 +79,7 @@ proc cr_bd_zynq_aes_bd { parentCell } {
   # Create ports
 
   # Create instance: axi_dma_0, and set properties
-  set axi_dma_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_dma:7.1 axi_dma_0 ]
+  set axi_dma_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_dma:7.* axi_dma_0 ]
   set_property -dict [ list \
    CONFIG.c_include_sg {1} \
    CONFIG.c_sg_include_stscntrl_strm {0} \
@@ -87,13 +87,13 @@ proc cr_bd_zynq_aes_bd { parentCell } {
  ] $axi_dma_0
 
   # Create instance: axi_smc, and set properties
-  set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc ]
+  set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.* axi_smc ]
   set_property -dict [ list \
    CONFIG.NUM_SI {3} \
  ] $axi_smc
 
   # Create instance: processing_system7_0, and set properties
-  set processing_system7_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system7_0 ]
+  set processing_system7_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.* processing_system7_0 ]
   set_property -dict [ list \
    CONFIG.PCW_ACT_APU_PERIPHERAL_FREQMHZ {650.000000} \
    CONFIG.PCW_ACT_CAN0_PERIPHERAL_FREQMHZ {23.8095} \
@@ -102,7 +102,7 @@ proc cr_bd_zynq_aes_bd { parentCell } {
    CONFIG.PCW_ACT_DCI_PERIPHERAL_FREQMHZ {10.096154} \
    CONFIG.PCW_ACT_ENET0_PERIPHERAL_FREQMHZ {125.000000} \
    CONFIG.PCW_ACT_ENET1_PERIPHERAL_FREQMHZ {10.000000} \
-   CONFIG.PCW_ACT_FPGA0_PERIPHERAL_FREQMHZ {100.000000} \
+   CONFIG.PCW_ACT_FPGA0_PERIPHERAL_FREQMHZ {125.000000} \
    CONFIG.PCW_ACT_FPGA1_PERIPHERAL_FREQMHZ {10.000000} \
    CONFIG.PCW_ACT_FPGA2_PERIPHERAL_FREQMHZ {10.000000} \
    CONFIG.PCW_ACT_FPGA3_PERIPHERAL_FREQMHZ {10.000000} \
@@ -144,7 +144,7 @@ proc cr_bd_zynq_aes_bd { parentCell } {
    CONFIG.PCW_CAN_PERIPHERAL_DIVISOR1 {1} \
    CONFIG.PCW_CAN_PERIPHERAL_FREQMHZ {100} \
    CONFIG.PCW_CAN_PERIPHERAL_VALID {0} \
-   CONFIG.PCW_CLK0_FREQ {100000000} \
+   CONFIG.PCW_CLK0_FREQ {125000000} \
    CONFIG.PCW_CLK1_FREQ {10000000} \
    CONFIG.PCW_CLK2_FREQ {10000000} \
    CONFIG.PCW_CLK3_FREQ {10000000} \
@@ -268,7 +268,7 @@ proc cr_bd_zynq_aes_bd { parentCell } {
    CONFIG.PCW_EN_USB1 {0} \
    CONFIG.PCW_EN_WDT {0} \
    CONFIG.PCW_FCLK0_PERIPHERAL_CLKSRC {IO PLL} \
-   CONFIG.PCW_FCLK0_PERIPHERAL_DIVISOR0 {5} \
+   CONFIG.PCW_FCLK0_PERIPHERAL_DIVISOR0 {4} \
    CONFIG.PCW_FCLK0_PERIPHERAL_DIVISOR1 {2} \
    CONFIG.PCW_FCLK1_PERIPHERAL_CLKSRC {IO PLL} \
    CONFIG.PCW_FCLK1_PERIPHERAL_DIVISOR0 {1} \
@@ -283,7 +283,7 @@ proc cr_bd_zynq_aes_bd { parentCell } {
    CONFIG.PCW_FCLK_CLK1_BUF {FALSE} \
    CONFIG.PCW_FCLK_CLK2_BUF {FALSE} \
    CONFIG.PCW_FCLK_CLK3_BUF {FALSE} \
-   CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {100} \
+   CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {125} \
    CONFIG.PCW_FPGA1_PERIPHERAL_FREQMHZ {50} \
    CONFIG.PCW_FPGA2_PERIPHERAL_FREQMHZ {50} \
    CONFIG.PCW_FPGA3_PERIPHERAL_FREQMHZ {50} \
@@ -891,19 +891,19 @@ proc cr_bd_zynq_aes_bd { parentCell } {
  ] $processing_system7_0
 
   # Create instance: ps7_0_axi_periph, and set properties
-  set ps7_0_axi_periph [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 ps7_0_axi_periph ]
+  set ps7_0_axi_periph [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.* ps7_0_axi_periph ]
   set_property -dict [ list \
    CONFIG.NUM_MI {1} \
  ] $ps7_0_axi_periph
 
   # Create instance: rst_ps7_0_100M, and set properties
-  set rst_ps7_0_100M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_ps7_0_100M ]
+  set rst_ps7_0_100M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.* rst_ps7_0_100M ]
 
   # Create instance: xlconcat_0, and set properties
-  set xlconcat_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 xlconcat_0 ]
+  set xlconcat_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.* xlconcat_0 ]
 
   # Create instance: zynq_aes_0, and set properties
-  set zynq_aes_0 [ create_bd_cell -type ip -vlnv user.org:user:zynq_aes:1.0 zynq_aes_0 ]
+  set zynq_aes_0 [ create_bd_cell -type ip -vlnv user.org:user:zynq_aes:1.* zynq_aes_0 ]
 
   # Create interface connections
   connect_bd_intf_net -intf_net axi_dma_0_M_AXIS_MM2S [get_bd_intf_pins axi_dma_0/M_AXIS_MM2S] [get_bd_intf_pins zynq_aes_0/S00_AXIS]
