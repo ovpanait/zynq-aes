@@ -77,34 +77,29 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-	if (reset) begin
-		round_key <= {`KEY_S{1'b0}};
-		w_e <= 1'b0;
-	end else begin
-		w_e <= 1'b0;
-
-		if (round_key_en) begin
-			w_e <= 1'b1;
-
-			if (first_round)
-				round_key <= key;
-			else begin
-				round_key <= {
-					round_key_tmp_arr[0],
-					round_key_tmp_arr[1],
-					round_key_tmp_arr[2],
-					round_key_tmp_arr[3]
-				};
-			end
-		end
+	if (first_round)
+		round_key <= key;
+	else begin
+		round_key <= {
+			round_key_tmp_arr[0],
+			round_key_tmp_arr[1],
+			round_key_tmp_arr[2],
+			round_key_tmp_arr[3]
+		};
 	end
 end
 
 always @(posedge clk) begin
-	if (reset)
+	if (reset) begin
+		w_e <= 1'b0;
 		round_key_addr <= {4{1'b0}};
-	else
+	end else begin
+		w_e <= 1'b0;
 		round_key_addr <= round_no;
+
+		if (round_key_en)
+			w_e <= 1'b1;
+	end
 end
 
 endmodule
