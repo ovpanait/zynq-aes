@@ -48,8 +48,7 @@ module zynq_aes_top #
         input wire                                   s00_axis_tvalid
 );
 
-// function called clogb2 that returns an integer which has the
-// value of the ceiling of the log base 2.
+// returns ceiling of the log base 2 of the input
 function integer clogb2 (input integer bit_depth);
         begin
                 for(clogb2=0; bit_depth>0; clogb2=clogb2+1)
@@ -59,18 +58,14 @@ endfunction
 
 /*
  * 32kB AES block + 2 x 128-bit slots for key and iv.
- * When the payload is larger than DATA_FIFO_SIZE, the two slots will be used to
- * store additional data if necessary.
  */
-localparam FIFO_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_SRAM_DATA_WIDTH;
+localparam OUT_BRAM_DATA_WIDTH = `Nb * `WORD_S;
+localparam OUT_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / OUT_BRAM_DATA_WIDTH;
+localparam OUT_BRAM_ADDR_WIDTH = clogb2(OUT_BRAM_DEPTH);
 
-localparam OUT_SRAM_ADDR_WIDTH = clogb2(OUT_SRAM_DEPTH);
-localparam OUT_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam OUT_SRAM_DEPTH = FIFO_DEPTH;
-
-localparam IN_SRAM_ADDR_WIDTH = clogb2(IN_SRAM_DEPTH);
-localparam IN_SRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam IN_SRAM_DEPTH = FIFO_DEPTH;
+localparam IN_BRAM_DATA_WIDTH = `Nb * `WORD_S;
+localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_BRAM_DATA_WIDTH;
+localparam IN_BRAM_ADDR_WIDTH = clogb2(IN_BRAM_DEPTH);
 
 // AXI slave signals
 wire start_processing;
@@ -80,8 +75,8 @@ wire [`WORD_S-1:0] axis_cmd;
 
 // input FIFO signals
 wire                          aes_controller_in_fifo_r_e;
-wire [IN_SRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
-wire [IN_SRAM_DATA_WIDTH-1:0] in_fifo_rdata;
+wire [IN_BRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
+wire [IN_BRAM_DATA_WIDTH-1:0] in_fifo_rdata;
 
 wire in_fifo_read_tready;
 wire in_fifo_almost_full;
@@ -97,7 +92,7 @@ wire               aes_controller_skip_key_expansion;
 wire               processing_done;
 
 // output FIFO signals
-wire [OUT_SRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
+wire [OUT_BRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
 
 wire out_fifo_almost_full;
 wire out_fifo_full;
@@ -115,9 +110,9 @@ wire axis_master_done;
 
 aes_axi_stream_slave #(
 	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH),
-	.FIFO_SIZE(OUT_SRAM_DEPTH),
-	.FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
-	.FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
+	.FIFO_SIZE(IN_BRAM_DEPTH),
+	.FIFO_ADDR_WIDTH(IN_BRAM_ADDR_WIDTH),
+	.FIFO_DATA_WIDTH(IN_BRAM_DATA_WIDTH)
 ) axi_stream_slave_controller (
 	.s00_axis_aclk(s00_axis_aclk),
 	.s00_axis_aresetn(s00_axis_aresetn),
@@ -149,10 +144,10 @@ assign aes_controller_cmd = axis_cmd;
 assign aes_controller_in_fifo_data = in_fifo_rdata;
 
 aes_controller #(
-	.IN_FIFO_ADDR_WIDTH(IN_SRAM_ADDR_WIDTH),
-	.IN_FIFO_DATA_WIDTH(IN_SRAM_DATA_WIDTH),
-	.OUT_FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
-	.OUT_FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
+	.IN_FIFO_ADDR_WIDTH(IN_BRAM_ADDR_WIDTH),
+	.IN_FIFO_DATA_WIDTH(IN_BRAM_DATA_WIDTH),
+	.OUT_FIFO_ADDR_WIDTH(OUT_BRAM_ADDR_WIDTH),
+	.OUT_FIFO_DATA_WIDTH(OUT_BRAM_DATA_WIDTH)
 ) controller(
 	.clk(s00_axis_aclk),
 	.reset(!s00_axis_aresetn),
@@ -184,9 +179,9 @@ aes_controller #(
 
 aes_axi_stream_master #(
 	.C_M_AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH),
-	.FIFO_SIZE(OUT_SRAM_DEPTH),
-	.FIFO_ADDR_WIDTH(OUT_SRAM_ADDR_WIDTH),
-	.FIFO_DATA_WIDTH(OUT_SRAM_DATA_WIDTH)
+	.FIFO_SIZE(OUT_BRAM_DEPTH),
+	.FIFO_ADDR_WIDTH(OUT_BRAM_ADDR_WIDTH),
+	.FIFO_DATA_WIDTH(OUT_BRAM_DATA_WIDTH)
 ) axi_stream_master_controller (
 	.m00_axis_aclk(m00_axis_aclk),
 	.m00_axis_aresetn(m00_axis_aresetn),
