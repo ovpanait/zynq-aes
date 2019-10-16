@@ -47,7 +47,6 @@ reg [2:0]         state;
 wire [0:`BLK_S-1] aes_out_blk;
 wire              aes_done;
 
-reg [0:`BLK_S-1]  prev_aes_ecb_in_blk;
 reg [0:`WORD_S-1] __aes_cmd;
 reg [0: `BLK_S-1] aes_iv;
 reg [0:`KEY_S-1]  aes_key;
@@ -152,7 +151,6 @@ assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
 
 always @(posedge clk) begin
 	if (reset == 1'b1) begin
-		prev_aes_ecb_in_blk <= 1'b0;
 		processing_done <= 1'b0;
 		__aes_cmd <= 1'b0;
 		aes_key <= 1'b0;
