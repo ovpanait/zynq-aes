@@ -61,17 +61,13 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-	if (reset) begin
-		ciphertext <= {`BLK_S{1'b0}};
-	end else begin
-		if (cipher_round_en) begin
-			if (cipher_first_round)
-				ciphertext <= plaintext ^ key;
-			else if (cipher_last_round)
-				ciphertext <= aes_state_shift_rows ^ key;
-			else
-				ciphertext <= aes_state_add_rkey;
-		end
+	if (cipher_round_en) begin
+		if (cipher_first_round)
+			ciphertext <= plaintext ^ key;
+		else if (cipher_last_round)
+			ciphertext <= aes_state_shift_rows ^ key;
+		else
+			ciphertext <= aes_state_add_rkey;
 	end
 end
 
