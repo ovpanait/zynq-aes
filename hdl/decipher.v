@@ -61,17 +61,13 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-	if (reset) begin
-		plaintext <= {`BLK_S{1'b0}};
-	end else begin
-		if (decipher_round_en) begin
-			if (decipher_first_round)
-				plaintext <= ciphertext ^ round_key;
-			else if (decipher_last_round)
-				plaintext <= decrypt_add_round_key;
-			else
-				plaintext <= decrypt_inv_mix_columns;
-		end
+	if (decipher_round_en) begin
+		if (decipher_first_round)
+			plaintext <= ciphertext ^ round_key;
+		else if (decipher_last_round)
+			plaintext <= decrypt_add_round_key;
+		else
+			plaintext <= decrypt_inv_mix_columns;
 	end
 end
 
