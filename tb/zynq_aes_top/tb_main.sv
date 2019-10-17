@@ -127,8 +127,8 @@ task slv_gen_tready();
         axi4stream_ready_gen                           ready_gen;
         ready_gen = slv_agent.driver.create_ready("ready_gen");
         ready_gen.set_ready_policy(XIL_AXI4STREAM_READY_GEN_OSC);
-        ready_gen.set_low_time(2);
-        ready_gen.set_high_time(6);
+        ready_gen.set_low_time(8);
+        ready_gen.set_high_time(1);
         slv_agent.driver.send_tready(ready_gen);
 endtask :slv_gen_tready
 
