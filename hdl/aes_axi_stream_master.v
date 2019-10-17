@@ -95,7 +95,7 @@ fifo #(
 	.fifo_empty(fifo_empty)
 );
 
-assign fifo_read_tready = fifo_read_tvalid;
+assign fifo_read_tready = fifo_read_tvalid && !axis_tvalid;
 assign fifo_write_tvalid = out_fifo_write_tvalid;
 assign fifo_wdata = aes_controller_out_fifo_data;
 
