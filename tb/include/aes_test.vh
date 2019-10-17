@@ -44,18 +44,17 @@ class aes_test #(
 		input last;
 
 		for (int i = 0; i < data.size(); i = i + 4) begin
-			xil_axi4stream_data_byte data_dbg[4];
-			axi4stream_transaction   wr_transaction; 
+			axi4stream_transaction wr_transaction;
 
 			gen_rand_transaction(wr_transaction);
+			wr_transaction.set_delay(0);
+			wr_transaction.set_id(0);
+			wr_transaction.set_last(0);
 			wr_transaction.set_data('{data.get(i+3), data.get(i+2), data.get(i+1), data.get(i)});
 
-			wr_transaction.set_last(0);
 			if (i == data.size() - 4 && last == 1) begin
 				wr_transaction.set_last(1);
 			end
-
-			wr_transaction.get_data(data_dbg);
 
 			master_agent.driver.send(wr_transaction);
 		end
