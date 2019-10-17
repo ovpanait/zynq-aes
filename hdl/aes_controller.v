@@ -162,7 +162,6 @@ always @(posedge clk) begin
 	end
 	else begin
 		in_fifo_read_tready <= 1'b0;
-		out_fifo_write_tvalid <= 1'b0;
 		aes_start <= 1'b0;
 
 		case (state)
@@ -220,7 +219,6 @@ always @(posedge clk) begin
 				state <= AES_WAIT;
 
 				if (aes_done == 1'b1) begin
-					out_fifo_write_tvalid <= 1'b1;
 					out_fifo_data <= swap_bytes128(aes_out_blk);
 					state <= AES_STORE_BLOCK;
 
@@ -249,4 +247,15 @@ always @(posedge clk) begin
 	end
 end
 
+always @(posedge clk) begin
+	if (reset)
+		out_fifo_write_tvalid <= 1'b0;
+	else begin
+		if (aes_done && (aes_cipher_mode || aes_decipher_mode))
+			out_fifo_write_tvalid <= 1'b1;
+
+		if (out_fifo_write_req)
+			out_fifo_write_tvalid <= 1'b0;
+	end
+end
 endmodule
