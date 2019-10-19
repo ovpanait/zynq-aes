@@ -14,12 +14,14 @@ module block_ram #
     output reg [0:DATA_WIDTH-1] o_data
     );
 
-	reg [0:DATA_WIDTH-1] sram [0:DEPTH-1];
+reg [0:DATA_WIDTH-1] o_buf;
+reg [0:DATA_WIDTH-1] sram [0:DEPTH-1];
 
-	always @ (posedge clk) begin
-	o_data <= sram[addr];
+always @ (posedge clk) begin
+	o_buf <= sram[addr];
+	o_data <= o_buf;
 
 	if (w_e)
 		sram[addr] <= i_data;
-	end
+end
 endmodule
