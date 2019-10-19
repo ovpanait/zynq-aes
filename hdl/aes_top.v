@@ -109,7 +109,7 @@ decipher decrypt_blk(
         .rounds_total(rounds_total),
         .ciphertext(aes_in_blk),
         .round_key(round_key_out),
-        .round_no(decrypt_round_no),
+        .round_key_no(decrypt_round_no),
 
         .plaintext(__aes_out_blk_decrypt),
         .en_o(en_o_decipher)

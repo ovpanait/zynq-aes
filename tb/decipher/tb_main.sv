@@ -16,7 +16,7 @@ reg [`BLK_S-1:0]          ciphertext;
 reg [`Nb-1:0]             rounds_total;
 
 wire [`BLK_S-1:0] plaintext;
-wire [`Nb-1:0]    round_no;
+wire [`Nb-1:0]    round_key_no;
 wire              en_o;
 
 decipher DUT (
@@ -29,7 +29,7 @@ decipher DUT (
 	.round_key(round_key),
 
 	.plaintext(plaintext),
-	.round_no(round_no),
+	.round_key_no(round_key_no),
 	.en_o(en_o)
 );
 
@@ -135,9 +135,9 @@ end
 // simulate key sram behavior
 always @(posedge clk) begin
 	if (rounds_total == `Nr_128)
-		round_key <= keys_128[round_no];
+		round_key <= keys_128[round_key_no];
 	else
-		round_key <= keys_256[round_no];
+		round_key <= keys_256[round_key_no];
 end
 
 endmodule

@@ -10,7 +10,7 @@ module decipher (
 	input [`Nb-1:0]             rounds_total,
 
 	output reg [`BLK_S-1:0]     plaintext,
-	output     [`Nb-1:0]        round_no,
+	output reg [`Nb-1:0]        round_key_no,
 	output reg                  en_o
 );
 
@@ -98,22 +98,21 @@ endfunction
 
 // ------------------------- AES Decipher functions -------------------------
 
-reg [`Nb:0] _round_no;
+reg [`Nb-1:0] round_no;
 
 reg [`BLK_S-1:0] decrypt_inv_shift_rows;
 reg [`BLK_S-1:0] decrypt_inv_sub_bytes;
 reg [`BLK_S-1:0] decrypt_add_round_key;
 reg [`BLK_S-1:0] decrypt_inv_mix_columns;
 
+wire is_last_key;
+
 wire decipher_first_round;
 wire decipher_last_round;
 
 reg decipher_round_en;
-reg round_key_r_e;
 
-assign round_no = _round_no[`Nb-1:0];
-assign decipher_first_round = (_round_no == rounds_total - 1'b1);
-assign decipher_last_round = (_round_no[`Nb] == 1'b1);
+reg round_key_r_e;
 
 always @(*) begin
           decrypt_inv_shift_rows = inv_shift_rows(plaintext);
@@ -126,22 +125,25 @@ always @(posedge clk) begin
 	if (reset) begin
 		decipher_round_en <= 1'b0;
 		round_key_r_e <= 1'b0;
-		_round_no <= {`Nb+1{1'b1}};
+		round_key_no <= {`Nb{1'b0}};
 	end else begin
 		decipher_round_en <= round_key_r_e;
 		round_key_r_e <= 1'b0;
 
 		if (en) begin
 			round_key_r_e <= 1'b1;
-			_round_no <= rounds_total;
+			round_key_no <= rounds_total;
 		end
 
-		if (!decipher_last_round) begin
-			_round_no <= round_no - 1'b1;
+		if (round_key_no) begin
+			round_key_no <= round_key_no - 1'b1;
 			round_key_r_e <= 1'b1;
 		end
 	end
 end
+
+assign decipher_first_round = (round_no == {`Nb{1'b0}});
+assign decipher_last_round = (round_no == rounds_total);
 
 always @(posedge clk) begin
 	if (decipher_round_en) begin
@@ -156,12 +158,19 @@ end
 
 always @(posedge clk) begin
 	if (reset) begin
+		round_no <= {`Nb{1'b0}};
 		en_o <= 1'b0;
 	end else begin
 		en_o <= 1'b0;
 
-		if (decipher_round_en && decipher_last_round)
-			en_o <= 1'b1;
+		if (decipher_round_en) begin
+			round_no <= round_no + 1'b1;
+
+			if (decipher_last_round) begin
+				en_o <= 1'b1;
+				round_no <= {`Nb{1'b0}};
+			end
+		end
 	end
 end
 
