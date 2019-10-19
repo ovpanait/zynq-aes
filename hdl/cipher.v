@@ -30,6 +30,7 @@ end
 reg [`Nk-1:0] round_no;
 reg round_key_r_e;
 reg cipher_round_en;
+reg cipher_round_en_delay;
 
 wire cipher_first_round;
 wire cipher_last_round;
@@ -44,8 +45,10 @@ always @(posedge clk) begin
 		round_key_r_e <= 1'b0;
 		round_key_no <= {`Nk{1'b0}};
 		cipher_round_en <= 1'b0;
+		cipher_round_en_delay <= 1'b0;
 	end else begin
-		cipher_round_en <= round_key_r_e;
+		cipher_round_en_delay <= round_key_r_e;
+		cipher_round_en <= cipher_round_en_delay;
 		round_key_r_e <= 1'b0;
 
 		// ?!
