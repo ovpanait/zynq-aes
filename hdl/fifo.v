@@ -64,6 +64,8 @@ wire bram_w_e;
 reg fifo_has_data;
 reg is_full;
 
+reg read_transaction_delay;
+
 block_ram #(
 	.ADDR_WIDTH(ADDR_WIDTH),
 	.DATA_WIDTH(DATA_WIDTH),
@@ -133,7 +135,7 @@ always @(posedge clk) begin
 	if (reset) begin
 		fifo_read_tvalid <= 1'b0;
 	end else begin
-		if (!fifo_empty && !fifo_read_tvalid && !fifo_write_tready) begin 
+		if (!fifo_empty && !fifo_read_tvalid && !read_transaction_delay && !fifo_write_tready) begin 
 			fifo_read_tvalid <= 1'b1;
 		end
 
@@ -141,6 +143,13 @@ always @(posedge clk) begin
 			fifo_read_tvalid <= 1'b0;
 		end
 	end
+end
+
+always @(posedge clk) begin
+	if (reset)
+		read_transaction_delay <= 1'b0;
+	else
+		read_transaction_delay <= (fifo_read_transaction || fifo_write_tready);
 end
 
 `ifdef SIMULATION
