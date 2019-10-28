@@ -1,4 +1,3 @@
-
 `timescale 1ns/1ns
 `define PERIOD 5
 
@@ -6,91 +5,84 @@
 
 module tb_main();
 
-	integer ret;
+integer ret;
 
-   // Module instantiation
-   reg clk;
-   reg reset;
-   reg en;
+// Module instantiation
+reg clk;
+reg reset;
+reg en;
 
-   reg [0:`BLK_S-1] plaintext;
-   reg [0:`KEY_S-1] key;
+reg [`BLK_S-1:0]  plaintext;
+reg [`KEY_S-1:0]  key;
 
-   wire [0:3] 	    round_key_no;
-   wire [0:`BLK_S-1] ciphertext;
-   wire 	     en_o;
+wire [3:0]        round_key_no;
+wire [`BLK_S-1:0] ciphertext;
+wire              en_o;
 
-   cipher DUT (
-	       .clk(clk),
-	       .reset(reset),
-	       .en(en),
+cipher DUT (
+	.clk(clk),
+	.reset(reset),
+	.en(en),
 
-	       .plaintext(plaintext),
-	       .key(key),
+	.plaintext(plaintext),
+	.key(key),
 
-	       .ciphertext(ciphertext),
-	       .round_key_no(round_key_no),
-	       .en_o(en_o)
-	       );
+	.ciphertext(ciphertext),
+	.round_key_no(round_key_no),
+	.en_o(en_o)
+);
 
-   // Test functions
 `include "test_fc.vh"
 
-   // Auxiliary counters
-   integer 	     i;
+integer i;
 
-   // Test results
-   reg [`KEY_S-1:0]  key_sram [0:`Nr] = '{
-					  `KEY_S'h5468617473206d79204b756e67204675,
-					  `KEY_S'he232fcf191129188b159e4e6d679a293,
-					  `KEY_S'h56082007c71ab18f76435569a03af7fa,
-					  `KEY_S'hd2600de7157abc686339e901c3031efb,
-					  `KEY_S'ha11202c9b468bea1d75157a01452495b,
-					  `KEY_S'hb1293b3305418592d210d232c6429b69,
-					  `KEY_S'hbd3dc287b87c47156a6c9527ac2e0e4e,
-					  `KEY_S'hcc96ed1674eaaa031e863f24b2a8316a,
-					  `KEY_S'h8e51ef21fabb4522e43d7a0656954b6c,
-					  `KEY_S'hbfe2bf904559fab2a16480b4f7f1cbd8,
-					  `KEY_S'h28fddef86da4244accc0a4fe3b316f26
-					  };
+reg [`KEY_S-1:0] key_sram [0:`Nr] = '{
+	`KEY_S'h754620676e754b20796d207374616854,
+	`KEY_S'h93a279d6e6e459b188911291f1fc32e2,
+	`KEY_S'hfaf73aa0695543768fb11ac707200856,
+	`KEY_S'hfb1e03c301e9396368bc7a15e70d60d2,
+	`KEY_S'h5b495214a05751d7a1be68b4c90212a1,
+	`KEY_S'h699b42c632d210d292854105333b29b1,
+	`KEY_S'h4e0e2eac27956c6a15477cb887c23dbd,
+	`KEY_S'h6a31a8b2243f861e03aaea7416ed96cc,
+	`KEY_S'h6c4b9556067a3de42245bbfa21ef518e,
+	`KEY_S'hd8cbf1f7b48064a1b2fa594590bfe2bf,
+	`KEY_S'h266f313bfea4c0cc4a24a46df8defd28
+};
 
-   reg [0:`BLK_S-1]  expected_ciphertext =
-		     `BLK_S'h29c3505f571420f6402299b31a02d73a;
+reg [`BLK_S-1:0] expected_ciphertext = `BLK_S'h3ad7021ab3992240f62014575f50c329;
 
-   initial begin
-      clk <= 0;
-      forever #(`PERIOD) clk = ~clk;
-   end
+initial begin
+	clk <= 0;
+	forever #(`PERIOD) clk = ~clk;
+end
 
-   initial begin
-      reset <= 0;
-      @(posedge clk); //may need several cycles for reset
-      @(negedge clk) reset = 1;
-   end
+initial begin
+	reset <= 0;
+	@(posedge clk); //may need several cycles for reset
+	@(negedge clk) reset = 1;
+end
 
-   initial begin
-      // Testcase init
-      wait(reset)
-	@(posedge clk);
-      @(negedge clk) reset = 0;
+initial begin
+	wait(reset) @(posedge clk);
+	@(negedge clk) reset = 0;
 
-      // Testcase
-      @(negedge clk) begin
-	 en = 1;
-	 plaintext =  {
-		       8'h54, 8'h77, 8'h6F, 8'h20,
-		       8'h4F, 8'h6E, 8'h65, 8'h20,
-		       8'h4E, 8'h69, 8'h6E, 8'h65,
-		       8'h20, 8'h54, 8'h77, 8'h6F
-		       };
-      end
+	@(negedge clk) begin
+		en = 1;
+		plaintext =  {
+			8'h6F, 8'h77, 8'h54, 8'h20,
+			8'h65, 8'h6E, 8'h69, 8'h4E,
+			8'h20, 8'h65, 8'h6E, 8'h4F,
+			8'h20, 8'h6F, 8'h77, 8'h54
+		};
+	end
 
-      @(negedge clk) begin
+	@(negedge clk) begin
 	 en = 0;
-      end
+	end
 
-      @(posedge DUT.en_o);
-      @(negedge clk);
+	@(posedge DUT.en_o);
+	@(negedge clk);
 
 	ret = tester #($size(expected_ciphertext))::verify_output(DUT.ciphertext, expected_ciphertext);
 
@@ -99,12 +91,11 @@ module tb_main();
 	else
 		$display("Test cipher: FAIL");
 
-      // Testcase end
-      @(negedge clk) reset = 1;
-      @(negedge clk);
+	@(negedge clk) reset = 1;
+	@(negedge clk);
 
-      $stop;
-   end // initial begin
+	$stop;
+end
 
 // simulate key sram behavior
 always @(posedge clk) begin
