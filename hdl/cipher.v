@@ -13,7 +13,7 @@ module cipher(
 	output reg              en_o
 );
 
-`include "aes_functions.vh"
+`include "aes_common.vh"
 
 // --------------------- AES Cipher functions ---------------------
 

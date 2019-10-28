@@ -25,7 +25,7 @@ reg [3:0] round_no;
 wire round_key_en;
 genvar i;
 
-`include "aes_functions.vh"
+`include "aes_common.vh"
 
 localparam rcon = {
 	8'h36, 8'h1B, 8'h80, 8'h40, 8'h20, 8'h10, 8'h08, 8'h04,
