@@ -3,7 +3,7 @@ task testcase1();
 	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
 	localparam AES_IV = `BLK_S'h54776F204F6E65204E696E652054776F;
 
-	localparam test_blocks_no = 1000;
+	localparam test_blocks_no = 256;
 
 	localparam plaintext_fn = "cbc_plaintext.txt";
 	localparam ciphertext_fn = "cbc_ciphertext.txt";
@@ -11,9 +11,9 @@ task testcase1();
 	integer total_blocks;
 	integer i, j;
 
-	reg [0:`WORD_S-1]  cmd;
-	reg [0:`KEY_S-1]   key;
-	reg [0:`IV_BITS-1] iv;
+	reg [`WORD_S-1:0]  cmd;
+	reg [`KEY_S-1:0]   key;
+	reg [`IV_BITS-1:0] iv;
 
 	queue_wrapper#(`BLK_S) plaintext_queue;
 	queue_wrapper#(`BLK_S) ciphertext_queue;
@@ -37,7 +37,7 @@ task testcase1();
 	$display("Sending %d AES blocks.", total_blocks);
 
 	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(ciphertext_queue.get(i), expected_results_queue);
+		queue_tester.q_push_back32_rev(aes_tester.reverse_blk8(ciphertext_queue.get(i)), expected_results_queue);
 
 	$display("Starting Testcase: ECB encryption stress test");
 

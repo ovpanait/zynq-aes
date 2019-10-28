@@ -87,7 +87,7 @@ wire in_fifo_read_tvalid;
 // aes signals
 wire               aes_controller_done;
 wire               aes_controller_start;
-wire [0:`WORD_S-1] aes_controller_cmd;
+wire [`WORD_S-1:0] aes_controller_cmd;
 wire               aes_controller_skip_key_expansion;
 wire               processing_done;
 

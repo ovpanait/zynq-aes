@@ -14,11 +14,11 @@ module aes_controller #
 	input                                axis_slave_done,
 
 	// aes specific
-	input [0:`WORD_S-1]                  aes_cmd,
+	input [`WORD_S-1:0]                  aes_cmd,
 
 	// input FIFO
 	input                                in_fifo_almost_full,
-	input [0:IN_FIFO_DATA_WIDTH-1]       in_fifo_data,
+	input [IN_FIFO_DATA_WIDTH-1:0]       in_fifo_data,
 	input                                in_fifo_empty,
 	input                                in_fifo_full,
 	input                                in_fifo_read_tvalid,
@@ -30,7 +30,7 @@ module aes_controller #
 	input                                out_fifo_full,
 	input                                out_fifo_write_tready,
 	output reg                           out_fifo_write_tvalid,
-	output reg [0:OUT_FIFO_DATA_WIDTH-1] out_fifo_data,
+	output reg [OUT_FIFO_DATA_WIDTH-1:0] out_fifo_data,
 
 	output reg                           processing_done
 
@@ -44,74 +44,56 @@ localparam [2:0] AES_STORE_BLOCK = 3'b111;
 
 reg [2:0]         state;
 
-wire [0:`BLK_S-1] aes_out_blk;
+wire [`BLK_S-1:0] aes_out_blk;
 wire              aes_done;
 
-reg [0:`WORD_S-1] __aes_cmd;
-reg [0: `BLK_S-1] aes_iv;
-reg [0:`KEY_S-1]  aes_key;
+reg [`WORD_S-1:0] __aes_cmd;
+reg [`KEY_S-1:0]  aes_key;
+reg [`BLK_S-1:0]  aes_iv;
 
 reg               aes_start;
 wire              aes_cipher_mode;
 wire              aes_decipher_mode;
 wire              aes_key_exp_mode;
 
-wire [0:`BLK_S-1] aes_ecb_in_blk;
-wire [0:`BLK_S-1] aes_cbc_in_blk;
-wire [0:`BLK_S-1] aes_in_blk;
+wire [`BLK_S-1:0] aes_ecb_in_blk;
+wire [`BLK_S-1:0] aes_cbc_in_blk;
+wire [`BLK_S-1:0] aes_in_blk;
 
 wire out_fifo_write_req;
 wire in_fifo_read_req;
 
-reg [0:`BLK_S-1] aes_in_blk_reg;
+reg [`BLK_S-1:0] aes_in_blk_reg;
 
 genvar i;
 
-// Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
-// buffer.
-function [0:`WORD_S-1] swap_bytes32(input [0:`WORD_S-1] data);
-	integer i;
-	begin
-		for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
-			swap_bytes32[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
-	end
-endfunction
-
-function [0:IN_FIFO_DATA_WIDTH-1] swap_bytes128(input [0:IN_FIFO_DATA_WIDTH-1] data);
-	integer i;
-	begin
-		for (i = 0; i < IN_FIFO_DATA_WIDTH / `WORD_S; i=i+1)
-			swap_bytes128[i*`WORD_S +: `WORD_S] = swap_bytes32(data[i*`WORD_S +: `WORD_S]);
-	end
-endfunction
-
-function is_CBC_op(input [0:`WORD_S-1] cmd);
+function is_CBC_op(input [`WORD_S-1:0] cmd);
 	begin
 		is_CBC_op = (cmd == `CBC_ENCRYPT_128 || cmd == `CBC_DECRYPT_128);
 	end
 endfunction
 
-function is_CBC_enc(input [0:`WORD_S-1] cmd);
+function is_CBC_enc(input [`WORD_S-1:0] cmd);
 	begin
 		is_CBC_enc = (cmd == `CBC_ENCRYPT_128);
 	end
 endfunction
 
-function is_CBC_dec(input [0:`WORD_S-1] cmd);
+function is_CBC_dec(input [`WORD_S-1:0] cmd);
 	begin
 		is_CBC_dec = (cmd == `CBC_DECRYPT_128);
 	end
 endfunction
 
-function is_cipher_op(input [0:`WORD_S - 1] cmd);
+function is_cipher_op(input [`WORD_S-1:0] cmd);
 	is_cipher_op = (cmd == `CBC_ENCRYPT_128) || (cmd == `ECB_ENCRYPT_128);
 endfunction
 
-function is_decipher_op(input [0:`WORD_S - 1] cmd);
+function is_decipher_op(input [`WORD_S-1:0] cmd);
 	is_decipher_op = (cmd == `CBC_DECRYPT_128) || (cmd == `ECB_DECRYPT_128);
 endfunction
 
-function is_key_exp_op(input [0:`WORD_S - 1] cmd);
+function is_key_exp_op(input [`WORD_S-1:0] cmd);
 	is_key_exp_op = (cmd == `SET_KEY_128);
 endfunction
 
@@ -143,7 +125,7 @@ aes_top aes_mod(
 );
 
 assign aes_in_blk = is_CBC_enc(aes_cmd) ?  aes_cbc_in_blk : aes_ecb_in_blk;
-assign aes_ecb_in_blk = swap_bytes128(in_fifo_data);
+assign aes_ecb_in_blk = in_fifo_data;
 assign aes_cbc_in_blk = aes_iv ^ aes_ecb_in_blk;
 
 assign out_fifo_write_req = out_fifo_write_tready && out_fifo_write_tvalid;
@@ -173,7 +155,7 @@ always @(posedge clk) begin
 					processing_done <= 1'b0;
 					in_fifo_read_tready <= 1'b0;
 
-					aes_key <= swap_bytes128(in_fifo_data);
+					aes_key <= in_fifo_data;
 					__aes_cmd <= `SET_KEY_128;
 					state <= AES_START;
 					aes_start <= 1'b1;
@@ -190,7 +172,7 @@ always @(posedge clk) begin
 
 				if (in_fifo_read_req) begin
 					in_fifo_read_tready <= 1'b0;
-					aes_iv <= swap_bytes128(in_fifo_data);
+					aes_iv <= in_fifo_data;
 					state <= AES_START;
 				end
 			end
@@ -219,7 +201,7 @@ always @(posedge clk) begin
 				state <= AES_WAIT;
 
 				if (aes_done == 1'b1) begin
-					out_fifo_data <= swap_bytes128(aes_out_blk);
+					out_fifo_data <= aes_out_blk;
 					state <= AES_STORE_BLOCK;
 
 					if(is_CBC_enc(aes_cmd)) begin
@@ -227,7 +209,7 @@ always @(posedge clk) begin
 					end
 
 					if(is_CBC_dec(aes_cmd)) begin
-						out_fifo_data <= swap_bytes128(aes_iv ^ aes_out_blk);
+						out_fifo_data <= aes_iv ^ aes_out_blk;
 						aes_iv <= aes_in_blk_reg;
 					end
 

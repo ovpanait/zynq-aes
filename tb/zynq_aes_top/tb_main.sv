@@ -59,24 +59,6 @@ design_1_wrapper DUT(
         .aresetn(reset),
         .aclk(clock)
 );
-// Data passed by the kernel has the bytes swapped due to the way it is represented in the 16 byte
-// buffer (data from the buffer gets converted to little endian 32-bit words and sent on the axi bus)
-function [0:`WORD_S-1] swap_bytes32(input [0:`WORD_S-1] data);
-        integer i;
-        begin
-                for (i = 0; i < `WORD_S / `BYTE_S; i=i+1)
-                        swap_bytes32[i*`BYTE_S +: `BYTE_S] = data[(`WORD_S / `BYTE_S - i - 1)*`BYTE_S +: `BYTE_S];
-        end
-endfunction
-
-function [0:`BLK_S-1] swap_blk(input [0:`BLK_S-1] blk);
-        integer i;
-        begin
-                for (i = 0; i < `BLK_S / `WORD_S; i=i+1)
-                        swap_blk[i*`WORD_S +: `WORD_S] = swap_bytes32(blk[i*`WORD_S +: `WORD_S]);
-
-        end
-endfunction
 
 // 125 MHz clock
 always #4 clock <= ~clock;
@@ -151,7 +133,7 @@ end
 initial begin
         forever begin
                 wait (master_moniter_transaction_queue_size>0 ) begin
-                        xil_axi4stream_data_byte mst_data [0:3];
+                        xil_axi4stream_data_byte mst_data [3:0];
                         mst_scb_transaction = master_moniter_transaction_queue.pop_front;
                         master_moniter_transaction_queue_size--;
 
@@ -164,7 +146,7 @@ initial begin
         forever begin
                 wait (slave_moniter_transaction_queue_size > 0) begin
                         xil_axi4stream_data_byte slv_data [4];
-                        reg [0:`WORD_S-1] slv_data_packed;
+                        reg [`WORD_S-1:0] slv_data_packed;
 
                         slv_scb_transaction = slave_moniter_transaction_queue.pop_front;
                         slave_moniter_transaction_queue_size--;  
@@ -172,9 +154,7 @@ initial begin
                         slv_scb_transaction.get_data(slv_data);
 
                         tester#($size(slv_data_packed))::pack(slv_data, slv_data_packed);
-                        results.push_back(swap_bytes32(slv_data_packed));  // swap bytes again 
-                                                                           // to match the values
-                                                                           // as seen by the kernel
+                        results.push_back(slv_data_packed);
                         comparison_cnt++;
                 end  
         end

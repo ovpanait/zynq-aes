@@ -51,6 +51,7 @@ wire axis_data_available;
 wire aes_block_available;
 wire axis_tready;
 
+wire [FIFO_DATA_WIDTH-1:0] axis_blk_shift;
 wire [FIFO_DATA_WIDTH-1:0] axis_blk_next;
 reg [FIFO_DATA_WIDTH-1:0]  axis_blk;
 
@@ -109,7 +110,8 @@ localparam AXIS_SLAVE_GET_CMD = 1'b0;
 localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
 
 assign aes_block_available = axis_data_available && (axis_word_cnt == `Nb - 1'b1);
-assign axis_blk_next = (axis_blk << `WORD_S) | s00_axis_tdata;
+assign axis_blk_shift = (axis_blk >> `WORD_S);
+assign axis_blk_next = {s00_axis_tdata, axis_blk_shift[`BLK_S-1-`WORD_S:0]};
 assign axis_tready = (!axis_slave_done && !fifo_write_tvalid && !fifo_full);
 assign axis_data_available = s00_axis_tvalid && axis_tready;
 assign fifo_wren = aes_block_available;

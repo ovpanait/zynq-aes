@@ -108,13 +108,13 @@ assign out_fifo_read_req = fifo_read_tready && fifo_read_tvalid;
 
 // AXI logic
 
-assign m00_axis_tdata  = axis_blk_shift[FIFO_DATA_WIDTH-`WORD_S +: `WORD_S];
+assign m00_axis_tdata  = axis_blk_shift[0 +: `WORD_S];
 assign m00_axis_tstrb  = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 assign m00_axis_tvalid = axis_tvalid;
 assign m00_axis_tlast  = axis_tlast;
 
 assign axis_last_word = axis_last_blk && (axis_word_cnt == `Nb - 1'b1);
-assign axis_blk_shift = axis_blk << axis_word_cnt * `WORD_S;
+assign axis_blk_shift = axis_blk >> axis_word_cnt * `WORD_S;
 assign axis_last_blk = processing_done && out_fifo_empty;
 assign axis_transaction = m00_axis_tready && axis_tvalid;
 assign axis_tlast =  axis_last_word;

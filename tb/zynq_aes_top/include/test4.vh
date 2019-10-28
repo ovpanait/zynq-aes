@@ -11,9 +11,9 @@ task testcase4();
 	integer total_blocks;
 	integer i, j;
 
-	reg [0:`WORD_S-1]  cmd;
-	reg [0:`KEY_S-1]   key;
-	reg [0:`IV_BITS-1] iv;
+	reg [`WORD_S-1:0]  cmd;
+	reg [`KEY_S-1:0]   key;
+	reg [`IV_BITS-1:0] iv;
 
 	queue_wrapper#(`BLK_S) plaintext_queue;
 	queue_wrapper#(`BLK_S) ciphertext_queue;
@@ -37,7 +37,7 @@ task testcase4();
 	$display("Sending %d AES blocks.", total_blocks);
 
 	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(plaintext_queue.get(i), expected_results_queue);
+		queue_tester.q_push_back32_rev(aes_tester.reverse_blk8(plaintext_queue.get(i)), expected_results_queue);
 
 	$display("Starting Testcase: ECB encryption stress test");
 
