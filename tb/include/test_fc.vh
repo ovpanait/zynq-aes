@@ -34,8 +34,7 @@ class tester #(
 		end
 	endfunction
 
-	// The bit direction is reversed
-	task q_push_back32_rev(input [0:WIDTH-1] data, input queue_wrapper#(QUEUE_DATA_WIDTH) queue);
+	task q_push_back32_rev(input [WIDTH-1:0] data, input queue_wrapper#(QUEUE_DATA_WIDTH) queue);
 		if (QUEUE_DATA_WIDTH != 32) begin
 			$display("ERROR: %s %l: QUEUE_DATA_WIDTH must be 32!", `__FILE__, `__LINE__);
 			$finish;
@@ -45,7 +44,6 @@ class tester #(
 			queue.push_back(data[i*32 +: 32]);
 		end
 	endtask
-
 endclass
 
 `endif
