@@ -1,28 +1,28 @@
 `include "aes.vh"
 
 module aes_top(
-        input                   clk,
-        input                   reset,
+	input                   clk,
+	input                   reset,
 	input                   en,
 
 	input                   cipher_mode,
 	input                   decipher_mode,
 	input                   key_exp_mode,
 
-        input [0:`KEY_S-1]      aes_key,
-        input [0:`BLK_S-1]      aes_in_blk,
+	input [`KEY_S-1:0]      aes_key,
+	input [`BLK_S-1:0]      aes_in_blk,
 
-        output [0:`BLK_S-1]     aes_out_blk,
+	output [`BLK_S-1:0]     aes_out_blk,
 	output reg              aes_op_in_progress,
-        output                  en_o
+	output                  en_o
 );
 
-wire [0:`KEY_S-1]       round_key_in;
-wire [0:`KEY_S-1]       round_key_out;
+wire [`KEY_S-1:0]    round_key_in;
+wire [`KEY_S-1:0]    round_key_out;
 
-wire [0:`Nk-1]       round_key_addr;
-wire [0:`Nk-1]       encrypt_round_no;
-wire [0:`Nk-1]       decrypt_round_no;
+wire [`Nk-1:0]       round_key_addr;
+wire [`Nk-1:0]       encrypt_round_no;
+wire [`Nk-1:0]       decrypt_round_no;
 
 wire en_cipher;
 wire en_decipher;
@@ -32,12 +32,12 @@ wire en_o_round_key;
 wire en_o_cipher;
 wire en_o_decipher;
 
-wire [0:`BLK_S-1] __aes_out_blk_encrypt;
-wire [0:`BLK_S-1] __aes_out_blk_decrypt;
+wire [`BLK_S-1:0] __aes_out_blk_encrypt;
+wire [`BLK_S-1:0] __aes_out_blk_decrypt;
 
 // SRAM signals
 wire            w_e;
-wire [0:3]      addr;
+wire [3:0]      addr;
 
 assign en_cipher = en && cipher_mode;
 assign en_decipher = en && decipher_mode;
@@ -108,7 +108,7 @@ assign aes_out_blk =
 assign en_o = en_o_cipher | en_o_decipher | en_o_round_key;
 
 always @(posedge clk) begin
-	if (en) 
+	if (en)
 		aes_op_in_progress <= 1'b1;
 	else if (en_o)
 		aes_op_in_progress <= 1'b0;
