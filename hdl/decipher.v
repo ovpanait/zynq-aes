@@ -51,23 +51,18 @@ localparam rsbox = {
         8'hFB, 8'hD7, 8'hF3, 8'h81, 8'h9E, 8'hA3, 8'h40, 8'hBF,
         8'h38, 8'hA5, 8'h36, 8'h30, 8'hD5, 8'h6A, 8'h09, 8'h52 };
 
-function [`BYTE_S-1:0] get_rsbox;
-	input [`BYTE_S-1:0] index;
-
+function [`BYTE_S-1:0] get_rsbox(input [`BYTE_S-1:0] index);
 	get_rsbox = rsbox[index*`BYTE_S +: `BYTE_S];
 endfunction
 
-function [`BLK_S-1:0] inv_sub_bytes;
-	input [`BLK_S-1:0] blk;
+function [`BLK_S-1:0] inv_sub_bytes(input [`BLK_S-1:0] blk);
 	integer i;
 
 	for (i = 0; i < `BLK_S / `BYTE_S; i=i+1)
 		inv_sub_bytes[i*`BYTE_S +: `BYTE_S] = get_rsbox(blk[i*`BYTE_S +: `BYTE_S]);
 endfunction
 
-function [`WORD_S-1:0] inv_mix_word;
-	input [`WORD_S-1:0] word;
-
+function [`WORD_S-1:0] inv_mix_word(input [`WORD_S-1:0] word);
 	reg [`BYTE_S-1:0]   byte0;
 	reg [`BYTE_S-1:0]   byte1;
 	reg [`BYTE_S-1:0]   byte2;
@@ -85,17 +80,15 @@ begin
 end
 endfunction
 
-function [`BLK_S-1:0] inv_mix_cols;
-	input [`BLK_S-1:0] blk;
-	integer            i;
+function [`BLK_S-1:0] inv_mix_cols(input [`BLK_S-1:0] blk);
+	integer i;
 
 	for (i = 0; i < `BLK_S / `WORD_S; i=i+1)
 		inv_mix_cols[i*`WORD_S +: `WORD_S] = inv_mix_word(get_word(blk,i));
 endfunction
 
-function [`BLK_S-1:0] inv_shift_rows;
-	input [`BLK_S-1:0] blk;
-	integer            i, j, k;
+function [`BLK_S-1:0] inv_shift_rows(input [`BLK_S-1:0] blk);
+	integer i, j, k;
 
 	for (j = 0; j < `BLK_S / `BYTE_S; j=j+4)
 		for (i=j, k=j; i < `BLK_S / `BYTE_S; i=i+1, k=k+13)
