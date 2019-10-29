@@ -13,7 +13,7 @@ module aes_controller #
 
 	input                                axis_slave_done,
 
-	// aes specific
+	// aes control path
 	input [`WORD_S-1:0]                  aes_cmd,
 
 	// input FIFO
@@ -69,13 +69,13 @@ reg [`BLK_S-1:0] aes_in_blk_reg;
 
 genvar i;
 
-assign aes_cipher_mode = is_cipher_op(__aes_cmd);
+assign aes_cipher_mode = is_encryption(__aes_cmd);
 assign aes_start_cipher = aes_start && aes_cipher_mode;
 
-assign aes_decipher_mode = is_decipher_op(__aes_cmd);
+assign aes_decipher_mode = is_decryption(__aes_cmd);
 assign aes_start_decipher = aes_start && aes_decipher_mode;
 
-assign aes_key_exp_mode = is_key_exp_op(__aes_cmd);
+assign aes_key_exp_mode = is_key_expansion(__aes_cmd);
 assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
 aes_top aes_mod(
@@ -106,7 +106,7 @@ assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
 always @(posedge clk) begin
 	if (reset == 1'b1) begin
 		processing_done <= 1'b0;
-		__aes_cmd <= 1'b0;
+		__aes_cmd <= {`WORD_S{1'b0}};
 		aes_key <= 1'b0;
 		aes_iv <= 1'b0;
 		state <= AES_GET_KEY;
@@ -121,6 +121,7 @@ always @(posedge clk) begin
 		case (state)
 			AES_GET_KEY:
 			begin
+				__aes_cmd <= {`WORD_S{1'b0}};
 				in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
@@ -128,7 +129,10 @@ always @(posedge clk) begin
 					in_fifo_read_tready <= 1'b0;
 
 					aes_key <= in_fifo_data;
-					__aes_cmd <= `SET_KEY_128;
+					__aes_cmd <=
+						set_key_expansion_bit(__aes_cmd) |
+						set_key_128_bit(__aes_cmd);
+;
 					state <= AES_START;
 					aes_start <= 1'b1;
 

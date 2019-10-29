@@ -19,6 +19,7 @@ task testcase1();
 	queue_wrapper#(`BLK_S) ciphertext_queue;
 	queue_wrapper#(`WORD_S) expected_results_queue;
 
+	cmd = {`WORD_S{1'b0}};
 	comparison_cnt = 0;
 
 	ciphertext_queue = new();
@@ -39,10 +40,12 @@ task testcase1();
 	for (i = 0; i < total_blocks; i++)
 		queue_tester.q_push_back32_rev(aes_tester.reverse_blk8(ciphertext_queue.get(i)), expected_results_queue);
 
-	$display("Starting Testcase: ECB encryption stress test");
+	$display("Starting Testcase: CBC encryption stress test");
 
 	// Prepare encryption request
-	cmd = `CBC_ENCRYPT_128;
+	cmd = set_encryption_op_bit(cmd) |
+	      set_key_128_bit(cmd) |
+	      set_CBC_mode_bit(cmd);
 	key = AES_KEY128;
 	iv = AES_IV;
 

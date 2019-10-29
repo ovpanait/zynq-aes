@@ -12,12 +12,13 @@
 `define BLK_S 128
 `define IV_BITS 128
 
-`define SET_KEY_128 32'h10
-
-`define ECB_ENCRYPT_128 32'h20
-`define ECB_DECRYPT_128 32'h30
-
-`define CBC_ENCRYPT_128 32'h40
-`define CBC_DECRYPT_128 32'h41
+`define KEY_EXPANSION_OP_BIT 0
+`define ENCRYPTION_OP_BIT    1
+`define DECRYPTION_OP_BIT    2
+`define KEY_128_BIT          3
+`define KEY_192_BIT          4
+`define KEY_256_BIT          5
+`define ECB_MODE_BIT         6
+`define CBC_MODE_BIT         7
 
 `endif

@@ -178,6 +178,8 @@ initial begin
 	end
 end
 
+`include "controller_fc.vh"
+
 `include "test1.vh"
 `include "test2.vh"
 `include "test3.vh"

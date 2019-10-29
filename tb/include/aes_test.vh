@@ -25,7 +25,7 @@ class aes_test #(
 	endfunction
 
 	static function bit is_cbc_op(input reg [`WORD_S-1:0] cmd);
-		is_cbc_op = (cmd == `CBC_DECRYPT_128) || (cmd == `CBC_ENCRYPT_128);
+		is_cbc_op = cmd[`CBC_MODE_BIT];
 	endfunction
 
 	task gen_rand_transaction;
