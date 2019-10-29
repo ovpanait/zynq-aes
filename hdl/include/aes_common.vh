@@ -33,86 +33,63 @@ localparam sbox = {
         8'hC5, 8'h6F, 8'h6B, 8'hF2, 8'h7B, 8'h77, 8'h7C, 8'h63
 };
 
-function [`BYTE_S-1:0] get_sbox;
-	input [`BYTE_S-1:0] index;
-
+function [`BYTE_S-1:0] get_sbox(input [`BYTE_S-1:0] index);
 	get_sbox = sbox[index*`BYTE_S +: `BYTE_S];
 endfunction
 
-function [`BYTE_S-1:0] get_byte;
-	input [`WORD_S-1:0] word;
-	input [2:0]         byte_no;
+function [`BYTE_S-1:0] get_byte(
+	input [`WORD_S-1:0] word,
+	input [2:0]         byte_no
+);
 
 	get_byte = word[byte_no*`BYTE_S +: `BYTE_S];
 endfunction
 
-function [`BYTE_S-1:0] blk_get_byte;
-	input [`BLK_S-1:0]         blk;
-	input [`BLK_S/`BYTE_S-1:0] byte_no;
+function [`BYTE_S-1:0] blk_get_byte(
+	input [`BLK_S-1:0]         blk,
+	input [`BLK_S/`BYTE_S-1:0] byte_no
+);
 
 	blk_get_byte = blk[byte_no*`BYTE_S +: `BYTE_S];
 endfunction
 
-function [`WORD_S-1:0] get_word;
-	input [`BLK_S-1:0] blk;
-	input [2:0]        word_no;
+function [`WORD_S-1:0] get_word(
+	input [`BLK_S-1:0] blk,
+	input [2:0]        word_no
+);
 
 	get_word = blk[word_no*`WORD_S +: `WORD_S];
 endfunction
 
 // Galois multiplication functions
-function [7:0] gm2;
-input [7:0] op;
-begin
+function [7:0] gm2(input [7:0] op);
 	gm2 = {op[6:0], 1'b0} ^ (8'h1b & {8{op[7]}});
-end
 endfunction
 
-function [7:0] gm3;
-input [7:0] op;
-begin
+function [7:0] gm3(input [7:0] op);
 	gm3 = gm2(op) ^ op;
-end
 endfunction
 
-function [7:0] gm4;
-input [7:0] op;
-begin
+function [7:0] gm4(input [7:0] op);
 	gm4 = gm2(gm2(op));
-end
 endfunction
 
-function [7:0] gm8;
-input [7:0] op;
-begin
+function [7:0] gm8(input [7:0] op);
 	gm8 = gm2(gm4(op));
-end
 endfunction
 
-function [7:0] gm9;
-input [7:0] op;
-begin
+function [7:0] gm9(input [7:0] op);
 	gm9 = gm8(op) ^ op;
-end
 endfunction
 
-function [7:0] gm11;
-input [7:0] op;
-begin
+function [7:0] gm11(input [7:0] op);
 	gm11 = gm8(op) ^ gm2(op) ^ op;
-end
 endfunction
 
-function [7:0] gm13;
-input [7:0] op;
-begin
+function [7:0] gm13(input [7:0] op);
 	gm13 = gm8(op) ^ gm4(op) ^ op;
-end
 endfunction
 
-function [7:0] gm14;
-input [7:0] op;
-begin
+function [7:0] gm14(input [7:0] op);
 	gm14 = gm8(op) ^ gm4(op) ^ gm2(op);
-end
 endfunction
