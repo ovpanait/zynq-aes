@@ -56,9 +56,7 @@ class queue_wrapper #(
 				data_unpacked.push_back(queue[queue_i][DATA_WIDTH - (i + 1)*8 +: 8]);
 	endtask
 
-	task fill_from_file();
-		input string fn;
-
+	task fill_from_file(input string fn);
 		integer fd;
 		reg [DATA_WIDTH-1:0] data;
 
@@ -75,9 +73,7 @@ class queue_wrapper #(
 		$fclose(fd);
 	endtask
 
-	task compare;
-		input queue_wrapper#(DATA_WIDTH) cmp_queue;
-
+	task compare(input queue_wrapper#(DATA_WIDTH) cmp_queue);
 		integer i;
 
 		for (i = 0; i < cmp_queue.size(); i=i+1) begin

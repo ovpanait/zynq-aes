@@ -28,18 +28,16 @@ class aes_test #(
 		is_cbc_op = cmd[`CBC_MODE_BIT];
 	endfunction
 
-	task gen_rand_transaction;
-		ref axi4stream_transaction wr_transaction;
-
+	task gen_rand_transaction(ref axi4stream_transaction wr_transaction);
 		wr_transaction = master_agent.driver.create_transaction("Master VIP write transaction");
 		wr_transaction.set_xfer_alignment(XIL_AXI4STREAM_XFER_RANDOM);
 		WR_TRANSACTION_FAIL: assert(wr_transaction.randomize());
 	endtask
 
-	task gen_transaction;
-		input queue_wrapper#(8) data;
-		input last;
-
+	task gen_transaction(
+		input queue_wrapper#(8) data,
+		input last
+	);
 		for (int i = 0; i < data.size(); i = i + 4) begin
 			axi4stream_transaction wr_transaction;
 
@@ -57,14 +55,14 @@ class aes_test #(
 		end
 	endtask
 
-	task aes_create_req;
-		input reg [`WORD_S-1:0]  cmd;
-		input reg [`KEY_S-1:0]   key;
-		input reg [`IV_BITS-1:0] iv;
-		input queue_wrapper#(`BLK_S) payload_queue;
-		input integer blks_no;
-		input queue_wrapper#(`WORD_S) req_queue;
-
+	task aes_create_req(
+		input reg [`WORD_S-1:0]  cmd,
+		input reg [`KEY_S-1:0]   key,
+		input reg [`IV_BITS-1:0] iv,
+		input queue_wrapper#(`BLK_S) payload_queue,
+		input integer blks_no,
+		input queue_wrapper#(`WORD_S) req_queue
+	);
 		integer i;
 		integer size;
 		tester #(
@@ -84,13 +82,13 @@ class aes_test #(
 		end
 	endtask
 
-	task aes_send_request;
-		input reg [`WORD_S-1:0]  cmd;
-		input reg [`KEY_S-1:0]   key;
-		input reg [`IV_BITS-1:0] iv;
-		input queue_wrapper#(`BLK_S) payload_queue;
-		input integer blks_no;
-
+	task aes_send_request(
+		input reg [`WORD_S-1:0]  cmd,
+		input reg [`KEY_S-1:0]   key,
+		input reg [`IV_BITS-1:0] iv,
+		input queue_wrapper#(`BLK_S) payload_queue,
+		input integer blks_no
+	);
 		queue_wrapper#(`WORD_S) req_queue;
 		queue_wrapper#(8) req_queue_8b;
 
@@ -102,7 +100,6 @@ class aes_test #(
 		req_queue.unpack_8b_rev(req_queue_8b);
 		gen_transaction(req_queue_8b, 1);
 	endtask
-
 
 endclass
 
