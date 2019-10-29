@@ -17,17 +17,15 @@ module cipher(
 
 // --------------------- AES Cipher functions ---------------------
 
-function [`BLK_S-1:0] sub_bytes;
-	input [`BLK_S-1:0] blk;
+function [`BLK_S-1:0] sub_bytes(input [`BLK_S-1:0] blk);
 	integer i;
 
 	for (i = 0; i < `BLK_S / `BYTE_S; i=i+1)
 		sub_bytes[i*`BYTE_S +: `BYTE_S] = get_sbox(blk[i*`BYTE_S +: `BYTE_S]);
 endfunction
 
-function [`BLK_S-1:0] shift_rows;
-	input [`BLK_S-1:0] blk;
-	integer            i, j, k;
+function [`BLK_S-1:0] shift_rows(input [`BLK_S-1:0] blk);
+	integer i, j, k;
 
 	for (j = 0; j < `BLK_S / `BYTE_S; j=j+4) begin
 		for (i=j, k=j; i < `BLK_S / `BYTE_S; i=i+1, k=k+5)
@@ -35,9 +33,7 @@ function [`BLK_S-1:0] shift_rows;
 	end
 endfunction
 
-function [`WORD_S-1:0] mix_word;
-	input [`WORD_S-1:0] word;
-
+function [`WORD_S-1:0] mix_word(input [`WORD_S-1:0] word);
 	reg [`BYTE_S-1:0] byte0;
 	reg [`BYTE_S-1:0] byte1;
 	reg [`BYTE_S-1:0] byte2;
@@ -55,9 +51,8 @@ begin
 end
 endfunction
 
-function [`BLK_S-1:0] mix_cols;
-	input [`BLK_S-1:0] blk;
-	integer            i;
+function [`BLK_S-1:0] mix_cols(input [`BLK_S-1:0] blk);
+	integer i;
 
 	for (i = 0; i < `BLK_S / `WORD_S; i=i+1) begin
 		mix_cols[i*`WORD_S +: `WORD_S] = mix_word(get_word(blk,i));
