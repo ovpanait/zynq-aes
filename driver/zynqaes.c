@@ -18,11 +18,24 @@
 
 #define ZYNQAES_CMD_LEN 4
 
-#define ZYNQAES_ECB_ENCRYPT 0x20
-#define ZYNQAES_ECB_DECRYPT 0x30
+#define ZYNQAES_KEY_EXPANSION_OP_BIT 0
+#define ZYNQAES_ENCRYPTION_OP_BIT    1
+#define ZYNQAES_DECRYPTION_OP_BIT    2
+#define ZYNQAES_KEY_128_BIT          3
+#define ZYNQAES_KEY_256_BIT          5
+#define ZYNQAES_ECB_MODE_BIT         6
+#define ZYNQAES_CBC_MODE_BIT         7
 
-#define ZYNQAES_CBC_ENCRYPT 0x40
-#define ZYNQAES_CBC_DECRYPT 0x41
+#define ZYNQAES_KEY_128_MASK     (1 << ZYNQAES_KEY_128_BIT)
+#define ZYNQAES_ECB_MASK         (1 << ZYNQAES_ECB_MODE_BIT)
+#define ZYNQAES_CBC_MASK         (1 << ZYNQAES_CBC_MODE_BIT)
+#define ZYNQAES_ENCRYPTION_MASK  (1 << ZYNQAES_ENCRYPTION_OP_BIT)
+#define ZYNQAES_DECRYPTION_MASK  (1 << ZYNQAES_DECRYPTION_OP_BIT)
+
+#define ZYNQAES_ECB_ENCRYPT (ZYNQAES_ECB_MASK | ZYNQAES_ENCRYPTION_MASK)
+#define ZYNQAES_CBC_ENCRYPT (ZYNQAES_CBC_MASK | ZYNQAES_ENCRYPTION_MASK)
+#define ZYNQAES_ECB_DECRYPT (ZYNQAES_ECB_MASK | ZYNQAES_DECRYPTION_MASK)
+#define ZYNQAES_CBC_DECRYPT (ZYNQAES_CBC_MASK | ZYNQAES_DECRYPTION_MASK)
 
 struct zynqaes_dev {
 	struct device *dev;
@@ -44,6 +57,7 @@ struct zynqaes_reqctx {
 
 struct zynqaes_ctx {
 	u8 key[AES_KEYSIZE_128];
+	unsigned int key_len;
 };
 
 struct zynqaes_dma_ctx {
@@ -66,12 +80,19 @@ struct zynqaes_dma_ctx {
 /* Assume only one device for now */
 static struct zynqaes_dev *dd;
 
-static int is_cbc_op(u32 cmd) {
-	return (cmd == ZYNQAES_CBC_ENCRYPT) || (cmd == ZYNQAES_CBC_DECRYPT);
+static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rctx)
+{
+	switch (key_len) {
+	case AES_KEYSIZE_128:
+		rctx->cmd = rctx->cmd | ZYNQAES_KEY_128_MASK;
+		break;
+	default:
+		break;
+	}
 }
 
-static int is_ecb_op(u32 cmd) {
-	return (cmd == ZYNQAES_ECB_ENCRYPT) || (cmd == ZYNQAES_ECB_DECRYPT);
+static int is_cbc_op(u32 cmd) {
+	return cmd & ZYNQAES_CBC_MASK;
 }
 
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
@@ -250,14 +271,14 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 
 	int ret;
 
-	dev_dbg(dd->dev, "[%s:%d] crypto operation: %s\n", __func__, __LINE__,
-		rctx->cmd == ZYNQAES_ECB_ENCRYPT ? "ECB_ENCRYPT" : "ECB_DECRYPT");
-
 	rctx->ctx = ctx;
 	rctx->areq = areq;
 	rctx->nbytes = areq->nbytes;
 
+	zynqaes_set_key_bit(ctx->key_len, rctx);
+
 	dev_dbg(dd->dev, "[%s:%d] rctx->nbytes: %u\n", __func__, __LINE__, rctx->nbytes);
+	dev_dbg(dd->dev, "[%s:%d] rctx->cmd: %x\n", __func__, __LINE__, rctx->cmd);
 
 	if (is_cbc_op(rctx->cmd)) {
 		memcpy(rctx->iv, areq->info, AES_BLOCK_SIZE);
@@ -294,6 +315,7 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
+	ctx->key_len = len;
 	memcpy(ctx->key, key, len);
 
 	return 0;
