@@ -32,9 +32,7 @@ localparam rcon = {
 	8'h02, 8'h01, 8'h8D
 };
 
-function [`BYTE_S-1:0] get_rcon;
-	input [`BYTE_S-1:0] index;
-
+function [`BYTE_S-1:0] get_rcon(input [`BYTE_S-1:0] index);
 	get_rcon = rcon[index*`BYTE_S +: `BYTE_S];
 endfunction
 
