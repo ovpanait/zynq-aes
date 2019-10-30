@@ -31,8 +31,8 @@ static void print_keys(uint8_t *sched)
 
 	for (i = 0; i < Nr + 1; ++i) {
 		printf("Round key %2d: ", i);
-		for (j = 0; j < Nb * Nk; ++j)
-			printf("0x%02X ", *((sched + i *(Nb * Nk))+ j));
+		for (j = 0; j < ROUND_KEY_SIZE; ++j)
+			printf("0x%02X ", *((sched + i * ROUND_KEY_SIZE)+ j));
 		printf("\n");
 	}
 }

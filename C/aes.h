@@ -16,6 +16,7 @@
 
 #define AES_KEYSIZE      (Nk * 4)
 #define AES_BLOCK_SIZE   (Nb * 4)
+#define ROUND_KEY_SIZE   AES_BLOCK_SIZE
 
 #define get_sbox(x) (sbox[(x)])
 extern const uint8_t sbox[256];
