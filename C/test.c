@@ -4,9 +4,21 @@
 
 #include "aes.h"
 
+static void dump_buffer(uint8_t *buf, unsigned int len, char *dbg)
+{
+	unsigned int i;
+
+	if (dbg)
+		printf("%s\n", dbg);
+
+	for (i = 0; i < len; ++i)
+		printf("%02x", buf[i]);
+
+	printf("\n\n");
+}
+
 int main(int argc, char **argv)
 {
-	int i;
 	uint8_t ciphertext[AES_BLOCK_SIZE];
 	uint8_t sched[(Nb * (Nr + 1)) * Nb];
 
@@ -24,38 +36,19 @@ int main(int argc, char **argv)
 		0x20, 0x54, 0x77, 0x6F
 	};
 
+	dump_buffer(key, AES_KEYSIZE, "key:");
 	key_expansion(sched, key);
-	cipher(plaintext, ciphertext, sched);
-
-	printf("key:\n");
-	for (i = 0; i < AES_KEYSIZE; ++i)
-		printf("%02x", key[i]);
-	printf("\n\n");
 
 	printf("Encrypting..\n");
-	printf("plaintext:\n");
-	for (i = 0; i < AES_BLOCK_SIZE; ++i)
-		printf("%02x", plaintext[i]);
-	printf("\n\n");
-
-	printf("ciphertext:\n");
-	for (i = 0; i < AES_BLOCK_SIZE; ++i)
-		printf("%02x", ciphertext[i]);
-	printf("\n\n");
+	dump_buffer(plaintext, AES_BLOCK_SIZE, "plaintext:");
+	cipher(plaintext, ciphertext, sched);
+	dump_buffer(ciphertext, AES_BLOCK_SIZE, "ciphertext:");
 
 	printf("Decrypting..\n");
-	printf("ciphertext:\n");
-	for (i = 0; i < AES_BLOCK_SIZE; ++i)
-		printf("%02x", ciphertext[i]);
-	printf("\n\n");
-
+	dump_buffer(ciphertext, AES_BLOCK_SIZE, "ciphertext:");
 	memset(plaintext, 0x0, AES_BLOCK_SIZE);
 	decipher(ciphertext, plaintext, sched);
-
-	printf("plaintext:\n");
-	for (i = 0; i < AES_BLOCK_SIZE; ++i)
-		printf("%02x", plaintext[i]);
-	printf("\n\n");
+	dump_buffer(plaintext, AES_BLOCK_SIZE, "plaintext:");
 
 	return 0;
 }
