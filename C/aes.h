@@ -9,7 +9,7 @@
 #define Nb 4
 
 #define AES_KEYSIZE      (Nk * 4)
-#define AES_BLK_BYTE_CNT (128 / 8)
+#define AES_BLOCK_SIZE   (Nb * 4)
 
 #define get_sbox(x) (sbox[(x)])
 extern const uint8_t sbox[256];

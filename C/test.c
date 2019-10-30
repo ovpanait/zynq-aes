@@ -7,7 +7,7 @@
 int main(int argc, char **argv)
 {
 	int i;
-	uint8_t ciphertext[AES_BLK_BYTE_CNT];
+	uint8_t ciphertext[AES_BLOCK_SIZE];
 	uint8_t sched[(Nb * (Nr + 1)) * Nb];
 
 	uint8_t key[AES_KEYSIZE] = {
@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 		0x67, 0x20, 0x46, 0x75
 	};
 
-	uint8_t plaintext[AES_BLK_BYTE_CNT] = {
+	uint8_t plaintext[AES_BLOCK_SIZE] = {
 		0x54, 0x77, 0x6F, 0x20,
 		0x4F, 0x6E, 0x65, 0x20,
 		0x4E, 0x69, 0x6E, 0x65,
@@ -34,26 +34,26 @@ int main(int argc, char **argv)
 
 	printf("Encrypting..\n");
 	printf("plaintext:\n");
-	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+	for (i = 0; i < AES_BLOCK_SIZE; ++i)
 		printf("%02x", plaintext[i]);
 	printf("\n\n");
 
 	printf("ciphertext:\n");
-	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+	for (i = 0; i < AES_BLOCK_SIZE; ++i)
 		printf("%02x", ciphertext[i]);
 	printf("\n\n");
 
 	printf("Decrypting..\n");
 	printf("ciphertext:\n");
-	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+	for (i = 0; i < AES_BLOCK_SIZE; ++i)
 		printf("%02x", ciphertext[i]);
 	printf("\n\n");
 
-	memset(plaintext, 0x0, AES_BLK_BYTE_CNT);
+	memset(plaintext, 0x0, AES_BLOCK_SIZE);
 	decipher(ciphertext, plaintext, sched);
 
 	printf("plaintext:\n");
-	for (i = 0; i < AES_BLK_BYTE_CNT; ++i)
+	for (i = 0; i < AES_BLOCK_SIZE; ++i)
 		printf("%02x", plaintext[i]);
 	printf("\n\n");
 
