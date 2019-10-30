@@ -4,9 +4,15 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define Nk 4
-#define Nr 10
 #define Nb 4
+
+#ifdef AES_256
+	#define Nk 8
+	#define Nr 14
+#else
+	#define Nk 4
+	#define Nr 10
+#endif
 
 #define AES_KEYSIZE      (Nk * 4)
 #define AES_BLOCK_SIZE   (Nb * 4)
