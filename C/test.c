@@ -10,7 +10,7 @@ int main(int argc, char **argv)
 	uint8_t ciphertext[AES_BLK_BYTE_CNT];
 	uint8_t sched[(Nb * (Nr + 1)) * Nb];
 
-	uint8_t key[AES128_KEY_BYTE_CNT] = {
+	uint8_t key[AES_KEYSIZE] = {
 		0x54, 0x68, 0x61, 0x74,
 		0x73, 0x20, 0x6D, 0x79,
 		0x20, 0x4B, 0x75, 0x6E,
@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 	cipher(plaintext, ciphertext, sched);
 
 	printf("key:\n");
-	for (i = 0; i < AES128_KEY_BYTE_CNT; ++i)
+	for (i = 0; i < AES_KEYSIZE; ++i)
 		printf("%02x", key[i]);
 	printf("\n\n");
 

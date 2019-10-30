@@ -8,7 +8,7 @@
 #define Nr 10
 #define Nb 4
 
-#define AES128_KEY_BYTE_CNT (128 / 8)
+#define AES_KEYSIZE      (Nk * 4)
 #define AES_BLK_BYTE_CNT (128 / 8)
 
 #define get_sbox(x) (sbox[(x)])
