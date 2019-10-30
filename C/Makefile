@@ -1,8 +1,12 @@
+DEBUG ?= 0
+KEY_SIZE ?= 128
+HEADERS = aes.h
 CFLAGS= -I. -Wall
 
-HEADERS = aes.h
+ifeq ($(KEY_SIZE), 256)
+	CFLAGS += -DAES_256
+endif
 
-DEBUG ?= 0
 ifeq ($(DEBUG), 1)
     CFLAGS += -DDEBUG
 endif

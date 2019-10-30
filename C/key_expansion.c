@@ -47,7 +47,7 @@ void key_expansion(uint8_t *sched, uint8_t *key)
 
 	for (i = Nk; i < Nb * (Nr + 1); ++i) {
 		// load w[i-1]
-		memcpy(tmp, sched + (i - 1) * Nk, Nk);
+		memcpy(tmp, sched + (i - 1) * Nb, Nb);
 
 		if (i % Nk == 0) {
 			// Compute g(w[i-1])
@@ -65,8 +65,17 @@ void key_expansion(uint8_t *sched, uint8_t *key)
 			tmp[2] = get_sbox(tmp[2]);
 			tmp[3] = get_sbox(tmp[3]);
 
-			tmp[0] = tmp[0] ^ Rcon[i / Nk];
+			tmp[0] = tmp[0] ^ Rcon[i / Nb];
 		}
+
+#ifdef AES_256
+		if (i % Nk == 4) {
+			tmp[0] = get_sbox(tmp[0]);
+			tmp[1] = get_sbox(tmp[1]);
+			tmp[2] = get_sbox(tmp[2]);
+			tmp[3] = get_sbox(tmp[3]);
+		}
+#endif
 
 		/*
 		 * if i % Nk == 0:
@@ -74,10 +83,10 @@ void key_expansion(uint8_t *sched, uint8_t *key)
 		 * else:
 		 *   w[i] = w[i-1] ^ w[i-4]
 		 */
-		sched[i * Nk + 0] = sched[(i - Nk) * Nk + 0] ^ tmp[0];
-		sched[i * Nk + 1] = sched[(i - Nk) * Nk + 1] ^ tmp[1];
-		sched[i * Nk + 2] = sched[(i - Nk) * Nk + 2] ^ tmp[2];
-		sched[i * Nk + 3] = sched[(i - Nk) * Nk + 3] ^ tmp[3];
+		sched[i * Nb + 0] = sched[(i - Nb) * Nb + 0] ^ tmp[0];
+		sched[i * Nb + 1] = sched[(i - Nb) * Nb + 1] ^ tmp[1];
+		sched[i * Nb + 2] = sched[(i - Nb) * Nb + 2] ^ tmp[2];
+		sched[i * Nb + 3] = sched[(i - Nb) * Nb + 3] ^ tmp[3];
 	}
 
 	#ifdef DEBUG
