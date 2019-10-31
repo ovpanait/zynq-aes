@@ -15,9 +15,9 @@ module round_key(
 	output reg              en_o
 );
 
-wire [`WORD_S - 1:0] prev_key_arr[0:`Nk];
+wire [`WORD_S - 1:0] prev_key_arr[0:`ROUND_KEY_WORDS];
 
-reg [`WORD_S-1:0] round_key_tmp_arr[0:`Nk];
+reg [`WORD_S-1:0] round_key_tmp_arr[0:`ROUND_KEY_WORDS];
 reg [`WORD_S-1:0] subbytes_tmp;
 reg [`BYTE_S-1:0] g0;
 reg [`WORD_S-1:0] g;
@@ -38,17 +38,17 @@ function [`BYTE_S-1:0] get_rcon(input [`BYTE_S-1:0] index);
 endfunction
 
 generate
-for (i=0; i < `Nk; i=i+1) begin
+for (i=0; i < `ROUND_KEY_WORDS; i=i+1) begin
 	assign prev_key_arr[i] = round_key[i*`WORD_S +: `WORD_S];
 end
 endgenerate
 
 always @(*) begin
 	subbytes_tmp = {
-		get_sbox(get_byte(prev_key_arr[`Nk-1], 0)),
-		get_sbox(get_byte(prev_key_arr[`Nk-1], 3)),
-		get_sbox(get_byte(prev_key_arr[`Nk-1], 2)),
-		get_sbox(get_byte(prev_key_arr[`Nk-1], 1))
+		get_sbox(get_byte(prev_key_arr[`ROUND_KEY_WORDS-1], 0)),
+		get_sbox(get_byte(prev_key_arr[`ROUND_KEY_WORDS-1], 3)),
+		get_sbox(get_byte(prev_key_arr[`ROUND_KEY_WORDS-1], 2)),
+		get_sbox(get_byte(prev_key_arr[`ROUND_KEY_WORDS-1], 1))
 	};
 
 	g0 = get_byte(subbytes_tmp, 0) ^ get_rcon(round_no);

@@ -5,8 +5,12 @@
 `define WORD_S (4 * `BYTE_S)
 
 `define Nb 4
-`define Nk 4
+
+`define Nk_128 4
 `define Nr_128 10
+
+
+`define ROUND_KEY_WORDS 4
 
 `define KEY_S 128
 `define BLK_S 128
