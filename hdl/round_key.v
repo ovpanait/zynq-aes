@@ -5,6 +5,7 @@ module round_key(
 	input                   reset,
 	input                   en,
 
+	input      [`Nb-1:0]    rounds_total,
 	input      [`KEY_S-1:0] key,
 
 	output reg [3:0]        round_key_addr,
@@ -66,7 +67,7 @@ end
 
 assign round_key_en = (en || round_no);
 assign first_round = (round_no == 1'b0);
-assign last_round = (round_no == `Nr);
+assign last_round = (round_no == rounds_total);
 
 always @(posedge clk) begin
 	if (reset) begin

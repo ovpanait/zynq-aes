@@ -1,5 +1,9 @@
 `include "aes.vh"
 
+function is_128bit_key(input [`WORD_S-1:0] cmd);
+	is_128bit_key = cmd[`KEY_128_BIT];
+endfunction
+
 function is_encryption(input [`WORD_S-1:0] cmd);
 	is_encryption = cmd[`ENCRYPTION_OP_BIT];
 endfunction

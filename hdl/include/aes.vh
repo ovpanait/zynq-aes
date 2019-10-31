@@ -6,7 +6,7 @@
 
 `define Nb 4
 `define Nk 4
-`define Nr 10
+`define Nr_128 10
 
 `define KEY_S 128
 `define BLK_S 128

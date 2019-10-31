@@ -6,10 +6,11 @@ module cipher(
 	input                   en,
 
 	input [`BLK_S-1:0]      plaintext,
+	input [`Nb-1:0]         rounds_total,
 	input [`KEY_S-1:0]      key,
 
 	output reg [`BLK_S-1:0] ciphertext,
-	output reg [`Nk-1:0]    round_key_no,
+	output reg [`Nb-1:0]    round_key_no,
 	output reg              en_o
 );
 
@@ -73,7 +74,7 @@ always @(*) begin
 	aes_state_add_rkey = aes_state_mix_cols ^ key;
 end
 
-reg [`Nk-1:0] round_no;
+reg [`Nb-1:0] round_no;
 reg round_key_r_e;
 reg cipher_round_en;
 
@@ -81,14 +82,14 @@ wire cipher_first_round;
 wire cipher_last_round;
 wire is_last_key;
 
-assign cipher_first_round = (round_no == {`Nk{1'b0}});
-assign cipher_last_round = (round_no == `Nr);
-assign is_last_key = (round_key_no == `Nr);
+assign cipher_first_round = (round_no == {`Nb{1'b0}});
+assign cipher_last_round = (round_no == rounds_total);
+assign is_last_key = (round_key_no == rounds_total);
 
 always @(posedge clk) begin
 	if (reset) begin
 		round_key_r_e <= 1'b0;
-		round_key_no <= {`Nk{1'b0}};
+		round_key_no <= {`Nb{1'b0}};
 		cipher_round_en <= 1'b0;
 	end else begin
 		cipher_round_en <= round_key_r_e;
@@ -102,7 +103,7 @@ always @(posedge clk) begin
 			round_key_no <= round_key_no + 1'b1;
 
 		if (is_last_key)
-			round_key_no <= {`Nk{1'b0}};
+			round_key_no <= {`Nb{1'b0}};
 	end
 end
 
@@ -119,7 +120,7 @@ end
 
 always @(posedge clk) begin
 	if (reset) begin
-		round_no <= {`Nk{1'b0}};
+		round_no <= {`Nb{1'b0}};
 		en_o <= 1'b0;
 	end else begin
 		en_o <= cipher_round_en && cipher_last_round;
@@ -128,7 +129,7 @@ always @(posedge clk) begin
 			round_no <= round_no + 1'b1;
 
 			if (cipher_last_round)
-				round_no <= {`Nk{1'b0}};
+				round_no <= {`Nb{1'b0}};
 		end
 	end
 end

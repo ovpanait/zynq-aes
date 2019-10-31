@@ -5,6 +5,8 @@ module aes_top(
 	input                   reset,
 	input                   en,
 
+	input                   key_128bit,
+
 	input                   cipher_mode,
 	input                   decipher_mode,
 	input                   key_exp_mode,
@@ -20,9 +22,9 @@ module aes_top(
 wire [`KEY_S-1:0]    round_key_in;
 wire [`KEY_S-1:0]    round_key_out;
 
-wire [`Nk-1:0]       round_key_addr;
-wire [`Nk-1:0]       encrypt_round_no;
-wire [`Nk-1:0]       decrypt_round_no;
+wire [`Nb-1:0]       round_key_addr;
+wire [`Nb-1:0]       encrypt_round_no;
+wire [`Nb-1:0]       decrypt_round_no;
 
 wire en_cipher;
 wire en_decipher;
@@ -35,9 +37,13 @@ wire en_o_decipher;
 wire [`BLK_S-1:0] __aes_out_blk_encrypt;
 wire [`BLK_S-1:0] __aes_out_blk_decrypt;
 
+wire [`Nb-1:0] rounds_total;
+
 // SRAM signals
 wire            w_e;
 wire [3:0]      addr;
+
+assign rounds_total = key_128bit ? `Nr_128 : {`Nb{1'b0}};
 
 assign en_cipher = en && cipher_mode;
 assign en_decipher = en && decipher_mode;
@@ -66,6 +72,7 @@ round_key round_key_gen(
         .reset(reset),
         .en(en_key_exp),
 
+        .rounds_total(rounds_total),
         .key(aes_key),
 
         .round_key(round_key_in),
@@ -82,6 +89,7 @@ cipher encrypt_blk(
 
 	.plaintext(aes_in_blk),
 	.key(round_key_out),
+	.rounds_total(rounds_total),
 	.round_key_no(encrypt_round_no),
 
 	.ciphertext(__aes_out_blk_encrypt),
@@ -95,6 +103,7 @@ decipher decrypt_blk(
 
         .ciphertext(aes_in_blk),
         .round_key(round_key_out),
+        .rounds_total(rounds_total),
         .round_no(decrypt_round_no),
 
         .plaintext(__aes_out_blk_decrypt),

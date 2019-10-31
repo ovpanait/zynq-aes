@@ -6,10 +6,11 @@ module decipher (
 	input                   en,
 
 	input [`BLK_S-1:0]      ciphertext,
+	input [`Nb-1:0]         rounds_total,
 	input [`KEY_S-1:0]      round_key,
 
 	output reg [`BLK_S-1:0] plaintext,
-	output     [`Nk-1:0]    round_no,
+	output     [`Nb-1:0]    round_no,
 	output reg              en_o
 );
 
@@ -97,7 +98,7 @@ endfunction
 
 // ------------------------- AES Decipher functions -------------------------
 
-reg [`Nk:0] _round_no;
+reg [`Nb:0] _round_no;
 
 reg [`BLK_S-1:0] decrypt_inv_shift_rows;
 reg [`BLK_S-1:0] decrypt_inv_sub_bytes;
@@ -110,9 +111,9 @@ wire decipher_last_round;
 reg decipher_round_en;
 reg round_key_r_e;
 
-assign round_no = _round_no[`Nk-1:0];
-assign decipher_first_round = (_round_no == `Nr - 1'b1);
-assign decipher_last_round = (_round_no[`Nk] == 1'b1);
+assign round_no = _round_no[`Nb-1:0];
+assign decipher_first_round = (_round_no == rounds_total - 1'b1);
+assign decipher_last_round = (_round_no[`Nb] == 1'b1);
 
 always @(*) begin
           decrypt_inv_shift_rows = inv_shift_rows(plaintext);
@@ -125,14 +126,14 @@ always @(posedge clk) begin
 	if (reset) begin
 		decipher_round_en <= 1'b0;
 		round_key_r_e <= 1'b0;
-		_round_no <= {`Nk+1{1'b1}};
+		_round_no <= {`Nb+1{1'b1}};
 	end else begin
 		decipher_round_en <= round_key_r_e;
 		round_key_r_e <= 1'b0;
 
 		if (en) begin
 			round_key_r_e <= 1'b1;
-			_round_no <= `Nr;
+			_round_no <= rounds_total;
 		end
 
 		if (!decipher_last_round) begin

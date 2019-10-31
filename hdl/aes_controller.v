@@ -62,6 +62,8 @@ wire [`BLK_S-1:0] aes_ecb_in_blk;
 wire [`BLK_S-1:0] aes_cbc_in_blk;
 wire [`BLK_S-1:0] aes_in_blk;
 
+wire              aes_key_128;
+
 wire out_fifo_write_req;
 wire in_fifo_read_req;
 
@@ -78,11 +80,14 @@ assign aes_start_decipher = aes_start && aes_decipher_mode;
 assign aes_key_exp_mode = is_key_expansion(__aes_cmd);
 assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
+assign aes_key_128 = is_128bit_key(__aes_cmd);
+
 aes_top aes_mod(
 	.clk(clk),
 	.reset(reset),
-
 	.en(aes_start),
+
+	.key_128bit(aes_key_128),
 	.cipher_mode(aes_cipher_mode),
 	.decipher_mode(aes_decipher_mode),
 	.key_exp_mode(aes_key_exp_mode),
