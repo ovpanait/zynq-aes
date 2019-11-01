@@ -41,7 +41,7 @@ static void print_keys(uint8_t *sched)
 void key_expansion(uint8_t *sched, uint8_t *key)
 {
 	uint8_t i;
-	uint8_t tmp[Nk];
+	uint8_t tmp[Nb];
 
 	memcpy(sched, key, 4 * Nk);
 
@@ -83,10 +83,10 @@ void key_expansion(uint8_t *sched, uint8_t *key)
 		 * else:
 		 *   w[i] = w[i-1] ^ w[i-4]
 		 */
-		sched[i * Nb + 0] = sched[(i - Nb) * Nb + 0] ^ tmp[0];
-		sched[i * Nb + 1] = sched[(i - Nb) * Nb + 1] ^ tmp[1];
-		sched[i * Nb + 2] = sched[(i - Nb) * Nb + 2] ^ tmp[2];
-		sched[i * Nb + 3] = sched[(i - Nb) * Nb + 3] ^ tmp[3];
+		sched[i * Nb + 0] = sched[(i - Nk) * Nb + 0] ^ tmp[0];
+		sched[i * Nb + 1] = sched[(i - Nk) * Nb + 1] ^ tmp[1];
+		sched[i * Nb + 2] = sched[(i - Nk) * Nb + 2] ^ tmp[2];
+		sched[i * Nb + 3] = sched[(i - Nk) * Nb + 3] ^ tmp[3];
 	}
 
 	#ifdef DEBUG
