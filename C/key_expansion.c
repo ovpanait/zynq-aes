@@ -65,7 +65,7 @@ void key_expansion(uint8_t *sched, uint8_t *key)
 			tmp[2] = get_sbox(tmp[2]);
 			tmp[3] = get_sbox(tmp[3]);
 
-			tmp[0] = tmp[0] ^ Rcon[i / Nb];
+			tmp[0] = tmp[0] ^ Rcon[i / Nk];
 		}
 
 #ifdef AES_256
