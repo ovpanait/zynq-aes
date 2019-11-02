@@ -38,7 +38,7 @@ cipher DUT (
 
 integer i;
 
-reg [`ROUND_KEY_BITS-1:0] key_sram [0:`Nr_128] = '{
+reg [`ROUND_KEY_BITS-1:0] keys_128 [0:`Nr_128] = '{
 	'h0f0e0d0c0b0a09080706050403020100,
 	'hfe76abd6f178a6dafa72afd2fd74aad6,
 	'hfeb3306800c59bbef1bd3d640bcf92b6,
@@ -52,7 +52,26 @@ reg [`ROUND_KEY_BITS-1:0] key_sram [0:`Nr_128] = '{
 	'hc5302b4d8ba707f3174a94e37f1d1113
 };
 
-reg [`BLK_S-1:0] expected_ciphertext = 'h5ac5b47080b7cdd830047b6ad8e0c469;
+reg [`ROUND_KEY_BITS-1:0] keys_256 [0:`Nr_256] = '{
+	'h0f0e0d0c0b0a09080706050403020100,
+	'h1f1e1d1c1b1a19181716151413121110,
+	'h9cc072a593ce7fa998c476a19fc273a5,
+	'hdeba4006c1a45d1adabe4402cda85116,
+	'h6715fc03fbd58ea6681bf10ff0df87ae,
+	'h8d51b87353ebf875924fa56f48f1e16d,
+	'h8b59d56cec4c296f1799a7c97f8256c6,
+	'h39cf0754b49ebf27e7754752753ae23d,
+	'h2f1c87c1a44552ad48097bc25f90dc0b,
+	'h0a820a64334d0d3087d3b21760a6f545,
+	'hdfa761d2f0bbe61354feb4be1cf7cf7c,
+	'h40e6afb34a64a5d77929a8e7fefa1af0,
+	'h0a1c725ad5bb13882500f59b71fe4125,
+	'heacdf8cdaa2b577ee04ff2a999665a4e,
+	'h36de686d3cc21a37e97909bfcc79fc24
+};
+
+reg [`BLK_S-1:0] expected_ciphertext_128 = 'h5ac5b47080b7cdd830047b6ad8e0c469;
+reg [`BLK_S-1:0] expected_ciphertext_256 = 'h8960494b9049fceabf456751cab7a28e;
 
 initial begin
 	clk <= 0;
@@ -82,12 +101,29 @@ initial begin
 	@(posedge DUT.en_o);
 	@(negedge clk);
 
-	ret = tester #($size(expected_ciphertext))::verify_output(DUT.ciphertext, expected_ciphertext);
+	ret = tester #($size(expected_ciphertext_128))::verify_output(DUT.ciphertext, expected_ciphertext_128);
+	if (!ret)
+		$display("Test cipher (128-bit key): FAIL");
 
-	if (ret)
-		$display("Test cipher: PASS");
-	else
-		$display("Test cipher: FAIL");
+	@(negedge clk) begin
+		en = 1;
+		rounds_total = `Nr_256;
+		plaintext = 'hffeeddccbbaa99887766554433221100;
+	end
+
+	@(negedge clk) begin
+	 en = 0;
+	end
+
+	@(posedge DUT.en_o);
+	@(negedge clk);
+
+	ret = tester #($size(expected_ciphertext_256))::verify_output(DUT.ciphertext, expected_ciphertext_256);
+	if (!ret)
+		$display("Test cipher (256-bit key): FAIL");
+
+
+	$display("Test cipher: PASS");
 
 	@(negedge clk) reset = 1;
 	@(negedge clk);
@@ -97,7 +133,10 @@ end
 
 // simulate key sram behavior
 always @(posedge clk) begin
-	 key <= key_sram[round_key_no];
+	if (rounds_total == `Nr_128)
+		 key <= keys_128[round_key_no];
+	else
+		key <= keys_256[round_key_no];
 end
 
 endmodule
