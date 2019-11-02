@@ -12,11 +12,12 @@ reg clk;
 reg reset;
 reg en;
 
-reg [`BLK_S-1:0]  plaintext;
-reg [`KEY_S-1:0]  key;
+reg [`ROUND_KEY_BITS-1:0] key;
+reg [`BLK_S-1:0]          plaintext;
+reg [`Nb-1:0]             rounds_total;
 
-wire [3:0]        round_key_no;
 wire [`BLK_S-1:0] ciphertext;
+wire [`Nb-1:0]    round_key_no;
 wire              en_o;
 
 cipher DUT (
@@ -24,6 +25,7 @@ cipher DUT (
 	.reset(reset),
 	.en(en),
 
+	.rounds_total(rounds_total),
 	.plaintext(plaintext),
 	.key(key),
 
@@ -36,21 +38,21 @@ cipher DUT (
 
 integer i;
 
-reg [`KEY_S-1:0] key_sram [0:`Nr] = '{
-	`KEY_S'h754620676e754b20796d207374616854,
-	`KEY_S'h93a279d6e6e459b188911291f1fc32e2,
-	`KEY_S'hfaf73aa0695543768fb11ac707200856,
-	`KEY_S'hfb1e03c301e9396368bc7a15e70d60d2,
-	`KEY_S'h5b495214a05751d7a1be68b4c90212a1,
-	`KEY_S'h699b42c632d210d292854105333b29b1,
-	`KEY_S'h4e0e2eac27956c6a15477cb887c23dbd,
-	`KEY_S'h6a31a8b2243f861e03aaea7416ed96cc,
-	`KEY_S'h6c4b9556067a3de42245bbfa21ef518e,
-	`KEY_S'hd8cbf1f7b48064a1b2fa594590bfe2bf,
-	`KEY_S'h266f313bfea4c0cc4a24a46df8defd28
+reg [`ROUND_KEY_BITS-1:0] key_sram [0:`Nr_128] = '{
+	'h0f0e0d0c0b0a09080706050403020100,
+	'hfe76abd6f178a6dafa72afd2fd74aad6,
+	'hfeb3306800c59bbef1bd3d640bcf92b6,
+	'h41bf6904bf0c596cbfc9c2d24e74ffb6,
+	'hfd8d05fdbc326cf9033e3595bcf7f747,
+	'haa22f6ad57aff350eb9d9fa9e8a3aa3c,
+	'h6b1fa30ac13d55a79692a6f77d0f395e,
+	'h26c0a94e4ddf0a448ce25fe31a70f914,
+	'hd27abfaef4ba16e0b9651ca435874347,
+	'h4e972cbe9ced9310685785f0d1329954,
+	'hc5302b4d8ba707f3174a94e37f1d1113
 };
 
-reg [`BLK_S-1:0] expected_ciphertext = `BLK_S'h3ad7021ab3992240f62014575f50c329;
+reg [`BLK_S-1:0] expected_ciphertext = 'h5ac5b47080b7cdd830047b6ad8e0c469;
 
 initial begin
 	clk <= 0;
@@ -69,12 +71,8 @@ initial begin
 
 	@(negedge clk) begin
 		en = 1;
-		plaintext =  {
-			8'h6F, 8'h77, 8'h54, 8'h20,
-			8'h65, 8'h6E, 8'h69, 8'h4E,
-			8'h20, 8'h65, 8'h6E, 8'h4F,
-			8'h20, 8'h6F, 8'h77, 8'h54
-		};
+		rounds_total = `Nr_128;
+		plaintext = 'hffeeddccbbaa99887766554433221100;
 	end
 
 	@(negedge clk) begin

@@ -1,17 +1,17 @@
 `include "aes.vh"
 
 module cipher(
-	input                   clk,
-	input                   reset,
-	input                   en,
+	input                            clk,
+	input                            reset,
+	input                            en,
 
-	input [`BLK_S-1:0]      plaintext,
-	input [`Nb-1:0]         rounds_total,
-	input [`KEY_S-1:0]      key,
+	input [`BLK_S-1:0]               plaintext,
+	input [`Nb-1:0]                  rounds_total,
+	input [`ROUND_KEY_BITS-1:0]      key,
 
-	output reg [`BLK_S-1:0] ciphertext,
-	output reg [`Nb-1:0]    round_key_no,
-	output reg              en_o
+	output reg [`BLK_S-1:0]          ciphertext,
+	output reg [`Nb-1:0]             round_key_no,
+	output reg                       en_o
 );
 
 `include "aes_common.vh"
@@ -28,7 +28,7 @@ endfunction
 function [`BLK_S-1:0] shift_rows(input [`BLK_S-1:0] blk);
 	integer i, j, k;
 
-	for (j = 0; j < `BLK_S / `BYTE_S; j=j+4) begin
+	for (j = 0; j < `BLK_S / `BYTE_S; j=j+`Nb) begin
 		for (i=j, k=j; i < `BLK_S / `BYTE_S; i=i+1, k=k+5)
 			shift_rows[i*`BYTE_S +: `BYTE_S] = blk_get_byte(blk, k % 16);
 	end
@@ -62,10 +62,10 @@ endfunction
 
 // --------------------- AES Cipher functions ---------------------
 
-reg [`KEY_S-1:0] aes_state_sub_bytes;
-reg [`KEY_S-1:0] aes_state_shift_rows;
-reg [`KEY_S-1:0] aes_state_mix_cols;
-reg [`KEY_S-1:0] aes_state_add_rkey;
+reg [`BLK_S-1:0] aes_state_sub_bytes;
+reg [`BLK_S-1:0] aes_state_shift_rows;
+reg [`BLK_S-1:0] aes_state_mix_cols;
+reg [`BLK_S-1:0] aes_state_add_rkey;
 
 always @(*) begin
 	aes_state_sub_bytes = sub_bytes(ciphertext);
