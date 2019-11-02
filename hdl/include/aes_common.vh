@@ -37,6 +37,17 @@ function [`BYTE_S-1:0] get_sbox(input [`BYTE_S-1:0] index);
 	get_sbox = sbox[index*`BYTE_S +: `BYTE_S];
 endfunction
 
+function [`WORD_S-1:0] word2sbox(input [`WORD_S-1:0] word);
+	integer i;
+
+	for (i=0; i < `WORD_S / `BYTE_S; i=i+1)
+		word2sbox[i*`BYTE_S +: `BYTE_S] = get_sbox(word[i*`BYTE_S +: `BYTE_S]);
+endfunction
+
+function [`WORD_S-1:0] word_rotr(input [`WORD_S-1:0] word);
+	word_rotr = {word[0 +: `BYTE_S], word[`BYTE_S +: `WORD_S - `BYTE_S]};
+endfunction
+
 function [`BYTE_S-1:0] get_byte(
 	input [`WORD_S-1:0] word,
 	input [2:0]         byte_no
