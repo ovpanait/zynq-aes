@@ -1,17 +1,17 @@
 `include "aes.vh"
 
 module decipher (
-	input                   clk,
-	input                   reset,
-	input                   en,
+	input                      clk,
+	input                      reset,
+	input                      en,
 
-	input [`BLK_S-1:0]      ciphertext,
-	input [`Nb-1:0]         rounds_total,
-	input [`KEY_S-1:0]      round_key,
+	input [`ROUND_KEY_BITS-1:0] round_key,
+	input [`BLK_S-1:0]          ciphertext,
+	input [`Nb-1:0]             rounds_total,
 
-	output reg [`BLK_S-1:0] plaintext,
-	output     [`Nb-1:0]    round_no,
-	output reg              en_o
+	output reg [`BLK_S-1:0]     plaintext,
+	output     [`Nb-1:0]        round_no,
+	output reg                  en_o
 );
 
 `include "aes_common.vh"
