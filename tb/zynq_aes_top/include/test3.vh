@@ -1,6 +1,6 @@
 // ECB decryption stress test
 task testcase3();
-	localparam AES_KEY128 = `KEY_S'h5468617473206D79204B756E67204675;
+	localparam AES_KEY128 = 'h5468617473206D79204B756E67204675;
 
 	localparam test_blocks_no = 256;
 
@@ -37,7 +37,8 @@ task testcase3();
 	$display("Sending %d AES blocks.", total_blocks);
 
 	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(aes_tester.reverse_blk8(plaintext_queue.get(i)), expected_results_queue);
+		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(plaintext_queue.get(i)),
+				expected_results_queue);
 
 	$display("Starting Testcase: ECB encryption stress test");
 
@@ -48,7 +49,7 @@ task testcase3();
 	key = AES_KEY128;
 	iv = {`IV_BITS{1'b0}};
 
-	aes_tester.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks);
+	aes_tester128.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks);
 
 	wait(comparison_cnt == total_blocks * 4);
 

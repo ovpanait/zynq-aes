@@ -15,6 +15,12 @@ class tester #(
 	int unsigned UNPACKED_WIDTH = 8,
 	int unsigned QUEUE_DATA_WIDTH = 32);
 
+	static function [WIDTH-1:0] reverse_blk8(input [WIDTH-1:0] blk);
+		integer i;
+		for (i = 0; i < WIDTH / 8; i=i+1)
+			reverse_blk8[i*8 +: 8] = blk[(WIDTH / 8 - i - 1)*8+: 8];
+	endfunction
+
 	static task pack(input [UNPACKED_WIDTH-1:0] data[], output [WIDTH-1:0] out);
 		begin
 		for (int i = 0; i < $size(data); ++i)

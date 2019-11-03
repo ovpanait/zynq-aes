@@ -51,8 +51,9 @@ tester #(
 	) queue_tester;
 
 aes_test #(
+	.KEY_SIZE(128),
 	.master_agent_t(design_1_axi4stream_vip_0_0_mst_t)
-	) aes_tester;
+	) aes_tester128;
 
 // instantiate bd
 design_1_wrapper DUT(
@@ -79,7 +80,7 @@ initial begin
 	slv_agent = new("slave vip agent",DUT.design_1_i.axi4stream_vip_1.inst.IF);
 	$timeformat (-12, 1, " ps", 1);
 
-	aes_tester = new(mst_agent);
+	aes_tester128 = new(mst_agent);
 	queue_tester = new();
 	results = new();
 
