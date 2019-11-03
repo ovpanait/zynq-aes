@@ -5,7 +5,8 @@ module aes_top(
 	input                   reset,
 	input                   en,
 
-	input                   key_128bit,
+	input                   aes128_mode,
+	input                   aes256_mode,
 
 	input                   cipher_mode,
 	input                   decipher_mode,
@@ -19,12 +20,12 @@ module aes_top(
 	output                  en_o
 );
 
-wire [`KEY_S-1:0]    round_key_in;
-wire [`KEY_S-1:0]    round_key_out;
+wire [`ROUND_KEY_BITS-1:0]    round_key_in;
+wire [`ROUND_KEY_BITS-1:0]    round_key_out;
 
-wire [`Nb-1:0]       round_key_addr;
-wire [`Nb-1:0]       encrypt_round_no;
-wire [`Nb-1:0]       decrypt_round_no;
+wire [`Nb-1:0] round_key_addr;
+wire [`Nb-1:0] encrypt_round_no;
+wire [`Nb-1:0] decrypt_round_no;
 
 wire en_cipher;
 wire en_decipher;
@@ -41,9 +42,9 @@ wire [`Nb-1:0] rounds_total;
 
 // SRAM signals
 wire            w_e;
-wire [3:0]      addr;
+wire [`Nb-1:0]  addr;
 
-assign rounds_total = key_128bit ? `Nr_128 : {`Nb{1'b0}};
+assign rounds_total = aes128_mode ? `Nr_128 : `Nr_256;
 
 assign en_cipher = en && cipher_mode;
 assign en_decipher = en && decipher_mode;
@@ -52,11 +53,12 @@ assign en_key_exp = en && key_exp_mode;
 assign addr =
 	key_exp_mode ? round_key_addr :
 	cipher_mode ? encrypt_round_no :
-	decipher_mode ? decrypt_round_no : {4{1'b0}};
+	decipher_mode ? decrypt_round_no : {`Nb{1'b0}};
 
 block_ram #(
-        .ADDR_WIDTH(4),
-        .DATA_WIDTH(128)
+        .ADDR_WIDTH(`Nb),
+        .DATA_WIDTH(`ROUND_KEY_BITS),
+        .DEPTH(`Nr_256 + 1)
 ) key_sram(
         .clk(clk),
 
@@ -71,6 +73,9 @@ round_key round_key_gen(
         .clk(clk),
         .reset(reset),
         .en(en_key_exp),
+
+        .aes128_mode(aes128_mode),
+        .aes256_mode(aes256_mode),
 
         .rounds_total(rounds_total),
         .key(aes_key),
@@ -87,9 +92,9 @@ cipher encrypt_blk(
 	.reset(reset),
 	.en(en_cipher),
 
+	.rounds_total(rounds_total),
 	.plaintext(aes_in_blk),
 	.key(round_key_out),
-	.rounds_total(rounds_total),
 	.round_key_no(encrypt_round_no),
 
 	.ciphertext(__aes_out_blk_encrypt),
@@ -101,9 +106,9 @@ decipher decrypt_blk(
         .reset(reset),
         .en(en_decipher),
 
+        .rounds_total(rounds_total),
         .ciphertext(aes_in_blk),
         .round_key(round_key_out),
-        .rounds_total(rounds_total),
         .round_no(decrypt_round_no),
 
         .plaintext(__aes_out_blk_decrypt),

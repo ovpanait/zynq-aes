@@ -9,6 +9,9 @@ reg clk;
 reg reset;
 reg en;
 
+reg aes128_mode;
+reg aes256_mode;
+
 reg decipher_mode;
 reg cipher_mode;
 reg key_exp_mode;
@@ -24,6 +27,9 @@ aes_top DUT (
         .reset(reset),
         .en(en),
 
+        .aes128_mode(aes128_mode),
+        .aes256_mode(aes256_mode),
+
         .aes_key(aes_key),
         .aes_in_blk(aes_in_blk),
 
@@ -36,6 +42,16 @@ aes_top DUT (
 );
 
 `include "test_fc.vh"
+
+localparam [`KEY_S-1:0] key_128 = 'h00000000000000000000000000000000754620676e754b20796d207374616854;
+localparam [`KEY_S-1:0] key_256 = 'h1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100;
+
+localparam [`BLK_S-1:0] plaintext_256_t1 = 'hffeeddccbbaa99887766554433221100;
+localparam [`BLK_S-1:0] ciphertext_256_t1 = 'h8960494b9049fceabf456751cab7a28e;
+localparam [`BLK_S-1:0] plaintext_128_t1 = 'h6F775420656E694E20656E4F206F7754;
+localparam [`BLK_S-1:0] ciphertext_128_t1 = 'h3ad7021ab3992240f62014575f50c329;
+localparam [`BLK_S-1:0] plaintext_128_t2 = 'h01896745230189674523119178563412;
+localparam [`BLK_S-1:0] ciphertext_128_t2 = 'h153e7de995d7d6481eba136046b11429;
 
 integer i;
 
@@ -56,12 +72,35 @@ initial begin
         @(posedge clk);
         @(negedge clk) reset = 0;
 
+        test_aes(1'b1, 1'b0, key_128, plaintext_128_t1, ciphertext_128_t1);
+        test_aes(1'b1, 1'b0, key_128, plaintext_128_t2, ciphertext_128_t2);
+        test_aes(1'b0, 1'b1, key_256, plaintext_256_t1, ciphertext_256_t1);
+
+        // Testcase end
+        @(negedge clk) reset = 1;
+        @(negedge clk);
+
+        $display("Testcase: PASS!");
+        $finish;
+end
+
+task test_aes(
+	input aes128,
+	input aes256,
+	input [`KEY_S-1:0] key,
+	input [`BLK_S-1:0] plaintext,
+	input [`BLK_S-1:0] ciphertext
+	);
+
         @(negedge clk) begin
+                aes128_mode = aes128;
+                aes256_mode = aes256;
+
                 cipher_mode = 1'b0;
                 decipher_mode = 1'b0;
                 key_exp_mode = 1'b1;
                 en = 1'b1;
-                aes_key = `KEY_S'h754620676e754b20796d207374616854;
+                aes_key = key;
         end
 
         @(negedge clk) begin
@@ -75,10 +114,7 @@ initial begin
         @(negedge clk);
         `VERIFY(en_o, 1'b0);
 
-        // Testcase 1
-        `define T1_AES_PLAINTEXT `BLK_S'h6F775420656E694E20656E4F206F7754
-        `define T1_AES_CIPHERTEXT `BLK_S'h3ad7021ab3992240f62014575f50c329
-
+        // Encrypt
         @(negedge clk) begin
                 cipher_mode = 1'b1;
                 decipher_mode = 1'b0;
@@ -86,7 +122,7 @@ initial begin
 
                 en = 1'b1;
                 aes_key = {`KEY_S{1'b0}};
-                aes_in_blk = `T1_AES_PLAINTEXT;
+                aes_in_blk = plaintext;
         end;
 
         @(negedge clk);
@@ -95,21 +131,21 @@ initial begin
         // Test ciphertext output
         @(posedge en_o);
         @(negedge clk) begin
-                `VERIFY(aes_out_blk, `T1_AES_CIPHERTEXT);
+                `VERIFY(aes_out_blk, ciphertext);
         end
 
         // Test en_o clock cycle
         @(negedge clk);
         `VERIFY(en_o, 1'h0);
 
-        // Test decryption
+        // Decrypt
         @(negedge clk) begin
                 cipher_mode = 1'b0;
                 decipher_mode = 1'b1;
                 key_exp_mode = 1'b0;
 
                 en = 1'b1;
-                aes_in_blk = `T1_AES_CIPHERTEXT;
+                aes_in_blk = ciphertext;
         end
 
         @(negedge clk) begin
@@ -118,69 +154,13 @@ initial begin
 
         @(posedge en_o);
         @(negedge clk) begin
-                `VERIFY(aes_out_blk, `T1_AES_PLAINTEXT);
+                `VERIFY(aes_out_blk, plaintext);
         end
 
         // TODO
         // Test en_o clock cycle
         //@(negedge clk);
         //`VERIFY(en_o, 1'h0);
+endtask
 
-        // Testcase 2
-        `define T2_AES_PLAINTEXT `BLK_S'h01896745230189674523119178563412
-        `define T2_AES_CIPHERTEXT `BLK_S'h153e7de995d7d6481eba136046b11429
-        @(negedge clk) begin
-                en = 1'b1;
-
-                cipher_mode = 1'b1;
-                decipher_mode = 1'b0;
-                key_exp_mode = 1'b0;
-
-                aes_key = {`KEY_S{1'b0}};
-                aes_in_blk = `T2_AES_PLAINTEXT;
-        end
-
-        @(negedge clk) begin
-                en = 1'b0;
-        end
-
-        @(posedge en_o);
-        @(negedge clk);
-        `VERIFY(aes_out_blk, `T2_AES_CIPHERTEXT);
-
-        // Test en_o clock cycle
-        @(negedge clk);
-        `VERIFY(en_o, 1'h0);
-
-        // Test decryption
-        @(negedge clk) begin
-                cipher_mode = 1'b0;
-                decipher_mode = 1'b1;
-                key_exp_mode = 1'b0;
-
-                en = 1'b1;
-                aes_in_blk = `T2_AES_CIPHERTEXT;
-        end
-
-        @(negedge clk) begin
-                en = 1'b0;
-        end
-
-        @(posedge en_o);
-        @(negedge clk) begin
-                `VERIFY(aes_out_blk, `T2_AES_PLAINTEXT);
-        end
-
-        // TODO
-        // Test en_o clock cycle
-        //@(negedge clk);
-        //`VERIFY(en_o, 1'h0);
-
-        // Testcase end
-        @(negedge clk) reset = 1;
-        @(negedge clk);
-
-        $display("Testcase: PASS!");
-        $finish;
-end
 endmodule
