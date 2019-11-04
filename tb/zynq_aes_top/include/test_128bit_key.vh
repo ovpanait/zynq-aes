@@ -21,8 +21,8 @@ task test_128bit_key_cbc_enc();
 
 	localparam test_blocks_no = 256;
 
-	localparam plaintext_fn = "cbc_plaintext.txt";
-	localparam ciphertext_fn = "cbc_ciphertext.txt";
+	localparam plaintext_fn = "cbc_plaintext_128.txt";
+	localparam ciphertext_fn = "cbc_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -84,8 +84,8 @@ task test_128bit_key_cbc_dec();
 
 	localparam test_blocks_no = 256;
 
-	localparam plaintext_fn = "cbc_plaintext.txt";
-	localparam ciphertext_fn = "cbc_ciphertext.txt";
+	localparam plaintext_fn = "cbc_plaintext_128.txt";
+	localparam ciphertext_fn = "cbc_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -145,8 +145,8 @@ task test_128bit_key_ecb_enc();
 
 	localparam test_blocks_no = 256;
 
-	localparam plaintext_fn = "ecb_plaintext.txt";
-	localparam ciphertext_fn = "ecb_ciphertext.txt";
+	localparam plaintext_fn = "ecb_plaintext_128.txt";
+	localparam ciphertext_fn = "ecb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -205,8 +205,8 @@ task test_128bit_key_ecb_dec();
 
 	localparam test_blocks_no = 256;
 
-	localparam plaintext_fn = "ecb_plaintext.txt";
-	localparam ciphertext_fn = "ecb_ciphertext.txt";
+	localparam plaintext_fn = "ecb_plaintext_128.txt";
+	localparam ciphertext_fn = "ecb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
