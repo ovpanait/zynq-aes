@@ -20,6 +20,7 @@
 #define AES_BLOCK_SIZE  16
 #define AES_IV_SIZE     16
 #define AES_KEY128_SIZE 16
+#define AES_KEY256_SIZE 32
 
 #define ITER_NO            1
 #define PAYLOAD_AES_BLOCKS 1000
@@ -348,6 +349,9 @@ int main(void)
 {
 	do_ecb_stress(AES_KEY128_SIZE);
 	do_cbc_stress(AES_KEY128_SIZE);
+
+	do_ecb_stress(AES_KEY256_SIZE);
+	do_cbc_stress(AES_KEY256_SIZE);
 
 	return 0;
 }
