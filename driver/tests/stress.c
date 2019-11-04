@@ -56,15 +56,27 @@ static int get_urandom_bytes(void *buf, size_t n)
 	return 0;
 }
 
+static void dump_buffer(FILE *file, char *msg, uint8_t *buf, unsigned int size)
+{
+	unsigned int i;
+
+	if (msg)
+		fprintf(file, "%s \n", msg);
+
+	for (i = 0; i < size; ++i)
+		fprintf(file, "%02x", buf[i]);
+	fprintf(file, "\n");
+}
+
 static void dump_aes_buffer(FILE *file, char *msg, uint8_t *aes_buf, int blocks_no)
 {
-	int i =0, j = 0;
+	int i = 0;
 
-	fprintf(file, "%s \n", msg);
+	if (msg)
+		fprintf(file, "%s \n", msg);
+
 	for (i = 0; i < blocks_no; ++i) {
-		for (j = 0; j < AES_BLOCK_SIZE; ++j)
-			fprintf(file, "%02x", aes_buf[i * AES_BLOCK_SIZE + j]);
-		fprintf(file, "\n");
+		dump_buffer(file, NULL, aes_buf + i * AES_BLOCK_SIZE, AES_BLOCK_SIZE);
 	}
 	fprintf(file, "\n");
 }
@@ -131,6 +143,8 @@ static int do_ecb_stress(unsigned int keysize)
         }
 
 	get_urandom_bytes(key, keysize);
+	dump_buffer(stdout, "key: ", key, keysize);
+
 	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
         if (ret == -1) {
                 perror("setsockopt ALG_SET_KEY");
@@ -257,6 +271,8 @@ static int do_cbc_stress(unsigned int keysize)
         }
 
 	get_urandom_bytes(key, keysize);
+	dump_buffer(stdout, "key: ", key, keysize);
+
 	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
         if (ret == -1) {
                 perror("setsockopt ALG_SET_KEY");
@@ -284,6 +300,7 @@ static int do_cbc_stress(unsigned int keysize)
 	iv = (void *)CMSG_DATA(cmsg);
 	iv->ivlen = AES_IV_SIZE;
 	get_urandom_bytes(iv->iv, AES_IV_SIZE);
+	dump_buffer(stdout, "iv:", iv->iv, AES_IV_SIZE);
 
         cmsg = CMSG_FIRSTHDR(&msg);
 
