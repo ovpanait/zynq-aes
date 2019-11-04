@@ -4,6 +4,10 @@ function is_128bit_key(input [`WORD_S-1:0] cmd);
 	is_128bit_key = cmd[`KEY_128_BIT];
 endfunction
 
+function is_256bit_key(input [`WORD_S-1:0] cmd);
+	is_256bit_key = cmd[`KEY_256_BIT];
+endfunction
+
 function is_encryption(input [`WORD_S-1:0] cmd);
 	is_encryption = cmd[`ENCRYPTION_OP_BIT];
 endfunction
@@ -34,6 +38,10 @@ endfunction
 
 function [`WORD_S-1:0] set_key_128_bit(input [`WORD_S-1:0] cmd);
 	set_key_128_bit = cmd | (1 << `KEY_128_BIT);
+endfunction
+
+function [`WORD_S-1:0] set_key_256_bit(input [`WORD_S-1:0] cmd);
+	set_key_256_bit = cmd | (1 << `KEY_256_BIT);
 endfunction
 
 function [`WORD_S-1:0] set_encryption_op_bit(input [`WORD_S-1:0] cmd);
