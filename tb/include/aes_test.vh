@@ -57,18 +57,22 @@ class aes_test #(
 		integer size;
 		tester #(
 			.WIDTH(`BLK_S),
-			.QUEUE_DATA_WIDTH(`WORD_S)) queue_tester;
+			.QUEUE_DATA_WIDTH(`WORD_S)) blk_tester;
 
-		queue_tester = new();
+		tester #(
+			.WIDTH(KEY_SIZE),
+			.QUEUE_DATA_WIDTH(`WORD_S)) key_tester;
+
+		blk_tester = new();
 
 		req_queue.push_back(cmd);
-		queue_tester.q_push_back32_rev(tester #(KEY_SIZE)::reverse_blk8(key), req_queue);
+		key_tester.q_push_back32_rev(key_tester.reverse_blk8(key), req_queue);
 		if (is_cbc_op(cmd))
-			queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(iv), req_queue);
+			blk_tester.q_push_back32_rev(blk_tester.reverse_blk8(iv), req_queue);
 
 		for (i = 0; i < blks_no; i = i + 1) begin
 			reg [`BLK_S-1:0] payload_data = payload_queue.get(i);
-			queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(payload_data), req_queue);
+			blk_tester.q_push_back32_rev(blk_tester.reverse_blk8(payload_data), req_queue);
 		end
 	endtask
 

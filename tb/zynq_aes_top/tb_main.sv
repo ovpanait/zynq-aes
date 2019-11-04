@@ -55,6 +55,12 @@ aes_test #(
 	.master_agent_t(design_1_axi4stream_vip_0_0_mst_t)
 	) aes_tester128;
 
+aes_test #(
+	.KEY_SIZE(256),
+	.master_agent_t(design_1_axi4stream_vip_0_0_mst_t)
+	) aes_tester256;
+
+
 // instantiate bd
 design_1_wrapper DUT(
         .aresetn(reset),
@@ -81,6 +87,7 @@ initial begin
 	$timeformat (-12, 1, " ps", 1);
 
 	aes_tester128 = new(mst_agent);
+	aes_tester256 = new(mst_agent);
 	queue_tester = new();
 	results = new();
 
@@ -99,7 +106,7 @@ initial begin
 	slv_gen_tready();
 
 	test_128bit_key();
-
+	test_256bit_key();
 	$finish;
 end
 
@@ -179,6 +186,7 @@ end
 `include "controller_fc.vh"
 
 `include "test_128bit_key.vh"
+`include "test_256bit_key.vh"
 
 endmodule
 
