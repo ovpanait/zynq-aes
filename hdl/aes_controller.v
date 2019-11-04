@@ -50,14 +50,13 @@ reg [2:0]         state;
 wire [`BLK_S-1:0] aes_out_blk;
 wire              aes_done;
 
-reg [`WORD_S-1:0] __aes_cmd;
 reg [`KEY_S-1:0]  aes_key;
 reg [`BLK_S-1:0]  aes_iv;
 
 reg               aes_start;
-wire              aes_cipher_mode;
-wire              aes_decipher_mode;
-wire              aes_key_exp_mode;
+reg               aes_cipher_mode;
+reg               aes_decipher_mode;
+reg               aes_key_exp_mode;
 
 wire [`BLK_S-1:0] aes_ecb_in_blk;
 wire [`BLK_S-1:0] aes_cbc_in_blk;
@@ -73,13 +72,8 @@ reg [`BLK_S-1:0] aes_in_blk_reg;
 
 genvar i;
 
-assign aes_cipher_mode = is_encryption(__aes_cmd);
 assign aes_start_cipher = aes_start && aes_cipher_mode;
-
-assign aes_decipher_mode = is_decryption(__aes_cmd);
 assign aes_start_decipher = aes_start && aes_decipher_mode;
-
-assign aes_key_exp_mode = is_key_expansion(__aes_cmd);
 assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
 assign aes128_mode = is_128bit_key(aes_cmd);
@@ -115,14 +109,16 @@ assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
 
 always @(posedge clk) begin
 	if (reset == 1'b1) begin
+		aes_decipher_mode <= 1'b0;
+		aes_key_exp_mode <= 1'b0;
+		aes_cipher_mode <= 1'b1;
 		processing_done <= 1'b0;
-		__aes_cmd <= {`WORD_S{1'b0}};
-		aes_key <= {`KEY_S{1'b0}};
 		aes_iv <= 1'b0;
-		state <= AES_GET_KEY_128;
 
-		aes_in_blk_reg <= 1'b0;
 		in_fifo_read_tready <= 1'b0;
+		aes_key <= {`KEY_S{1'b0}};
+		state <= AES_GET_KEY_128;
+		aes_in_blk_reg <= 1'b0;
 	end
 	else begin
 		in_fifo_read_tready <= 1'b0;
@@ -131,8 +127,11 @@ always @(posedge clk) begin
 		case (state)
 			AES_GET_KEY_128:
 			begin
-				__aes_cmd <= {`WORD_S{1'b0}};
 				in_fifo_read_tready <= 1'b1;
+
+				aes_decipher_mode <= 1'b0;
+				aes_key_exp_mode <= 1'b0;
+				aes_cipher_mode <= 1'b0;
 
 				if (in_fifo_read_req) begin
 					state <= AES_START;
@@ -141,18 +140,15 @@ always @(posedge clk) begin
 					in_fifo_read_tready <= 1'b0;
 
 					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_data;
-					__aes_cmd <=
-						set_key_expansion_bit(__aes_cmd) |
-						(aes128_mode ? set_key_128_bit(__aes_cmd) :
-						 aes256_mode ? set_key_256_bit(__aes_cmd) :
-						 {`WORD_S{1'b0}});
+					aes_key_exp_mode <= 1'b1;
 
 					if (aes256_mode)
 						state <= AES_GET_KEY_256;
 					else begin
 						aes_start <= 1'b1;
+
 						if (is_CBC_op(aes_cmd))
-						state <= AES_GET_IV;
+							state <= AES_GET_IV;
 					end
 				end
 			end
@@ -186,7 +182,10 @@ always @(posedge clk) begin
 					in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
-					__aes_cmd <= aes_cmd;
+					aes_key_exp_mode <= 1'b0;
+					aes_cipher_mode <= is_encryption(aes_cmd);
+					aes_decipher_mode <= is_decryption(aes_cmd);
+
 					in_fifo_read_tready <= 1'b0;
 					aes_in_blk_reg <= aes_in_blk;
 					state <= AES_WAIT;
