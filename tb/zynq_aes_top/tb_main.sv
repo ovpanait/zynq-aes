@@ -98,10 +98,7 @@ initial begin
 	slv_agent.start_slave();
 	slv_gen_tready();
 
-	testcase1();
-	testcase2();
-	testcase3();
-	testcase4();
+	test_128bit_key();
 
 	$finish;
 end
@@ -181,10 +178,7 @@ end
 
 `include "controller_fc.vh"
 
-`include "test1.vh"
-`include "test2.vh"
-`include "test3.vh"
-`include "test4.vh"
+`include "test_128bit_key.vh"
 
 endmodule
 

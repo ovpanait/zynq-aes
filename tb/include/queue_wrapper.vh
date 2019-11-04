@@ -73,17 +73,21 @@ class queue_wrapper #(
 		$fclose(fd);
 	endtask
 
-	task compare(input queue_wrapper#(DATA_WIDTH) cmp_queue);
+	function bit compare(input queue_wrapper#(DATA_WIDTH) cmp_queue);
 		integer i;
 
+		compare = 0;
 		for (i = 0; i < cmp_queue.size(); i=i+1) begin
 			if (queue[i] !== cmp_queue.get(i)) begin
 				$display("Data at index %d doesn't match!", i);
 				$display("Value 1: %H", queue[i]);
 				$display("Value 2: %H", cmp_queue.get(i));
+
+				compare = 1;
+				break;
 			end
 		end
-	endtask
+	endfunction
 
 endclass
 
