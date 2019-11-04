@@ -1,23 +1,59 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <linux/if_alg.h>
 #include <linux/socket.h>
 #include <string.h>
 #include <stdlib.h>
-
+#include <errno.h>
 #include <stdint.h>
 #include <assert.h>
+#include <fcntl.h>
+#include <limits.h>
 
 #ifndef SOL_ALG
 #define SOL_ALG 279
 #endif
 
-#define AES_BLOCK_SIZE 16
+#define AES_BLOCK_SIZE  16
+#define AES_IV_SIZE     16
+#define AES_KEY128_SIZE 16
 
-#define ITER_NO 1
+#define ITER_NO            1
 #define PAYLOAD_AES_BLOCKS 1000
-#define PAYLOAD_SIZE (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
+#define PAYLOAD_SIZE       (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
+
+/*
+ * Adapted from https://github.com/dsprenkels/randombytes/blob/master/randombytes.c
+ */
+static int get_urandom_bytes(void *buf, size_t n)
+{
+	int fd;
+	size_t offset = 0, count;
+	ssize_t tmp;
+	do {
+		fd = open("/dev/urandom", O_RDONLY);
+	} while (fd == -1 && errno == EINTR);
+	if (fd == -1)
+		return -1;
+
+	while (n > 0) {
+		count = n <= SSIZE_MAX ? n : SSIZE_MAX;
+		tmp = read(fd, (char *)buf + offset, count);
+		if (tmp == -1 && (errno == EAGAIN || errno == EINTR)) {
+			continue;
+		}
+		if (tmp == -1)
+			return -1; /* Unrecoverable IO error */
+		offset += tmp;
+		n -= tmp;
+	}
+	assert(n == 0);
+
+	return 0;
+}
 
 static void dump_aes_buffer(FILE *file, char *msg, uint8_t *aes_buf, int blocks_no)
 {
@@ -48,7 +84,7 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
         }
 }
 
-static int do_ecb_stress(void)
+static int do_ecb_stress(unsigned int keysize)
 {
         int opfd;
         int tfmfd;
@@ -63,23 +99,25 @@ static int do_ecb_stress(void)
 
         struct iovec iov;
 
+	uint8_t *plaintext_in;
+	uint8_t *plaintext_out;
+	uint8_t *ciphertext;
+	uint8_t *key;
+
         int ret;
 
-        // Allocate buffers
-	uint8_t *plaintext_in = malloc(PAYLOAD_SIZE + 1);
-	uint8_t *plaintext_out = malloc(PAYLOAD_SIZE + 1);
-	uint8_t *ciphertext = malloc(PAYLOAD_SIZE + 1);
-	if (plaintext_in == NULL || ciphertext == NULL || plaintext_out == NULL) {
+	// Allocate buffers
+	plaintext_in = malloc(PAYLOAD_SIZE);
+	plaintext_out = malloc(PAYLOAD_SIZE);
+	ciphertext = malloc(PAYLOAD_SIZE);
+	key = malloc(keysize);
+	if (!plaintext_in || !ciphertext || !plaintext_out || !key) {
 		perror("Could not allocate buffers!");
 		exit(EXIT_FAILURE);
 	}
 
-	ciphertext[PAYLOAD_SIZE - 1] = '\0';
-	plaintext_out[PAYLOAD_SIZE - 1] = '\0';
-
         // Setup AF_ALG socket
         tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
-
         if (tfmfd == -1) {
                 perror("socket");
                 exit(EXIT_FAILURE);
@@ -91,11 +129,8 @@ static int do_ecb_stress(void)
                 exit(EXIT_FAILURE);
         }
 
-        ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY,
-                        "\x54\x68\x61\x74"
-                        "\x73\x20\x6D\x79"
-                        "\x20\x4B\x75\x6E"
-                        "\x67\x20\x46\x75", 16);
+	get_urandom_bytes(key, keysize);
+	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
         if (ret == -1) {
                 perror("setsockopt ALG_SET_KEY");
                 exit(EXIT_FAILURE);
@@ -118,16 +153,10 @@ static int do_ecb_stress(void)
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        iov.iov_len = 0;
+        iov.iov_len = PAYLOAD_SIZE;
 
-        // Setup input plaintext
-	for (int i = 0; i < PAYLOAD_AES_BLOCKS; ++i) {
-		sprintf(plaintext_in + iov.iov_len, "Single bloc%05d", i);
-		iov.iov_len += AES_BLOCK_SIZE;
-        }
-        assert(iov.iov_len == PAYLOAD_SIZE);
-
-        dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
+	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
+	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
 
         for (int i = 0; i < ITER_NO; ++i) {
                 printf("Iteration no.: %d\n\n", i);
@@ -179,7 +208,7 @@ static int do_ecb_stress(void)
         return 0;
 }
 
-static int do_cbc_stress(void)
+static int do_cbc_stress(unsigned int keysize)
 {
         int opfd;
         int tfmfd;
@@ -195,19 +224,22 @@ static int do_cbc_stress(void)
         struct af_alg_iv *iv; // init vector needed for CBC
         struct iovec iov;
 
+	uint8_t *plaintext_in;
+	uint8_t *plaintext_out;
+	uint8_t *ciphertext;
+	uint8_t *key;
+
         int ret;
 
         // Allocate buffers
-        uint8_t *plaintext_in = malloc(PAYLOAD_SIZE + 1);
-        uint8_t *plaintext_out = malloc(PAYLOAD_SIZE + 1);
-        uint8_t *ciphertext = malloc(PAYLOAD_SIZE + 1);
-        if (plaintext_in == NULL || ciphertext == NULL || plaintext_out == NULL) {
+        plaintext_in = malloc(PAYLOAD_SIZE);
+        plaintext_out = malloc(PAYLOAD_SIZE);
+        ciphertext = malloc(PAYLOAD_SIZE);
+        key = malloc(keysize);
+        if (!plaintext_in || !ciphertext || !plaintext_out || !key) {
                 perror("Could not allocate buffers!");
                 exit(EXIT_FAILURE);
         }
-
-        ciphertext[PAYLOAD_SIZE - 1] = '\0';
-        plaintext_out[PAYLOAD_SIZE - 1] = '\0';
 
         // Setup AF_ALG socket
         tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
@@ -223,11 +255,8 @@ static int do_cbc_stress(void)
                 exit(EXIT_FAILURE);
         }
 
-        ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY,
-                        "\x54\x68\x61\x74"
-                        "\x73\x20\x6D\x79"
-                        "\x20\x4B\x75\x6E"
-                        "\x67\x20\x46\x75", 16);
+	get_urandom_bytes(key, keysize);
+	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
         if (ret == -1) {
                 perror("setsockopt ALG_SET_KEY");
                 exit(EXIT_FAILURE);
@@ -250,30 +279,20 @@ static int do_cbc_stress(void)
         cmsg = CMSG_NXTHDR(&msg, cmsg);
         cmsg->cmsg_level = SOL_ALG;
         cmsg->cmsg_type = ALG_SET_IV;
-        cmsg->cmsg_len = CMSG_LEN(20);
-        iv = (void *)CMSG_DATA(cmsg);
-        iv->ivlen = 16;
-        memcpy(iv->iv, 
-                        "\x54\x77\x6F\x20"
-                        "\x4F\x6E\x65\x20"
-                        "\x4E\x69\x6E\x65"
-                        "\x20\x54\x77\x6F", 16);
+	cmsg->cmsg_len = CMSG_LEN(4 + AES_IV_SIZE);
+	iv = (void *)CMSG_DATA(cmsg);
+	iv->ivlen = AES_IV_SIZE;
+	get_urandom_bytes(iv->iv, AES_IV_SIZE);
 
         cmsg = CMSG_FIRSTHDR(&msg);
 
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
 
-        iov.iov_len = 0;
+	iov.iov_len = PAYLOAD_SIZE;
 
-        // Setup input plaintext
-        for (int i = 0; i < PAYLOAD_AES_BLOCKS; ++i) {
-                sprintf(plaintext_in + iov.iov_len, "Single bloc%05d", i);
-                iov.iov_len += AES_BLOCK_SIZE;
-        }
-        assert(iov.iov_len == PAYLOAD_SIZE);
-
-        dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
+	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
+	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
 
         for (int i = 0; i < ITER_NO; ++i) {
                 printf("Iteration no.: %d\n\n", i);
@@ -327,8 +346,8 @@ static int do_cbc_stress(void)
 
 int main(void)
 {
-	do_ecb_stress();
-	do_cbc_stress();
+	do_ecb_stress(AES_KEY128_SIZE);
+	do_cbc_stress(AES_KEY128_SIZE);
 
 	return 0;
 }
