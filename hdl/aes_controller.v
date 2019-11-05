@@ -94,10 +94,6 @@ assign iv_next = is_CBC_op(aes_cmd) ? cbc_iv : ecb_iv;
 
 // CBC
 cbc cbc_mod(
-	.clk(clk),
-	.reset(reset),
-	.crypto_done(aes_done),
-
 	.encryption(aes_cipher_mode),
 	.decryption(aes_decipher_mode),
 

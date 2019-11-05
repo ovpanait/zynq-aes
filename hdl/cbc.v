@@ -1,8 +1,4 @@
 module cbc(
-	input                        clk,
-	input                        reset,
-	input                        crypto_done,
-
 	input                        encryption,
 	input                        decryption,
 
@@ -18,18 +14,12 @@ module cbc(
 always @(*) begin
 	if (encryption) begin
 		in_blk_next = in_blk ^ iv;
-		if (crypto_done) begin
-			out_blk_next = out_blk;
-			iv_next = out_blk;
-		end
-	end
-
-	if (decryption) begin
+		out_blk_next = out_blk;
+		iv_next = out_blk;
+	end else begin
 		in_blk_next = in_blk;
-		if (crypto_done) begin
-			out_blk_next = iv ^ out_blk;
-			iv_next = in_blk;
-		end
+		out_blk_next = iv ^ out_blk;
+		iv_next = in_blk;
 	end
 end
 
