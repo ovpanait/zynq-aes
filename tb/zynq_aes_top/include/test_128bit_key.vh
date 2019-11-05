@@ -69,10 +69,12 @@ task test_128bit_key_cbc_enc();
 
 	wait(comparison_cnt == total_blocks * 4);
 
-	if (results.compare(expected_results_queue))
+	if (results.compare(expected_results_queue)) begin
 		$display("%s: FAIL!", testcase_name);
-	results.clear();
+		$finish;
+	end
 
+	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
 
@@ -132,8 +134,11 @@ task test_128bit_key_cbc_dec();
 
 	wait(comparison_cnt == total_blocks * 4);
 
-	if (results.compare(expected_results_queue))
+	if (results.compare(expected_results_queue)) begin
 		$display("%s: FAIL!", testcase_name);
+		$finish;
+	end
+
 	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
@@ -192,8 +197,11 @@ task test_128bit_key_ecb_enc();
 
 	wait(comparison_cnt == total_blocks * 4);
 
-	if (results.compare(expected_results_queue))
+	if (results.compare(expected_results_queue)) begin
 		$display("%s: FAIL!", testcase_name);
+		$finish;
+	end
+
 	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
@@ -253,8 +261,11 @@ task test_128bit_key_ecb_dec();
 
 	wait(comparison_cnt == total_blocks * 4);
 
-	if (results.compare(expected_results_queue))
+	if (results.compare(expected_results_queue)) begin
 		$display("%s: FAIL!", testcase_name);
+		$finish;
+	end
+
 	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
