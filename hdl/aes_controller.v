@@ -46,7 +46,6 @@ localparam [2:0] AES_WAIT = 3'b110;
 localparam [2:0] AES_STORE_BLOCK = 3'b111;
 
 reg [2:0]         state;
-
 wire              aes_done;
 
 reg [`KEY_S-1:0]  aes_key;
@@ -76,6 +75,7 @@ wire              aes256_mode;
 
 wire out_fifo_write_req;
 wire in_fifo_read_req;
+wire need_iv;
 
 genvar i;
 
@@ -85,6 +85,8 @@ assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
 assign aes128_mode = is_128bit_key(aes_cmd);
 assign aes256_mode = is_256bit_key(aes_cmd);
+
+assign need_iv = is_CBC_op(aes_cmd);
 
 assign in_blk_next = is_CBC_op(aes_cmd) ? cbc_in_blk : ecb_in_blk;
 assign out_blk_next = is_CBC_op(aes_cmd) ? cbc_out_blk : ecb_out_blk;
@@ -171,14 +173,14 @@ always @(posedge clk) begin
 
 					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_data;
 					aes_key_exp_mode <= 1'b1;
+					aes_start <= 1'b1;
 
-					if (aes256_mode)
+					if (need_iv)
+						state <= AES_GET_IV;
+
+					if (aes256_mode) begin
 						state <= AES_GET_KEY_256;
-					else begin
-						aes_start <= 1'b1;
-
-						if (is_CBC_op(aes_cmd))
-							state <= AES_GET_IV;
+						aes_start <= 1'b0;
 					end
 				end
 			end
@@ -190,7 +192,7 @@ always @(posedge clk) begin
 					aes_start <= 1'b1;
 					state <= AES_START;
 					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_data;
-					if (is_CBC_op(aes_cmd))
+					if (need_iv)
 						state <= AES_GET_IV;
 				end
 			end
