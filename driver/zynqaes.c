@@ -27,6 +27,7 @@
 #define ZYNQAES_CBC_MODE_BIT         7
 
 #define ZYNQAES_KEY_128_MASK     (1 << ZYNQAES_KEY_128_BIT)
+#define ZYNQAES_KEY_256_MASK     (1 << ZYNQAES_KEY_256_BIT)
 #define ZYNQAES_ECB_MASK         (1 << ZYNQAES_ECB_MODE_BIT)
 #define ZYNQAES_CBC_MASK         (1 << ZYNQAES_CBC_MODE_BIT)
 #define ZYNQAES_ENCRYPTION_MASK  (1 << ZYNQAES_ENCRYPTION_OP_BIT)
@@ -56,7 +57,7 @@ struct zynqaes_reqctx {
 };
 
 struct zynqaes_ctx {
-	u8 key[AES_KEYSIZE_128];
+	u8 key[AES_MAX_KEY_SIZE];
 	unsigned int key_len;
 };
 
@@ -84,7 +85,10 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 {
 	switch (key_len) {
 	case AES_KEYSIZE_128:
-		rctx->cmd = rctx->cmd | ZYNQAES_KEY_128_MASK;
+		rctx->cmd |= ZYNQAES_KEY_128_MASK;
+		break;
+	case AES_KEYSIZE_256:
+		rctx->cmd |= ZYNQAES_KEY_256_MASK;
 		break;
 	default:
 		break;
@@ -143,7 +147,8 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 		goto err;
 	}
 
-	tx_chan_desc = dmaengine_prep_slave_sg(dd->tx_chan, dma_ctx->tx_sg, tx_sg_len, DMA_MEM_TO_DEV, flags);
+	tx_chan_desc = dmaengine_prep_slave_sg(dd->tx_chan, dma_ctx->tx_sg,
+					tx_sg_len, DMA_MEM_TO_DEV, flags);
 	if (!tx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_sg error\n", __func__, __LINE__);
 		ret = -ECOMM;
@@ -169,7 +174,8 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 		goto err;
 	}
 
-	rx_chan_desc = dmaengine_prep_slave_sg(dd->rx_chan, dma_ctx->rx_sg, rx_sg_len, DMA_DEV_TO_MEM, flags);
+	rx_chan_desc = dmaengine_prep_slave_sg(dd->rx_chan, dma_ctx->rx_sg,
+				rx_sg_len, DMA_DEV_TO_MEM, flags);
 	if (!rx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_sg error\n", __func__, __LINE__);
 		ret = -ECOMM;
@@ -218,7 +224,7 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 
 	sg_init_table(dma_ctx->tx_sg, nsg);
 	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->cmd, sizeof(rctx->cmd));
-	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, AES_KEYSIZE_128);
+	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, ctx->key_len);
 	if (is_cbc_op(rctx->cmd)) {
 		sg_set_buf(&dma_ctx->tx_sg[2], rctx->iv, AES_BLOCK_SIZE);
 	}
@@ -262,7 +268,7 @@ out_err:
 }
 
 static int zynqaes_crypt_req(struct crypto_engine *engine,
-			      struct ablkcipher_request *areq)
+			     struct ablkcipher_request *areq)
 {
 	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
@@ -315,8 +321,17 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	ctx->key_len = len;
-	memcpy(ctx->key, key, len);
+	switch (len) {
+	case AES_KEYSIZE_128:
+	case AES_KEYSIZE_256:
+		ctx->key_len = len;
+		memcpy(ctx->key, key, len);
+		break;
+	default:
+		dev_info(dd->dev, "[%s:%d] Key size of %u bytes not supported!",
+				__func__, __LINE__, len);
+		return -ENOTSUPP;
+	}
 
 	return 0;
 }
@@ -361,8 +376,8 @@ static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_init		= 	zynqaes_cra_init,
 	.cra_u			=	{
 		.ablkcipher = {
-			.min_keysize		=	AES_KEYSIZE_128,
-			.max_keysize		=	AES_KEYSIZE_128,
+			.min_keysize		=	AES_MIN_KEY_SIZE,
+			.max_keysize		=	AES_MAX_KEY_SIZE,
 			.setkey	   		= 	zynqaes_setkey,
 			.encrypt		=	zynqaes_ecb_encrypt,
 			.decrypt		=	zynqaes_ecb_decrypt,
@@ -383,8 +398,8 @@ static struct crypto_alg zynqaes_cbc_alg = {
 	.cra_init		= 	zynqaes_cra_init,
 	.cra_u			=	{
 		.ablkcipher = {
-			.min_keysize		=	AES_KEYSIZE_128,
-			.max_keysize		=	AES_KEYSIZE_128,
+			.min_keysize		=	AES_MIN_KEY_SIZE,
+			.max_keysize		=	AES_MAX_KEY_SIZE,
 			.ivsize			=	AES_BLOCK_SIZE,
 			.setkey	   		= 	zynqaes_setkey,
 			.encrypt		=	zynqaes_cbc_encrypt,
