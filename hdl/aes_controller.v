@@ -47,28 +47,35 @@ localparam [2:0] AES_STORE_BLOCK = 3'b111;
 
 reg [2:0]         state;
 
-wire [`BLK_S-1:0] aes_out_blk;
 wire              aes_done;
 
 reg [`KEY_S-1:0]  aes_key;
-reg [`BLK_S-1:0]  aes_iv;
+
+wire [`IV_BITS-1:0] iv_next;
+wire [`IV_BITS-1:0] cbc_iv;
+wire [`IV_BITS-1:0] ecb_iv;
+reg [`IV_BITS-1:0]  iv;
 
 reg               aes_start;
 reg               aes_cipher_mode;
 reg               aes_decipher_mode;
 reg               aes_key_exp_mode;
 
-wire [`BLK_S-1:0] aes_ecb_in_blk;
-wire [`BLK_S-1:0] aes_cbc_in_blk;
-wire [`BLK_S-1:0] aes_in_blk;
+reg [`BLK_S-1:0]  in_blk;
+wire [`BLK_S-1:0] in_blk_next;
+wire [`BLK_S-1:0] cbc_in_blk;
+wire [`BLK_S-1:0] ecb_in_blk;
+
+wire [`BLK_S-1:0] out_blk;
+wire [`BLK_S-1:0] out_blk_next;
+wire [`BLK_S-1:0] cbc_out_blk;
+wire [`BLK_S-1:0] ecb_out_blk;
 
 wire              aes128_mode;
 wire              aes256_mode;
 
 wire out_fifo_write_req;
 wire in_fifo_read_req;
-
-reg [`BLK_S-1:0] aes_in_blk_reg;
 
 genvar i;
 
@@ -78,6 +85,33 @@ assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
 assign aes128_mode = is_128bit_key(aes_cmd);
 assign aes256_mode = is_256bit_key(aes_cmd);
+
+assign in_blk_next = is_CBC_op(aes_cmd) ? cbc_in_blk : ecb_in_blk;
+assign out_blk_next = is_CBC_op(aes_cmd) ? cbc_out_blk : ecb_out_blk;
+assign iv_next = is_CBC_op(aes_cmd) ? cbc_iv : ecb_iv;
+
+// CBC
+cbc cbc_mod(
+	.clk(clk),
+	.reset(reset),
+	.crypto_done(aes_done),
+
+	.encryption(aes_cipher_mode),
+	.decryption(aes_decipher_mode),
+
+	.in_blk(in_blk),
+	.out_blk(out_blk),
+	.iv(iv),
+
+	.in_blk_next(cbc_in_blk),
+	.out_blk_next(cbc_out_blk),
+	.iv_next(cbc_iv)
+);
+
+// ECB
+assign ecb_iv = {`IV_BITS{1'b0}};
+assign ecb_in_blk = in_blk;
+assign ecb_out_blk = out_blk;
 
 aes_top aes_mod(
 	.clk(clk),
@@ -94,15 +128,11 @@ aes_top aes_mod(
 	.aes_op_in_progress(aes_op_in_progress),
 
 	.aes_key(aes_key),
-	.aes_in_blk(aes_in_blk_reg),
+	.aes_in_blk(in_blk_next),
 
-	.aes_out_blk(aes_out_blk),
+	.aes_out_blk(out_blk),
 	.en_o(aes_done)
 );
-
-assign aes_in_blk = is_CBC_enc(aes_cmd) ?  aes_cbc_in_blk : aes_ecb_in_blk;
-assign aes_ecb_in_blk = in_fifo_data;
-assign aes_cbc_in_blk = aes_iv ^ aes_ecb_in_blk;
 
 assign out_fifo_write_req = out_fifo_write_tready && out_fifo_write_tvalid;
 assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
@@ -113,12 +143,12 @@ always @(posedge clk) begin
 		aes_key_exp_mode <= 1'b0;
 		aes_cipher_mode <= 1'b1;
 		processing_done <= 1'b0;
-		aes_iv <= 1'b0;
 
 		in_fifo_read_tready <= 1'b0;
 		aes_key <= {`KEY_S{1'b0}};
 		state <= AES_GET_KEY_128;
-		aes_in_blk_reg <= 1'b0;
+		in_blk <= {`BLK_S{1'b0}};
+		iv <= {`IV_BITS{1'b0}};
 	end
 	else begin
 		in_fifo_read_tready <= 1'b0;
@@ -170,7 +200,7 @@ always @(posedge clk) begin
 
 				if (in_fifo_read_req) begin
 					in_fifo_read_tready <= 1'b0;
-					aes_iv <= in_fifo_data;
+					iv <= in_fifo_data;
 					state <= AES_START;
 				end
 			end
@@ -187,7 +217,7 @@ always @(posedge clk) begin
 					aes_decipher_mode <= is_decryption(aes_cmd);
 
 					in_fifo_read_tready <= 1'b0;
-					aes_in_blk_reg <= aes_in_blk;
+					in_blk <= in_fifo_data;
 					state <= AES_WAIT;
 					aes_start <= 1'b1;
 				end
@@ -202,18 +232,11 @@ always @(posedge clk) begin
 				state <= AES_WAIT;
 
 				if (aes_done == 1'b1) begin
-					out_fifo_data <= aes_out_blk;
 					state <= AES_STORE_BLOCK;
 
-					if(is_CBC_enc(aes_cmd)) begin
-						aes_iv <= aes_out_blk;
-					end
-
-					if(is_CBC_dec(aes_cmd)) begin
-						out_fifo_data <= aes_iv ^ aes_out_blk;
-						aes_iv <= aes_in_blk_reg;
-					end
-
+					out_fifo_data <= out_blk_next;
+					in_blk <= in_blk_next;
+					iv <= iv_next;
 				end
 			end
 			AES_STORE_BLOCK:
