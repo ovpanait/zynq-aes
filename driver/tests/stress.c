@@ -97,6 +97,22 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
         }
 }
 
+static int set_randomized_key(int tfmfd, uint8_t *key, unsigned int keysize)
+{
+	int ret;
+
+	get_urandom_bytes(key, keysize);
+	dump_buffer(stdout, "key: ", key, keysize);
+
+	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
+	if (ret == -1) {
+		perror("setsockopt ALG_SET_KEY");
+		exit(EXIT_FAILURE);
+	}
+
+	return 0;
+}
+
 static int do_ecb_stress(unsigned int keysize)
 {
         int opfd;
@@ -142,14 +158,7 @@ static int do_ecb_stress(unsigned int keysize)
                 exit(EXIT_FAILURE);
         }
 
-	get_urandom_bytes(key, keysize);
-	dump_buffer(stdout, "key: ", key, keysize);
-
-	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
-        if (ret == -1) {
-                perror("setsockopt ALG_SET_KEY");
-                exit(EXIT_FAILURE);
-        }
+	set_randomized_key(tfmfd, key, keysize);
 
         opfd = accept(tfmfd, NULL, 0);
         if (opfd == -1) {
@@ -270,14 +279,7 @@ static int do_cbc_stress(unsigned int keysize)
                 exit(EXIT_FAILURE);
         }
 
-	get_urandom_bytes(key, keysize);
-	dump_buffer(stdout, "key: ", key, keysize);
-
-	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
-        if (ret == -1) {
-                perror("setsockopt ALG_SET_KEY");
-                exit(EXIT_FAILURE);
-        }
+	set_randomized_key(tfmfd, key, keysize);
 
         opfd = accept(tfmfd, NULL, 0);
         if (opfd == -1) {
