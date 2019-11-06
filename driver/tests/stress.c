@@ -26,6 +26,14 @@
 #define PAYLOAD_AES_BLOCKS 1000
 #define PAYLOAD_SIZE       (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
 
+struct crypto_op {
+	int tfmfd;
+	int opfd;
+	uint8_t *cbuf;
+	struct msghdr msg;
+	struct iovec iov;
+};
+
 /*
  * Adapted from https://github.com/dsprenkels/randombytes/blob/master/randombytes.c
  */
@@ -56,7 +64,7 @@ static int get_urandom_bytes(void *buf, size_t n)
 	return 0;
 }
 
-static int af_alg_setup(struct sockaddr_alg *sa)
+static int af_alg_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
 {
 	int tfmfd, ret;
 
@@ -73,7 +81,9 @@ static int af_alg_setup(struct sockaddr_alg *sa)
 		exit(EXIT_FAILURE);
 	}
 
-	return tfmfd;
+	cop->tfmfd = tfmfd;
+
+	return 0;
 }
 
 static int alloc_buffer(uint8_t **buf, unsigned int size)
@@ -138,6 +148,7 @@ static int set_randomized_key(int tfmfd, uint8_t *key, unsigned int keysize)
 
 	get_urandom_bytes(key, keysize);
 	dump_buffer(stdout, "key: ", key, keysize);
+	printf("\n");
 
 	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
 	if (ret == -1) {
@@ -148,132 +159,147 @@ static int set_randomized_key(int tfmfd, uint8_t *key, unsigned int keysize)
 	return 0;
 }
 
-static int do_ecb_stress(unsigned int keysize)
+static struct crypto_op *crypto_op_create(void)
 {
-        int opfd;
-        int tfmfd;
-        struct sockaddr_alg sa = {
-                .salg_family = AF_ALG,
-                .salg_type = "skcipher",
-                .salg_name = "ecb(aes)"
-        };
-        struct msghdr msg = {};
-        struct cmsghdr *cmsg;
-        uint8_t cbuf[CMSG_SPACE(4)] = {0};
+	struct crypto_op *cop;
 
-        struct iovec iov;
+	cop = calloc(1, sizeof(struct crypto_op));
+	if (!cop) {
+		perror("Cannot allocate space for struct crypto_op!");
+		exit(EXIT_FAILURE);
+	}
 
-	uint8_t *plaintext_in;
-	uint8_t *plaintext_out;
-	uint8_t *ciphertext;
-	uint8_t *key;
-
-        int ret;
-
-	// Allocate buffers
-	alloc_buffer(&plaintext_in, PAYLOAD_SIZE);
-	alloc_buffer(&plaintext_out, PAYLOAD_SIZE);
-	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
-	alloc_buffer(&key, keysize);
-
-	tfmfd = af_alg_setup(&sa);
-
-	set_randomized_key(tfmfd, key, keysize);
-
-        opfd = accept(tfmfd, NULL, 0);
-        if (opfd == -1) {
-                perror("accept");
-                exit(EXIT_FAILURE);
-        }
-
-        msg.msg_control = cbuf;
-        msg.msg_controllen = sizeof(cbuf);
-
-        cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_ALG;
-        cmsg->cmsg_type = ALG_SET_OP;
-        cmsg->cmsg_len = CMSG_LEN(4);
-
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
-        iov.iov_len = PAYLOAD_SIZE;
-
-	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
-	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
-
-        for (int i = 0; i < ITER_NO; ++i) {
-                printf("Iteration no.: %d\n\n", i);
-                // Encrypt
-                *(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
-                iov.iov_base = plaintext_in;
-
-                ret = sendmsg(opfd, &msg, 0);
-                if (ret == -1) {
-                        perror("sendmsg");
-                        exit(EXIT_FAILURE);
-                }
-
-                memset(ciphertext, 0, iov.iov_len);
-                ret = read(opfd, ciphertext, iov.iov_len);
-                if (ret == -1) {
-                        perror("read");
-                        exit(EXIT_FAILURE);
-                }
-
-                dump_aes_buffer(stdout, "ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
-
-                // Decrypt
-                *(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
-                iov.iov_base = ciphertext;
-
-                ret = sendmsg(opfd, &msg, 0);
-                if (ret == -1) {
-                        perror("sendmsg");
-                        exit(EXIT_FAILURE);
-                }
-
-                memset(plaintext_out, 0, iov.iov_len);
-                ret = read(opfd, plaintext_out, iov.iov_len);
-                if (ret == -1) {
-                        perror("read");
-                        exit(EXIT_FAILURE);
-                }
-
-                dump_aes_buffer(stdout, "plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
-                check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
-
-        }
-        printf("Great success! All blocks match!\n");
-
-        close(opfd);
-        close(tfmfd);
-
-        return 0;
+	return cop;
 }
 
-static int do_cbc_stress(unsigned int keysize)
+static void crypto_op_init(struct crypto_op *cop, size_t iv_size)
 {
-        int opfd;
-        int tfmfd;
-        struct sockaddr_alg sa = {
-                .salg_family = AF_ALG,
-                .salg_type = "skcipher",
-                .salg_name = "cbc(aes)"
-        };
-        struct msghdr msg = {};
-        struct cmsghdr *cmsg;
-        uint8_t cbuf[CMSG_SPACE(4) + CMSG_SPACE(20)] = {0};
+	size_t cbuf_size;
+	uint8_t *cbuf;
+	struct cmsghdr *cmsg;
 
-        struct af_alg_iv *iv; // init vector needed for CBC
-        struct iovec iov;
+	cbuf_size = CMSG_SPACE(4);
+	if (iv_size)
+		cbuf_size += CMSG_SPACE(4 + iv_size);
+	cbuf = calloc(1, cbuf_size);
+	if (!cbuf) {
+		perror("Cannot allocate space for cbuf!");
+		exit(EXIT_FAILURE);
+	}
+
+	cop->msg.msg_control = cbuf;
+	cop->msg.msg_controllen = cbuf_size;
+
+	cmsg = CMSG_FIRSTHDR(&cop->msg);
+	cmsg->cmsg_level = SOL_ALG;
+	cmsg->cmsg_type = ALG_SET_OP;
+	cmsg->cmsg_len = CMSG_LEN(4);
+
+	if (iv_size) {
+		cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
+		cmsg->cmsg_level = SOL_ALG;
+		cmsg->cmsg_type = ALG_SET_IV;
+		cmsg->cmsg_len = CMSG_LEN(4 + iv_size);
+	}
+
+	cop->msg.msg_iov = &cop->iov;
+	cop->msg.msg_iovlen = 1;
+}
+
+static void crypto_op_finish(struct crypto_op *cop)
+{
+	close(cop->opfd);
+	close(cop->tfmfd);
+
+	free(cop->cbuf);
+	free(cop);
+}
+
+static int set_random_iv(struct crypto_op *cop, size_t iv_size)
+{
+	struct af_alg_iv *iv;
+	struct cmsghdr *cmsg;
+
+	cmsg = CMSG_FIRSTHDR(&cop->msg);
+	cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
+	iv = (void *)CMSG_DATA(cmsg);
+	iv->ivlen = iv_size;
+
+	get_urandom_bytes(iv->iv, iv_size);
+	dump_buffer(stdout, "iv:", iv->iv, iv_size);
+	printf("\n");
+
+	return 0;
+}
+
+static int encrypt(struct crypto_op *cop, uint8_t *plaintext,
+			uint8_t *ciphertext, size_t size)
+{
+	int ret;
+	struct cmsghdr *cmsg;
+
+	cmsg = CMSG_FIRSTHDR(&cop->msg);
+
+	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
+	cop->iov.iov_base = plaintext;
+	cop->iov.iov_len = size;
+
+	ret = sendmsg(cop->opfd, &cop->msg, 0);
+	if (ret == -1) {
+		perror("sendmsg");
+		exit(EXIT_FAILURE);
+	}
+
+	ret = read(cop->opfd, ciphertext, cop->iov.iov_len);
+	if (ret == -1) {
+		perror("read");
+		exit(EXIT_FAILURE);
+	}
+
+	return 0;
+}
+static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
+			uint8_t *ciphertext, size_t size)
+{
+	int ret;
+	struct cmsghdr *cmsg;
+
+	cmsg = CMSG_FIRSTHDR(&cop->msg);
+
+	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
+	cop->iov.iov_base = ciphertext;
+
+	ret = sendmsg(cop->opfd, &cop->msg, 0);
+	if (ret == -1) {
+		perror("sendmsg");
+		exit(EXIT_FAILURE);
+	}
+
+	memset(plaintext, 0, cop->iov.iov_len);
+	ret = read(cop->opfd, plaintext, cop->iov.iov_len);
+	if (ret == -1) {
+		perror("read");
+		exit(EXIT_FAILURE);
+	}
+
+	return 0;
+}
+
+
+static int stress(char *alg, unsigned int keysize, int iv_size)
+{
+	struct sockaddr_alg sa;
+	struct crypto_op *cop;
 
 	uint8_t *plaintext_in;
 	uint8_t *plaintext_out;
 	uint8_t *ciphertext;
 	uint8_t *key;
 
-        int ret;
+	memset(&sa, 0, sizeof(struct sockaddr_alg));
+	sa.salg_family = AF_ALG;
+	strncpy((char *)sa.salg_type, "skcipher", 14);
+	strncpy((char *)sa.salg_name, alg, 60);
 
 	// Allocate buffers
 	alloc_buffer(&plaintext_in, PAYLOAD_SIZE);
@@ -281,100 +307,56 @@ static int do_cbc_stress(unsigned int keysize)
 	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
 	alloc_buffer(&key, keysize);
 
-	tfmfd = af_alg_setup(&sa);
+	cop = crypto_op_create();
+	af_alg_setup(cop, &sa);
 
-	set_randomized_key(tfmfd, key, keysize);
+	printf("---- Running testcase for %s, %s, %u bytes key ----\n\n",
+				(char *)sa.salg_type, (char *)sa.salg_name, keysize);
 
-        opfd = accept(tfmfd, NULL, 0);
-        if (opfd == -1) {
-                perror("accept");
-                exit(EXIT_FAILURE);
-        }
+	set_randomized_key(cop->tfmfd, key, keysize);
 
-        msg.msg_control = cbuf;
-        msg.msg_controllen = sizeof(cbuf);
+	cop->opfd = accept(cop->tfmfd, NULL, 0);
+	if (cop->opfd == -1) {
+		perror("accept");
+		exit(EXIT_FAILURE);
+	}
 
-        cmsg = CMSG_FIRSTHDR(&msg);
-        cmsg->cmsg_level = SOL_ALG;
-        cmsg->cmsg_type = ALG_SET_OP;
-        cmsg->cmsg_len = CMSG_LEN(4);
-
-        cmsg = CMSG_NXTHDR(&msg, cmsg);
-        cmsg->cmsg_level = SOL_ALG;
-        cmsg->cmsg_type = ALG_SET_IV;
-	cmsg->cmsg_len = CMSG_LEN(4 + AES_IV_SIZE);
-	iv = (void *)CMSG_DATA(cmsg);
-	iv->ivlen = AES_IV_SIZE;
-	get_urandom_bytes(iv->iv, AES_IV_SIZE);
-	dump_buffer(stdout, "iv:", iv->iv, AES_IV_SIZE);
-
-        cmsg = CMSG_FIRSTHDR(&msg);
-
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
-	iov.iov_len = PAYLOAD_SIZE;
+	crypto_op_init(cop, iv_size);
+	if (iv_size)
+		set_random_iv(cop, AES_IV_SIZE);
 
 	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
 	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
 
-        for (int i = 0; i < ITER_NO; ++i) {
-                printf("Iteration no.: %d\n\n", i);
-                // Encrypt
-                *(__u32 *)CMSG_DATA(cmsg) = ALG_OP_ENCRYPT;
-                iov.iov_base = plaintext_in;
+	for (int i = 0; i < ITER_NO; ++i) {
+		printf("---- Loop no %d ----\n\n", i);
 
-                ret = sendmsg(opfd, &msg, 0);
-                if (ret == -1) {
-                        perror("sendmsg");
-                        exit(EXIT_FAILURE);
-                }
+		encrypt(cop, plaintext_in, ciphertext, PAYLOAD_SIZE);
+		dump_aes_buffer(stdout, "ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
 
-                memset(ciphertext, 0, iov.iov_len);
-                ret = read(opfd, ciphertext, iov.iov_len);
-                if (ret == -1) {
-                        perror("read");
-                        exit(EXIT_FAILURE);
-                }
+		decrypt(cop, plaintext_out, ciphertext, PAYLOAD_SIZE);
+		dump_aes_buffer(stdout, "plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
 
-                dump_aes_buffer(stdout, "ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
+		check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
 
-                // Decrypt
-                *(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
-                iov.iov_base = ciphertext;
+	}
+	printf("PASS!\n\n");
 
-                ret = sendmsg(opfd, &msg, 0);
-                if (ret == -1) {
-                        perror("sendmsg");
-                        exit(EXIT_FAILURE);
-                }
+	crypto_op_finish(cop);
 
-                memset(plaintext_out, 0, iov.iov_len);
-                ret = read(opfd, plaintext_out, iov.iov_len);
-                if (ret == -1) {
-                        perror("read");
-                        exit(EXIT_FAILURE);
-                }
-
-                dump_aes_buffer(stdout, "plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
-                check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
-
-        }
-        printf("Great success! All blocks match!\n");
-
-        close(opfd);
-        close(tfmfd);
-
-        return 0;
+	return 0;
 }
 
 int main(void)
 {
-	do_ecb_stress(AES_KEY128_SIZE);
-	do_cbc_stress(AES_KEY128_SIZE);
+	stress("ecb(aes)", AES_KEY128_SIZE, 0);
+	stress("ecb(aes)", AES_KEY256_SIZE, 0);
 
-	do_ecb_stress(AES_KEY256_SIZE);
-	do_cbc_stress(AES_KEY256_SIZE);
+	stress("cbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress("cbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+
+	stress("ctr(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress("ctr(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	return 0;
 }
