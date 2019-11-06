@@ -56,6 +56,26 @@ static int get_urandom_bytes(void *buf, size_t n)
 	return 0;
 }
 
+static int af_alg_setup(struct sockaddr_alg *sa)
+{
+	int tfmfd, ret;
+
+	// Setup AF_ALG socket
+	tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
+	if (tfmfd == -1) {
+		perror("socket");
+		exit(EXIT_FAILURE);
+	}
+
+	ret = bind(tfmfd, (struct sockaddr *)sa, sizeof(*sa));
+	if (ret == -1) {
+		perror("bind");
+		exit(EXIT_FAILURE);
+	}
+
+	return tfmfd;
+}
+
 static int alloc_buffer(uint8_t **buf, unsigned int size)
 {
 	uint8_t *buf_ptr;
@@ -156,18 +176,7 @@ static int do_ecb_stress(unsigned int keysize)
 	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
 	alloc_buffer(&key, keysize);
 
-	// Setup AF_ALG socket
-        tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
-        if (tfmfd == -1) {
-                perror("socket");
-                exit(EXIT_FAILURE);
-        }
-
-        ret = bind(tfmfd, (struct sockaddr *)&sa, sizeof(sa));
-        if (ret == -1) {
-                perror("bind");
-                exit(EXIT_FAILURE);
-        }
+	tfmfd = af_alg_setup(&sa);
 
 	set_randomized_key(tfmfd, key, keysize);
 
@@ -272,19 +281,7 @@ static int do_cbc_stress(unsigned int keysize)
 	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
 	alloc_buffer(&key, keysize);
 
-        // Setup AF_ALG socket
-        tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
-
-        if (tfmfd == -1) {
-                perror("socket");
-                exit(EXIT_FAILURE);
-        }
-
-        ret = bind(tfmfd, (struct sockaddr *)&sa, sizeof(sa));
-        if (ret == -1) {
-                perror("bind");
-                exit(EXIT_FAILURE);
-        }
+	tfmfd = af_alg_setup(&sa);
 
 	set_randomized_key(tfmfd, key, keysize);
 
