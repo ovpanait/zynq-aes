@@ -65,7 +65,7 @@ task test_256bit_key_cbc_enc();
 	key = AES_KEY256;
 	iv = AES_IV;
 
-	aes_tester256.aes_send_request(cmd, key, iv, plaintext_queue, total_blocks);
+	aes_tester256.aes_send_request(cmd, key, iv, plaintext_queue, total_blocks, 1);
 
 	wait(comparison_cnt == total_blocks * 4);
 
@@ -130,7 +130,7 @@ task test_256bit_key_cbc_dec();
 	key = AES_KEY256;
 	iv = AES_IV;
 
-	aes_tester256.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks);
+	aes_tester256.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks, 1);
 
 	wait(comparison_cnt == total_blocks * 4);
 
@@ -193,7 +193,7 @@ task test_256bit_key_ecb_enc();
 	key = AES_KEY256;
 	iv = {`IV_BITS{1'b0}};
 
-	aes_tester256.aes_send_request(cmd, key, iv, plaintext_queue, total_blocks);
+	aes_tester256.aes_send_request(cmd, key, iv, plaintext_queue, total_blocks, 0);
 
 	wait(comparison_cnt == total_blocks * 4);
 
@@ -257,7 +257,7 @@ task test_256bit_key_ecb_dec();
 	key = AES_KEY256;
 	iv = {`IV_BITS{1'b0}};
 
-	aes_tester256.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks);
+	aes_tester256.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks, 0);
 
 	wait(comparison_cnt == total_blocks * 4);
 
