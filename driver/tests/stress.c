@@ -121,7 +121,7 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
         int i =0;
 
         for (i = 0; i < blocks_no; ++i) {
-                if(strncmp(aes_buf_in + i * AES_BLOCK_SIZE,
+                if(memcmp(aes_buf_in + i * AES_BLOCK_SIZE,
                         aes_buf_out + i * AES_BLOCK_SIZE, AES_BLOCK_SIZE) != 0) {
                         fprintf(stderr, "Block no. %d verification failed!\n", i);
                         dump_aes_buffer(stderr, "Block 1: ", aes_buf_in + i * AES_BLOCK_SIZE, 1);
