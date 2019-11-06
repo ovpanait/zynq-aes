@@ -56,6 +56,21 @@ static int get_urandom_bytes(void *buf, size_t n)
 	return 0;
 }
 
+static int alloc_buffer(uint8_t **buf, unsigned int size)
+{
+	uint8_t *buf_ptr;
+
+	buf_ptr = malloc(size);
+	if (!buf_ptr) {
+		perror("Could not allocate buffer!");
+		exit(EXIT_FAILURE);
+	}
+
+	*buf = buf_ptr;
+
+	return 0;
+}
+
 static void dump_buffer(FILE *file, char *msg, uint8_t *buf, unsigned int size)
 {
 	unsigned int i;
@@ -136,16 +151,12 @@ static int do_ecb_stress(unsigned int keysize)
         int ret;
 
 	// Allocate buffers
-	plaintext_in = malloc(PAYLOAD_SIZE);
-	plaintext_out = malloc(PAYLOAD_SIZE);
-	ciphertext = malloc(PAYLOAD_SIZE);
-	key = malloc(keysize);
-	if (!plaintext_in || !ciphertext || !plaintext_out || !key) {
-		perror("Could not allocate buffers!");
-		exit(EXIT_FAILURE);
-	}
+	alloc_buffer(&plaintext_in, PAYLOAD_SIZE);
+	alloc_buffer(&plaintext_out, PAYLOAD_SIZE);
+	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
+	alloc_buffer(&key, keysize);
 
-        // Setup AF_ALG socket
+	// Setup AF_ALG socket
         tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
         if (tfmfd == -1) {
                 perror("socket");
@@ -255,15 +266,11 @@ static int do_cbc_stress(unsigned int keysize)
 
         int ret;
 
-        // Allocate buffers
-        plaintext_in = malloc(PAYLOAD_SIZE);
-        plaintext_out = malloc(PAYLOAD_SIZE);
-        ciphertext = malloc(PAYLOAD_SIZE);
-        key = malloc(keysize);
-        if (!plaintext_in || !ciphertext || !plaintext_out || !key) {
-                perror("Could not allocate buffers!");
-                exit(EXIT_FAILURE);
-        }
+	// Allocate buffers
+	alloc_buffer(&plaintext_in, PAYLOAD_SIZE);
+	alloc_buffer(&plaintext_out, PAYLOAD_SIZE);
+	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
+	alloc_buffer(&key, keysize);
 
         // Setup AF_ALG socket
         tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
