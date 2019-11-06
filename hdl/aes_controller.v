@@ -53,6 +53,7 @@ reg [`KEY_S-1:0]  aes_key;
 wire [`IV_BITS-1:0] iv_next;
 wire [`IV_BITS-1:0] cbc_iv;
 wire [`IV_BITS-1:0] ecb_iv;
+wire [`IV_BITS-1:0] ctr_iv;
 reg [`IV_BITS-1:0]  iv;
 
 reg               aes_start;
@@ -64,11 +65,13 @@ reg [`BLK_S-1:0]  in_blk;
 wire [`BLK_S-1:0] in_blk_next;
 wire [`BLK_S-1:0] cbc_in_blk;
 wire [`BLK_S-1:0] ecb_in_blk;
+wire [`BLK_S-1:0] ctr_in_blk;
 
 wire [`BLK_S-1:0] out_blk;
 wire [`BLK_S-1:0] out_blk_next;
 wire [`BLK_S-1:0] cbc_out_blk;
 wire [`BLK_S-1:0] ecb_out_blk;
+wire [`BLK_S-1:0] ctr_out_blk;
 
 wire              aes128_mode;
 wire              aes256_mode;
@@ -86,11 +89,20 @@ assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 assign aes128_mode = is_128bit_key(aes_cmd);
 assign aes256_mode = is_256bit_key(aes_cmd);
 
-assign need_iv = is_CBC_op(aes_cmd);
+assign need_iv = is_CBC_op(aes_cmd) || is_CTR_op(aes_cmd);
 
-assign in_blk_next = is_CBC_op(aes_cmd) ? cbc_in_blk : ecb_in_blk;
-assign out_blk_next = is_CBC_op(aes_cmd) ? cbc_out_blk : ecb_out_blk;
-assign iv_next = is_CBC_op(aes_cmd) ? cbc_iv : ecb_iv;
+assign in_blk_next = is_CBC_op(aes_cmd) ? cbc_in_blk :
+                     is_CTR_op(aes_cmd) ? ctr_in_blk :
+                     ecb_in_blk;
+assign out_blk_next = is_CBC_op(aes_cmd) ? cbc_out_blk :
+                      is_CTR_op(aes_cmd) ? ctr_out_blk :
+                      ecb_out_blk;
+assign iv_next = is_CBC_op(aes_cmd) ? cbc_iv :
+                 is_CTR_op(aes_cmd) ? ctr_iv :
+                 ecb_iv;
+
+assign encryption_op = is_encryption(aes_cmd) || is_CTR_op(aes_cmd);
+assign decryption_op = is_decryption(aes_cmd) && !is_CTR_op(aes_cmd);
 
 // CBC
 cbc cbc_mod(
@@ -104,6 +116,17 @@ cbc cbc_mod(
 	.in_blk_next(cbc_in_blk),
 	.out_blk_next(cbc_out_blk),
 	.iv_next(cbc_iv)
+);
+
+// CTR
+ctr ctr_mod(
+	.in_blk(in_blk),
+	.out_blk(out_blk),
+	.iv(iv),
+
+	.in_blk_next(ctr_in_blk),
+	.out_blk_next(ctr_out_blk),
+	.iv_next(ctr_iv)
 );
 
 // ECB
@@ -211,8 +234,8 @@ always @(posedge clk) begin
 
 				if (in_fifo_read_req) begin
 					aes_key_exp_mode <= 1'b0;
-					aes_cipher_mode <= is_encryption(aes_cmd);
-					aes_decipher_mode <= is_decryption(aes_cmd);
+					aes_cipher_mode <= encryption_op;
+					aes_decipher_mode <= decryption_op;
 
 					in_fifo_read_tready <= 1'b0;
 					in_blk <= in_fifo_data;

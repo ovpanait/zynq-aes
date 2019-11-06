@@ -24,6 +24,10 @@ function is_CBC_op(input [`WORD_S-1:0] cmd);
 	is_CBC_op = cmd[`CBC_MODE_BIT];
 endfunction
 
+function is_CTR_op(input [`WORD_S-1:0] cmd);
+	is_CTR_op = cmd[`CTR_MODE_BIT];
+endfunction
+
 function is_CBC_enc(input [`WORD_S-1:0] cmd);
 	is_CBC_enc = is_CBC_op(cmd) && is_encryption(cmd);
 endfunction
@@ -58,5 +62,9 @@ endfunction
 
 function [`WORD_S-1:0] set_CBC_mode_bit(input [`WORD_S-1:0] cmd);
 	set_CBC_mode_bit = cmd | (1 << `CBC_MODE_BIT);
+endfunction
+
+function [`WORD_S-1:0] set_CTR_mode_bit(input [`WORD_S-1:0] cmd);
+	set_CTR_mode_bit = cmd | (1 << `CTR_MODE_BIT);
 endfunction
 
