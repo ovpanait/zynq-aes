@@ -25,11 +25,13 @@
 #define ZYNQAES_KEY_256_BIT          5
 #define ZYNQAES_ECB_MODE_BIT         6
 #define ZYNQAES_CBC_MODE_BIT         7
+#define ZYNQAES_CTR_MODE_BIT         8
 
 #define ZYNQAES_KEY_128_MASK     (1 << ZYNQAES_KEY_128_BIT)
 #define ZYNQAES_KEY_256_MASK     (1 << ZYNQAES_KEY_256_BIT)
 #define ZYNQAES_ECB_MASK         (1 << ZYNQAES_ECB_MODE_BIT)
 #define ZYNQAES_CBC_MASK         (1 << ZYNQAES_CBC_MODE_BIT)
+#define ZYNQAES_CTR_MASK         (1 << ZYNQAES_CTR_MODE_BIT)
 #define ZYNQAES_ENCRYPTION_MASK  (1 << ZYNQAES_ENCRYPTION_OP_BIT)
 #define ZYNQAES_DECRYPTION_MASK  (1 << ZYNQAES_DECRYPTION_OP_BIT)
 
@@ -37,6 +39,7 @@
 #define ZYNQAES_CBC_ENCRYPT (ZYNQAES_CBC_MASK | ZYNQAES_ENCRYPTION_MASK)
 #define ZYNQAES_ECB_DECRYPT (ZYNQAES_ECB_MASK | ZYNQAES_DECRYPTION_MASK)
 #define ZYNQAES_CBC_DECRYPT (ZYNQAES_CBC_MASK | ZYNQAES_DECRYPTION_MASK)
+#define ZYNQAES_CTR_OP      (ZYNQAES_CTR_MASK)
 
 struct zynqaes_dev {
 	struct device *dev;
@@ -95,8 +98,8 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 	}
 }
 
-static int is_cbc_op(u32 cmd) {
-	return cmd & ZYNQAES_CBC_MASK;
+static int is_iv_op(u32 cmd) {
+	return cmd & (ZYNQAES_CBC_MASK | ZYNQAES_CTR_MASK);
 }
 
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
@@ -220,12 +223,12 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 		goto out_err;
 	}
 
-	nsg = is_cbc_op(rctx->cmd) ? 4 : 3;
+	nsg = is_iv_op(rctx->cmd) ? 4 : 3;
 
 	sg_init_table(dma_ctx->tx_sg, nsg);
 	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->cmd, sizeof(rctx->cmd));
 	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, ctx->key_len);
-	if (is_cbc_op(rctx->cmd)) {
+	if (is_iv_op(rctx->cmd)) {
 		sg_set_buf(&dma_ctx->tx_sg[2], rctx->iv, AES_BLOCK_SIZE);
 	}
 	sg_chain(dma_ctx->tx_sg, nsg, areq->src);
@@ -286,7 +289,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	dev_dbg(dd->dev, "[%s:%d] rctx->nbytes: %u\n", __func__, __LINE__, rctx->nbytes);
 	dev_dbg(dd->dev, "[%s:%d] rctx->cmd: %x\n", __func__, __LINE__, rctx->cmd);
 
-	if (is_cbc_op(rctx->cmd)) {
+	if (is_iv_op(rctx->cmd)) {
 		memcpy(rctx->iv, areq->info, AES_BLOCK_SIZE);
 	}
 
@@ -356,6 +359,11 @@ static int zynqaes_cbc_decrypt(struct ablkcipher_request *areq)
 	return zynqaes_crypt(areq, ZYNQAES_CBC_DECRYPT);
 }
 
+static int zynqaes_ctr_op(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypt(areq, ZYNQAES_CTR_OP);
+}
+
 static int zynqaes_cra_init(struct crypto_tfm *tfm)
 {
 	tfm->crt_ablkcipher.reqsize = sizeof(struct zynqaes_reqctx);
@@ -408,6 +416,29 @@ static struct crypto_alg zynqaes_cbc_alg = {
 	}
 };
 
+static struct crypto_alg zynqaes_ctr_alg = {
+	.cra_name		=	"ctr(aes)",
+	.cra_driver_name	=	"zynqaes-ctr",
+	.cra_priority		=	100,
+	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
+					CRYPTO_ALG_ASYNC,
+	.cra_blocksize		=	AES_BLOCK_SIZE,
+	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
+	.cra_type		=	&crypto_ablkcipher_type,
+	.cra_module		=	THIS_MODULE,
+	.cra_init		= 	zynqaes_cra_init,
+	.cra_u			=	{
+		.ablkcipher = {
+			.min_keysize		=	AES_MIN_KEY_SIZE,
+			.max_keysize		=	AES_MAX_KEY_SIZE,
+			.ivsize			=	AES_BLOCK_SIZE,
+			.setkey			=	zynqaes_setkey,
+			.encrypt		=	zynqaes_ctr_op,
+			.decrypt		=	zynqaes_ctr_op,
+		}
+	}
+};
+
 static int zynqaes_probe(struct platform_device *pdev)
 {
 	int err;
@@ -455,9 +486,15 @@ static int zynqaes_probe(struct platform_device *pdev)
 	if ((err = crypto_register_alg(&zynqaes_cbc_alg)))
 		goto free_ecb_alg;
 
+	if ((err = crypto_register_alg(&zynqaes_ctr_alg)))
+		goto free_cbc_alg;
+
 	dev_dbg(dd->dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
 
 	return 0;
+
+free_cbc_alg:
+	crypto_unregister_alg(&zynqaes_cbc_alg);
 
 free_ecb_alg:
 	crypto_unregister_alg(&zynqaes_ecb_alg);
@@ -490,6 +527,7 @@ static int zynqaes_remove(struct platform_device *pdev)
 
 	crypto_unregister_alg(&zynqaes_ecb_alg);
 	crypto_unregister_alg(&zynqaes_cbc_alg);
+	crypto_unregister_alg(&zynqaes_ctr_alg);
 
 	dma_release_channel(dd->rx_chan);
 	dma_release_channel(dd->tx_chan);
