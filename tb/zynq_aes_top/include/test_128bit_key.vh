@@ -65,8 +65,7 @@ task test_128bit_key_ctr_enc();
 				expected_results_queue);
 
 	// Prepare encryption request
-	cmd = set_encryption_op_bit(cmd) |
-	      set_key_128_bit(cmd) |
+	cmd = set_key_128_bit(cmd) |
 	      set_CTR_mode_bit(cmd);
 	key = AES_KEY128;
 	iv = AES_IV;
@@ -130,8 +129,7 @@ task test_128bit_key_ctr_dec();
 				expected_results_queue);
 
 	// Prepare encryption request
-	cmd = set_decryption_op_bit(cmd) |
-	      set_key_128_bit(cmd) |
+	cmd = set_key_128_bit(cmd) |
 	      set_CTR_mode_bit(cmd);
 	key = AES_KEY128;
 	iv = AES_IV;

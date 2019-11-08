@@ -102,7 +102,7 @@ assign iv_next = is_CBC_op(aes_cmd) ? cbc_iv :
                  ecb_iv;
 
 assign encryption_op = is_encryption(aes_cmd) || is_CTR_op(aes_cmd);
-assign decryption_op = is_decryption(aes_cmd) && !is_CTR_op(aes_cmd);
+assign decryption_op = is_decryption(aes_cmd);
 
 // CBC
 cbc cbc_mod(
