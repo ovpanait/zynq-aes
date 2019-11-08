@@ -256,7 +256,6 @@ always @(posedge clk) begin
 					state <= AES_STORE_BLOCK;
 
 					out_fifo_data <= out_blk_next;
-					in_blk <= in_blk_next;
 					iv <= iv_next;
 				end
 			end
