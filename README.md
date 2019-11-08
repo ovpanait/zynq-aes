@@ -1,7 +1,7 @@
 # AES hardware engine for Xilinx Zynq platform
 
 - 128/256-bits key support
-- ECB/CBC support
+- ECB/CBC/CTR support
 - IPSEC offloading OK
 - driver compatible with linux-xlnx v4.14 branch
 
