@@ -28,6 +28,10 @@ function is_CTR_op(input [`WORD_S-1:0] cmd);
 	is_CTR_op = cmd[`CTR_MODE_BIT];
 endfunction
 
+function is_ECB_op(input [`WORD_S-1:0] cmd);
+	is_ECB_op = cmd[`ECB_MODE_BIT];
+endfunction
+
 function is_CBC_enc(input [`WORD_S-1:0] cmd);
 	is_CBC_enc = is_CBC_op(cmd) && is_encryption(cmd);
 endfunction

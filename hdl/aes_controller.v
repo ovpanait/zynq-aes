@@ -52,7 +52,6 @@ reg [`KEY_S-1:0]  aes_key;
 
 wire [`IV_BITS-1:0] iv_next;
 wire [`IV_BITS-1:0] cbc_iv;
-wire [`IV_BITS-1:0] ecb_iv;
 wire [`IV_BITS-1:0] ctr_iv;
 reg [`IV_BITS-1:0]  iv;
 
@@ -93,16 +92,29 @@ assign need_iv = is_CBC_op(aes_cmd) || is_CTR_op(aes_cmd);
 
 assign in_blk_next = is_CBC_op(aes_cmd) ? cbc_in_blk :
                      is_CTR_op(aes_cmd) ? ctr_in_blk :
-                     ecb_in_blk;
+                     is_ECB_op(aes_cmd) ? ecb_in_blk :
+                     {`BLK_S{1'b0}};
+
 assign out_blk_next = is_CBC_op(aes_cmd) ? cbc_out_blk :
                       is_CTR_op(aes_cmd) ? ctr_out_blk :
-                      ecb_out_blk;
+                      is_ECB_op(aes_cmd) ? ecb_out_blk :
+                      {`BLK_S{1'b0}};
+
 assign iv_next = is_CBC_op(aes_cmd) ? cbc_iv :
                  is_CTR_op(aes_cmd) ? ctr_iv :
-                 ecb_iv;
+                 {`IV_BITS{1'b0}};
 
 assign encryption_op = is_encryption(aes_cmd) || is_CTR_op(aes_cmd);
 assign decryption_op = is_decryption(aes_cmd);
+
+// ECB
+ecb ecb_mod(
+	.in_blk(in_blk),
+	.out_blk(out_blk),
+
+	.in_blk_next(ecb_in_blk),
+	.out_blk_next(ecb_out_blk)
+);
 
 // CBC
 cbc cbc_mod(
@@ -128,11 +140,6 @@ ctr ctr_mod(
 	.out_blk_next(ctr_out_blk),
 	.iv_next(ctr_iv)
 );
-
-// ECB
-assign ecb_iv = {`IV_BITS{1'b0}};
-assign ecb_in_blk = in_blk;
-assign ecb_out_blk = out_blk;
 
 aes_top aes_mod(
 	.clk(clk),
