@@ -32,5 +32,6 @@
 `define ECB_MODE_BIT         6
 `define CBC_MODE_BIT         7
 `define CTR_MODE_BIT         8
+`define PCBC_MODE_BIT        9
 
 `endif
