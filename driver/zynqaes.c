@@ -27,19 +27,19 @@
 #define ZYNQAES_CBC_MODE_BIT         7
 #define ZYNQAES_CTR_MODE_BIT         8
 
-#define ZYNQAES_KEY_128_MASK     (1 << ZYNQAES_KEY_128_BIT)
-#define ZYNQAES_KEY_256_MASK     (1 << ZYNQAES_KEY_256_BIT)
-#define ZYNQAES_ECB_MASK         (1 << ZYNQAES_ECB_MODE_BIT)
-#define ZYNQAES_CBC_MASK         (1 << ZYNQAES_CBC_MODE_BIT)
-#define ZYNQAES_CTR_MASK         (1 << ZYNQAES_CTR_MODE_BIT)
-#define ZYNQAES_ENCRYPTION_MASK  (1 << ZYNQAES_ENCRYPTION_OP_BIT)
-#define ZYNQAES_DECRYPTION_MASK  (1 << ZYNQAES_DECRYPTION_OP_BIT)
+#define ZYNQAES_KEY_128_FLAG     BIT(ZYNQAES_KEY_128_BIT)
+#define ZYNQAES_KEY_256_FLAG     BIT(ZYNQAES_KEY_256_BIT)
+#define ZYNQAES_ECB_FLAG         BIT(ZYNQAES_ECB_MODE_BIT)
+#define ZYNQAES_CBC_FLAG         BIT(ZYNQAES_CBC_MODE_BIT)
+#define ZYNQAES_CTR_FLAG         BIT(ZYNQAES_CTR_MODE_BIT)
+#define ZYNQAES_ENCRYPTION_FLAG  BIT(ZYNQAES_ENCRYPTION_OP_BIT)
+#define ZYNQAES_DECRYPTION_FLAG  BIT(ZYNQAES_DECRYPTION_OP_BIT)
 
-#define ZYNQAES_ECB_ENCRYPT (ZYNQAES_ECB_MASK | ZYNQAES_ENCRYPTION_MASK)
-#define ZYNQAES_CBC_ENCRYPT (ZYNQAES_CBC_MASK | ZYNQAES_ENCRYPTION_MASK)
-#define ZYNQAES_ECB_DECRYPT (ZYNQAES_ECB_MASK | ZYNQAES_DECRYPTION_MASK)
-#define ZYNQAES_CBC_DECRYPT (ZYNQAES_CBC_MASK | ZYNQAES_DECRYPTION_MASK)
-#define ZYNQAES_CTR_OP      (ZYNQAES_CTR_MASK)
+#define ZYNQAES_ECB_ENCRYPT (ZYNQAES_ECB_FLAG | ZYNQAES_ENCRYPTION_FLAG)
+#define ZYNQAES_CBC_ENCRYPT (ZYNQAES_CBC_FLAG | ZYNQAES_ENCRYPTION_FLAG)
+#define ZYNQAES_ECB_DECRYPT (ZYNQAES_ECB_FLAG | ZYNQAES_DECRYPTION_FLAG)
+#define ZYNQAES_CBC_DECRYPT (ZYNQAES_CBC_FLAG | ZYNQAES_DECRYPTION_FLAG)
+#define ZYNQAES_CTR_OP      (ZYNQAES_CTR_FLAG)
 
 struct zynqaes_dev {
 	struct device *dev;
@@ -88,10 +88,10 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 {
 	switch (key_len) {
 	case AES_KEYSIZE_128:
-		rctx->cmd |= ZYNQAES_KEY_128_MASK;
+		rctx->cmd |= ZYNQAES_KEY_128_FLAG;
 		break;
 	case AES_KEYSIZE_256:
-		rctx->cmd |= ZYNQAES_KEY_256_MASK;
+		rctx->cmd |= ZYNQAES_KEY_256_FLAG;
 		break;
 	default:
 		break;
@@ -99,7 +99,7 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 }
 
 static int is_iv_op(u32 cmd) {
-	return cmd & (ZYNQAES_CBC_MASK | ZYNQAES_CTR_MASK);
+	return cmd & (ZYNQAES_CBC_FLAG | ZYNQAES_CTR_FLAG);
 }
 
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
