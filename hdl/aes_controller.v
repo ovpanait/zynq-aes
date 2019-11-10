@@ -54,6 +54,7 @@ reg [`IV_BITS-1:0]  iv;
 wire [`IV_BITS-1:0] iv_next;
 wire [`IV_BITS-1:0] cbc_iv;
 wire [`IV_BITS-1:0] ctr_iv;
+wire [`IV_BITS-1:0] cfb_iv;
 wire [`IV_BITS-1:0] pcbc_iv;
 
 reg               aes_start;
@@ -66,6 +67,7 @@ wire [`BLK_S-1:0] in_blk_next;
 wire [`BLK_S-1:0] cbc_in_blk;
 wire [`BLK_S-1:0] ecb_in_blk;
 wire [`BLK_S-1:0] ctr_in_blk;
+wire [`BLK_S-1:0] cfb_in_blk;
 wire [`BLK_S-1:0] pcbc_in_blk;
 
 wire [`BLK_S-1:0] out_blk;
@@ -73,6 +75,7 @@ wire [`BLK_S-1:0] out_blk_next;
 wire [`BLK_S-1:0] cbc_out_blk;
 wire [`BLK_S-1:0] ecb_out_blk;
 wire [`BLK_S-1:0] ctr_out_blk;
+wire [`BLK_S-1:0] cfb_out_blk;
 wire [`BLK_S-1:0] pcbc_out_blk;
 
 wire              aes128_mode;
@@ -94,6 +97,7 @@ assign aes256_mode = is_256bit_key(aes_cmd);
 assign need_iv =
                  is_CBC_op(aes_cmd) ||
                  is_CTR_op(aes_cmd) ||
+                 is_CFB_op(aes_cmd) ||
                  is_PCBC_op(aes_cmd)
                  ? 1'b1 : 1'b0;
 
@@ -101,6 +105,7 @@ assign in_blk_next =
                      is_PCBC_op(aes_cmd) ? pcbc_in_blk :
                      is_CBC_op(aes_cmd)  ? cbc_in_blk  :
                      is_CTR_op(aes_cmd)  ? ctr_in_blk  :
+                     is_CFB_op(aes_cmd)  ? cfb_in_blk  :
                      is_ECB_op(aes_cmd)  ? ecb_in_blk  :
                      {`BLK_S{1'b0}};
 
@@ -108,6 +113,7 @@ assign out_blk_next =
                       is_PCBC_op(aes_cmd) ? pcbc_out_blk :
                       is_CBC_op(aes_cmd)  ? cbc_out_blk  :
                       is_CTR_op(aes_cmd)  ? ctr_out_blk  :
+                      is_CFB_op(aes_cmd)  ? cfb_out_blk  :
                       is_ECB_op(aes_cmd)  ? ecb_out_blk  :
                       {`BLK_S{1'b0}};
 
@@ -115,10 +121,19 @@ assign iv_next =
                  is_PCBC_op(aes_cmd) ? pcbc_iv :
                  is_CBC_op(aes_cmd) ? cbc_iv :
                  is_CTR_op(aes_cmd) ? ctr_iv :
+                 is_CFB_op(aes_cmd) ? cfb_iv :
                  {`IV_BITS{1'b0}};
 
-assign encryption_op = is_encryption(aes_cmd) || is_CTR_op(aes_cmd);
-assign decryption_op = is_decryption(aes_cmd);
+assign encrypt_flag = is_encryption(aes_cmd);
+assign decrypt_flag = is_decryption(aes_cmd);
+
+assign encryption_op = encrypt_flag
+                       || is_CTR_op(aes_cmd)
+                       || is_CFB_op(aes_cmd);
+
+assign decryption_op = decrypt_flag
+                       && !is_CTR_op(aes_cmd)
+                       && !is_CFB_op(aes_cmd);
 
 // ECB
 ecb ecb_mod(
@@ -131,8 +146,8 @@ ecb ecb_mod(
 
 // CBC
 cbc cbc_mod(
-	.encryption(aes_cipher_mode),
-	.decryption(aes_decipher_mode),
+	.encryption(encrypt_flag),
+	.decryption(decrypt_flag),
 
 	.in_blk(in_blk),
 	.out_blk(out_blk),
@@ -156,8 +171,8 @@ ctr ctr_mod(
 
 // PCBC
 pcbc pcbc_mod(
-	.encryption(aes_cipher_mode),
-	.decryption(aes_decipher_mode),
+	.encryption(encrypt_flag),
+	.decryption(decrypt_flag),
 
 	.in_blk(in_blk),
 	.out_blk(out_blk),
@@ -166,6 +181,19 @@ pcbc pcbc_mod(
 	.in_blk_next(pcbc_in_blk),
 	.out_blk_next(pcbc_out_blk),
 	.iv_next(pcbc_iv)
+);
+
+// CFB
+cfb cfb_mod(
+	.encryption(encrypt_flag),
+
+	.in_blk(in_blk),
+	.out_blk(out_blk),
+	.iv(iv),
+
+	.in_blk_next(cfb_in_blk),
+	.out_blk_next(cfb_out_blk),
+	.iv_next(cfb_iv)
 );
 
 aes_top aes_mod(

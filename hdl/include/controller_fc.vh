@@ -28,6 +28,10 @@ function is_CTR_op(input [`WORD_S-1:0] cmd);
 	is_CTR_op = cmd[`CTR_MODE_BIT];
 endfunction
 
+function is_CFB_op(input [`WORD_S-1:0] cmd);
+	is_CFB_op = cmd[`CFB_MODE_BIT];
+endfunction
+
 function is_ECB_op(input [`WORD_S-1:0] cmd);
 	is_ECB_op = cmd[`ECB_MODE_BIT];
 endfunction
@@ -66,6 +70,10 @@ endfunction
 
 function [`WORD_S-1:0] set_CTR_mode_bit(input [`WORD_S-1:0] cmd);
 	set_CTR_mode_bit = cmd | (1 << `CTR_MODE_BIT);
+endfunction
+
+function [`WORD_S-1:0] set_CFB_mode_bit(input [`WORD_S-1:0] cmd);
+	set_CFB_mode_bit = cmd | (1 << `CFB_MODE_BIT);
 endfunction
 
 function [`WORD_S-1:0] set_PCBC_mode_bit(input [`WORD_S-1:0] cmd);
