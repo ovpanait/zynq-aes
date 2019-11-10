@@ -5,7 +5,14 @@ module aes_controller #
 	IN_FIFO_ADDR_WIDTH = 9,
 	IN_FIFO_DATA_WIDTH = 128,
 	OUT_FIFO_ADDR_WIDTH = 9,
-	OUT_FIFO_DATA_WIDTH = 128
+	OUT_FIFO_DATA_WIDTH = 128,
+
+	parameter ECB_SUPPORT =  1,
+	parameter CBC_SUPPORT =  1,
+	parameter CTR_SUPPORT =  1,
+	parameter CFB_SUPPORT =  1,
+	parameter OFB_SUPPORT =  1,
+	parameter PCBC_SUPPORT = 1
 )
 (
 	input                                clk,
@@ -104,13 +111,6 @@ assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 assign aes128_mode = is_128bit_key(aes_cmd);
 assign aes256_mode = is_256bit_key(aes_cmd);
 
-assign ecb_flag = is_ECB_op(aes_cmd);
-assign cbc_flag = is_CBC_op(aes_cmd);
-assign ctr_flag = is_CTR_op(aes_cmd);
-assign cfb_flag = is_CFB_op(aes_cmd);
-assign ofb_flag = is_OFB_op(aes_cmd);
-assign pcbc_flag = is_PCBC_op(aes_cmd);
-
 assign need_iv =
                  cbc_flag ||
                  ctr_flag ||
@@ -157,78 +157,119 @@ assign decryption_op = decrypt_flag
                        && !ctr_flag
                        && !cfb_flag
                        && !ofb_flag;
+generate
+if (ECB_SUPPORT) begin
+	assign ecb_flag = is_ECB_op(aes_cmd);
 
-// ECB
-ecb ecb_mod(
-	.in_blk(in_blk),
-	.out_blk(out_blk),
+	ecb ecb_mod(
+		.in_blk(in_blk),
+		.out_blk(out_blk),
 
-	.in_blk_next(ecb_in_blk),
-	.out_blk_next(ecb_out_blk)
-);
+		.in_blk_next(ecb_in_blk),
+		.out_blk_next(ecb_out_blk)
+	);
+end else begin
+	assign ecb_flag = 1'b0;
+end
+endgenerate
 
-// CBC
-cbc cbc_mod(
-	.encryption(encrypt_flag),
-	.decryption(decrypt_flag),
+generate
+if (CBC_SUPPORT) begin
+	assign cbc_flag = is_CBC_op(aes_cmd);
 
-	.in_blk(in_blk),
-	.out_blk(out_blk),
-	.iv(iv),
+	cbc cbc_mod(
+		.encryption(encrypt_flag),
+		.decryption(decrypt_flag),
 
-	.in_blk_next(cbc_in_blk),
-	.out_blk_next(cbc_out_blk),
-	.iv_next(cbc_iv)
-);
+		.in_blk(in_blk),
+		.out_blk(out_blk),
+		.iv(iv),
 
-// CTR
-ctr ctr_mod(
-	.in_blk(in_blk),
-	.out_blk(out_blk),
-	.iv(iv),
+		.in_blk_next(cbc_in_blk),
+		.out_blk_next(cbc_out_blk),
+		.iv_next(cbc_iv)
+	);
+end else begin
+	assign cbc_flag = 1'b0;
+end
+endgenerate
 
-	.in_blk_next(ctr_in_blk),
-	.out_blk_next(ctr_out_blk),
-	.iv_next(ctr_iv)
-);
+generate
+if (CTR_SUPPORT) begin
+	assign ctr_flag = is_CTR_op(aes_cmd);
 
-// PCBC
-pcbc pcbc_mod(
-	.encryption(encrypt_flag),
-	.decryption(decrypt_flag),
+	ctr ctr_mod(
+		.in_blk(in_blk),
+		.out_blk(out_blk),
+		.iv(iv),
 
-	.in_blk(in_blk),
-	.out_blk(out_blk),
-	.iv(iv),
+		.in_blk_next(ctr_in_blk),
+		.out_blk_next(ctr_out_blk),
+		.iv_next(ctr_iv)
+	);
+end else begin
+	assign ctr_flag = 1'b0;
+end
+endgenerate
 
-	.in_blk_next(pcbc_in_blk),
-	.out_blk_next(pcbc_out_blk),
-	.iv_next(pcbc_iv)
-);
+generate
+if (PCBC_SUPPORT) begin
+	assign pcbc_flag = is_PCBC_op(aes_cmd);
 
-// CFB
-cfb cfb_mod(
-	.encryption(encrypt_flag),
+	pcbc pcbc_mod(
+		.encryption(encrypt_flag),
+		.decryption(decrypt_flag),
 
-	.in_blk(in_blk),
-	.out_blk(out_blk),
-	.iv(iv),
+		.in_blk(in_blk),
+		.out_blk(out_blk),
+		.iv(iv),
 
-	.in_blk_next(cfb_in_blk),
-	.out_blk_next(cfb_out_blk),
-	.iv_next(cfb_iv)
-);
+		.in_blk_next(pcbc_in_blk),
+		.out_blk_next(pcbc_out_blk),
+		.iv_next(pcbc_iv)
+	);
+end else begin
+	assign pcbc_flag = 1'b0;
+end
+endgenerate
 
-// OFB
-ofb ofb_mod(
-	.in_blk(in_blk),
-	.out_blk(out_blk),
-	.iv(iv),
+generate
+if (CFB_SUPPORT) begin
+	assign cfb_flag = is_CFB_op(aes_cmd);
 
-	.in_blk_next(ofb_in_blk),
-	.out_blk_next(ofb_out_blk),
-	.iv_next(ofb_iv)
-);
+	cfb cfb_mod(
+		.encryption(encrypt_flag),
+
+		.in_blk(in_blk),
+		.out_blk(out_blk),
+		.iv(iv),
+
+		.in_blk_next(cfb_in_blk),
+		.out_blk_next(cfb_out_blk),
+		.iv_next(cfb_iv)
+	);
+end else begin
+	assign cfb_flag = 1'b0;
+end
+endgenerate
+
+generate
+if (OFB_SUPPORT) begin
+	assign ofb_flag = is_OFB_op(aes_cmd);
+
+	ofb ofb_mod(
+		.in_blk(in_blk),
+		.out_blk(out_blk),
+		.iv(iv),
+
+		.in_blk_next(ofb_in_blk),
+		.out_blk_next(ofb_out_blk),
+		.iv_next(ofb_iv)
+	);
+end else begin
+	assign ofb_flag = 1'b0;
+end
+endgenerate
 
 // AES algorithm
 aes_top aes_mod(
