@@ -78,7 +78,7 @@ static int af_alg_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
 	ret = bind(tfmfd, (struct sockaddr *)sa, sizeof(*sa));
 	if (ret == -1) {
 		perror("bind");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
 	cop->tfmfd = tfmfd;
@@ -288,6 +288,8 @@ static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 
 static int stress(char *alg, unsigned int keysize, int iv_size)
 {
+	int ret;
+
 	struct sockaddr_alg sa;
 	struct crypto_op *cop;
 
@@ -308,7 +310,14 @@ static int stress(char *alg, unsigned int keysize, int iv_size)
 	alloc_buffer(&key, keysize);
 
 	cop = crypto_op_create();
-	af_alg_setup(cop, &sa);
+	ret = af_alg_setup(cop, &sa);
+	if (ret) {
+		fprintf(stderr, "Failed to run testcase for "
+			"%s, %s, %u bytes key\n\n", (char *)sa.salg_type,
+			(char *)sa.salg_name, keysize);
+
+		return -1;
+	}
 
 	printf("---- Running testcase for %s, %s, %u bytes key ----\n\n",
 				(char *)sa.salg_type, (char *)sa.salg_name, keysize);
