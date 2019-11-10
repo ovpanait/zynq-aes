@@ -361,5 +361,8 @@ int main(void)
 	stress("pcbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
 	stress("pcbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
+	stress("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+
 	return 0;
 }
