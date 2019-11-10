@@ -34,5 +34,6 @@
 `define CTR_MODE_BIT         8
 `define PCBC_MODE_BIT        9
 `define CFB_MODE_BIT         10
+`define OFB_MODE_BIT         11
 
 `endif
