@@ -1,3 +1,4 @@
+// ---------- ECB ----------
 module ecb(
 	input [`BLK_S-1:0]           in_blk,
 	input [`BLK_S-1:0]           out_blk,
@@ -12,6 +13,7 @@ always @(*) begin
 end
 endmodule
 
+// ---------- CBC ----------
 module cbc(
 	input                        encryption,
 	input                        decryption,
@@ -38,6 +40,7 @@ always @(*) begin
 end
 endmodule
 
+// ---------- CTR ----------
 module ctr(
 	input [`BLK_S-1:0]           in_blk,
 	input [`BLK_S-1:0]           out_blk,
@@ -62,6 +65,7 @@ always @(*) begin
 end
 endmodule
 
+// ---------- CFB ----------
 module cfb(
 	input                        encryption,
 
@@ -87,7 +91,7 @@ always @(*) begin
 end
 endmodule
 
-
+// ---------- OFB ----------
 module ofb(
 	input [`BLK_S-1:0]           in_blk,
 	input [`BLK_S-1:0]           out_blk,
@@ -105,7 +109,7 @@ always @(*) begin
 end
 endmodule
 
-
+// ---------- PCBC ----------
 module pcbc(
 	input                        encryption,
 	input                        decryption,
