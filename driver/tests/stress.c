@@ -373,5 +373,8 @@ int main(void)
 	stress("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
 	stress("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
+	stress("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+
 	return 0;
 }
