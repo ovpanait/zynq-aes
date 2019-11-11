@@ -20,9 +20,15 @@ module zynq_aes_top #
          * 32 kB by default.
          * Must be a multiple of the AES block size (128 bits).
          */
-        parameter integer DATA_FIFO_SIZE = 2048
-)
-(
+        parameter integer DATA_FIFO_SIZE = 2048,
+
+	parameter ECB_SUPPORT =  1,
+	parameter CBC_SUPPORT =  1,
+	parameter CTR_SUPPORT =  1,
+	parameter CFB_SUPPORT =  1,
+	parameter OFB_SUPPORT =  1,
+	parameter PCBC_SUPPORT = 1
+)(
         /*
         * Master side ports
         */
@@ -147,7 +153,14 @@ aes_controller #(
 	.IN_FIFO_ADDR_WIDTH(IN_BRAM_ADDR_WIDTH),
 	.IN_FIFO_DATA_WIDTH(IN_BRAM_DATA_WIDTH),
 	.OUT_FIFO_ADDR_WIDTH(OUT_BRAM_ADDR_WIDTH),
-	.OUT_FIFO_DATA_WIDTH(OUT_BRAM_DATA_WIDTH)
+	.OUT_FIFO_DATA_WIDTH(OUT_BRAM_DATA_WIDTH),
+
+	.ECB_SUPPORT(ECB_SUPPORT),
+	.CBC_SUPPORT(CBC_SUPPORT),
+	.CTR_SUPPORT(CTR_SUPPORT),
+	.CFB_SUPPORT(CFB_SUPPORT),
+	.OFB_SUPPORT(OFB_SUPPORT),
+	.PCBC_SUPPORT(PCBC_SUPPORT)
 ) controller(
 	.clk(s00_axis_aclk),
 	.reset(!s00_axis_aresetn),
