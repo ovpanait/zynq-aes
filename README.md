@@ -83,23 +83,17 @@ root@arty-zynq7:~# openssl speed -evp aes-128-cbc -elapsed
 
 Software-only:
 root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
-OpenSSL 1.1.1a  20 Nov 2018
-built on: Fri Jun  7 11:04:38 2019 UTC
-options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
-compiler: arm-poky-linux-gnueabi-gcc  -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fdebug-prefix-map= -fdebug-prefix-map= -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
-The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
 aes-128-ecb      20565.61k    23967.59k    25016.06k    25291.09k    25331.03k    25340.59k    25329.66k    25285.97k    24958.29k    24226.47k
 
 HW acceleration:
 root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
-OpenSSL 1.1.1c  28 May 2019
-built on: Sat Jul 20 06:22:15 2019 UTC
-options:bn(64,32) rc4(char) des(long) aes(partial) idea(int) blowfish(ptr) 
-compiler: arm-poky-linux-gnueabi-gcc  -mthumb -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a9 -fstack-protector-strong  -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Werror=format-security --sysroot=recipe-sysroot -O2 -pipe -g -feliminate-unused-debug-types -fmacro-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map=                      -fdebug-prefix-map= -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSL_CPUID_OBJ -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DKECCAK1600_ASM -DAES_ASM -DBSAES_ASM -DGHASH_ASM -DECP_NISTZ256_ASM -DPOLY1305_ASM -DNDEBUG
-The 'numbers' are in 1000s of bytes per second processed.
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
 aes-128-ecb        173.85k      706.39k     2848.09k    12089.69k    20168.02k    28099.93k    40547.67k    50320.73k    57256.62k    61123.24k
+
+root@arty-zynq7:~# openssl speed -evp aes-256-ecb -elapsed
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-256-ecb        242.25k      959.85k     3599.27k    12545.37k    20384.43k    29428.39k    38150.14k    44952.23k    49283.07k    51926.36k
 ```
 
 #### CBC
