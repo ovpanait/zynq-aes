@@ -28,25 +28,29 @@
 #define ZYNQAES_CTR_MODE_BIT         8
 #define ZYNQAES_PCBC_MODE_BIT        9
 #define ZYNQAES_CFB_MODE_BIT         10
+#define ZYNQAES_OFB_MODE_BIT         11
 
+#define ZYNQAES_ENCRYPTION_FLAG  BIT(ZYNQAES_ENCRYPTION_OP_BIT)
+#define ZYNQAES_DECRYPTION_FLAG  BIT(ZYNQAES_DECRYPTION_OP_BIT)
 #define ZYNQAES_KEY_128_FLAG     BIT(ZYNQAES_KEY_128_BIT)
 #define ZYNQAES_KEY_256_FLAG     BIT(ZYNQAES_KEY_256_BIT)
 #define ZYNQAES_ECB_FLAG         BIT(ZYNQAES_ECB_MODE_BIT)
 #define ZYNQAES_CBC_FLAG         BIT(ZYNQAES_CBC_MODE_BIT)
 #define ZYNQAES_CTR_FLAG         BIT(ZYNQAES_CTR_MODE_BIT)
 #define ZYNQAES_CFB_FLAG         BIT(ZYNQAES_CFB_MODE_BIT)
+#define ZYNQAES_OFB_FLAG         BIT(ZYNQAES_OFB_MODE_BIT)
 #define ZYNQAES_PCBC_FLAG        BIT(ZYNQAES_PCBC_MODE_BIT)
-#define ZYNQAES_ENCRYPTION_FLAG  BIT(ZYNQAES_ENCRYPTION_OP_BIT)
-#define ZYNQAES_DECRYPTION_FLAG  BIT(ZYNQAES_DECRYPTION_OP_BIT)
 
 #define ZYNQAES_ECB_ENCRYPT  (ZYNQAES_ECB_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_CBC_ENCRYPT  (ZYNQAES_CBC_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_CFB_ENCRYPT  (ZYNQAES_CFB_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
+#define ZYNQAES_OFB_ENCRYPT  (ZYNQAES_OFB_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_PCBC_ENCRYPT (ZYNQAES_PCBC_FLAG | ZYNQAES_ENCRYPTION_FLAG)
 
 #define ZYNQAES_ECB_DECRYPT  (ZYNQAES_ECB_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_CBC_DECRYPT  (ZYNQAES_CBC_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_CFB_DECRYPT  (ZYNQAES_CFB_FLAG  | ZYNQAES_DECRYPTION_FLAG)
+#define ZYNQAES_OFB_DECRYPT  (ZYNQAES_OFB_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_PCBC_DECRYPT (ZYNQAES_PCBC_FLAG | ZYNQAES_DECRYPTION_FLAG)
 
 #define ZYNQAES_CTR_OP       (ZYNQAES_CTR_FLAG)
@@ -110,7 +114,8 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 
 static int is_iv_op(u32 cmd) {
 	return cmd & (ZYNQAES_CBC_FLAG  | ZYNQAES_CTR_FLAG |
-		      ZYNQAES_PCBC_FLAG | ZYNQAES_CFB_FLAG);
+		      ZYNQAES_PCBC_FLAG | ZYNQAES_CFB_FLAG |
+		      ZYNQAES_OFB_FLAG);
 }
 
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
@@ -395,6 +400,16 @@ static int zynqaes_cfb_decrypt(struct ablkcipher_request *areq)
 	return zynqaes_crypt(areq, ZYNQAES_CFB_DECRYPT);
 }
 
+static int zynqaes_ofb_encrypt(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypt(areq, ZYNQAES_OFB_ENCRYPT);
+}
+
+static int zynqaes_ofb_decrypt(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypt(areq, ZYNQAES_OFB_DECRYPT);
+}
+
 static int zynqaes_cra_init(struct crypto_tfm *tfm)
 {
 	tfm->crt_ablkcipher.reqsize = sizeof(struct zynqaes_reqctx);
@@ -516,6 +531,29 @@ static struct crypto_alg zynqaes_cfb_alg = {
 	}
 };
 
+static struct crypto_alg zynqaes_ofb_alg = {
+	.cra_name		=	"ofb(aes)",
+	.cra_driver_name	=	"zynqaes-ofb",
+	.cra_priority		=	100,
+	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
+					CRYPTO_ALG_ASYNC,
+	.cra_blocksize		=	AES_BLOCK_SIZE,
+	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
+	.cra_type		=	&crypto_ablkcipher_type,
+	.cra_module		=	THIS_MODULE,
+	.cra_init		= 	zynqaes_cra_init,
+	.cra_u			=	{
+		.ablkcipher = {
+			.min_keysize		=	AES_MIN_KEY_SIZE,
+			.max_keysize		=	AES_MAX_KEY_SIZE,
+			.ivsize			=	AES_BLOCK_SIZE,
+			.setkey			=	zynqaes_setkey,
+			.encrypt		=	zynqaes_ofb_encrypt,
+			.decrypt		=	zynqaes_ofb_decrypt,
+		}
+	}
+};
+
 static int zynqaes_probe(struct platform_device *pdev)
 {
 	int err;
@@ -572,9 +610,15 @@ static int zynqaes_probe(struct platform_device *pdev)
 	if ((err = crypto_register_alg(&zynqaes_cfb_alg)))
 		goto free_pcbc_alg;
 
+	if ((err = crypto_register_alg(&zynqaes_ofb_alg)))
+		goto free_cfb_alg;
+
 	dev_dbg(dd->dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
 
 	return 0;
+
+free_cfb_alg:
+	crypto_unregister_alg(&zynqaes_cfb_alg);
 
 free_pcbc_alg:
 	crypto_unregister_alg(&zynqaes_pcbc_alg);
@@ -619,6 +663,7 @@ static int zynqaes_remove(struct platform_device *pdev)
 	crypto_unregister_alg(&zynqaes_ctr_alg);
 	crypto_unregister_alg(&zynqaes_pcbc_alg);
 	crypto_unregister_alg(&zynqaes_cfb_alg);
+	crypto_unregister_alg(&zynqaes_ofb_alg);
 
 	dma_release_channel(dd->rx_chan);
 	dma_release_channel(dd->tx_chan);
