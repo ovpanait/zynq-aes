@@ -655,9 +655,6 @@ static int zynqaes_remove(struct platform_device *pdev)
 {
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	dmaengine_terminate_all(dd->rx_chan);
-	dmaengine_terminate_all(dd->tx_chan);
-
 	crypto_unregister_alg(&zynqaes_ecb_alg);
 	crypto_unregister_alg(&zynqaes_cbc_alg);
 	crypto_unregister_alg(&zynqaes_ctr_alg);
@@ -665,11 +662,13 @@ static int zynqaes_remove(struct platform_device *pdev)
 	crypto_unregister_alg(&zynqaes_cfb_alg);
 	crypto_unregister_alg(&zynqaes_ofb_alg);
 
+	crypto_engine_exit(dd->engine);
+
+	dmaengine_terminate_all(dd->rx_chan);
+	dmaengine_terminate_all(dd->tx_chan);
+
 	dma_release_channel(dd->rx_chan);
 	dma_release_channel(dd->tx_chan);
-
-	crypto_engine_stop(dd->engine);
-	crypto_engine_exit(dd->engine);
 
 	kfree(dd);
 
