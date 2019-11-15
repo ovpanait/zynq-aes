@@ -49,11 +49,10 @@ localparam [2:0] AES_GET_KEY_128  = 3'b010;
 localparam [2:0] AES_GET_KEY_256  = 3'b001;
 localparam [2:0] AES_GET_IV = 3'b011;
 localparam [2:0] AES_START = 3'b101;
-localparam [2:0] AES_WAIT = 3'b110;
-localparam [2:0] AES_STORE_BLOCK = 3'b111;
 
 reg [2:0]         state;
 wire              aes_done;
+wire              get_iv;
 
 reg [`KEY_S-1:0]  aes_key;
 
@@ -296,6 +295,8 @@ aes_top aes_mod(
 assign out_fifo_write_req = out_fifo_write_tready && out_fifo_write_tvalid;
 assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
 
+assign get_iv = (state == AES_GET_IV && in_fifo_read_req);
+
 always @(posedge clk) begin
 	if (reset == 1'b1) begin
 		aes_decipher_mode <= 1'b0;
@@ -307,7 +308,6 @@ always @(posedge clk) begin
 		aes_key <= {`KEY_S{1'b0}};
 		state <= AES_GET_KEY_128;
 		in_blk <= {`BLK_S{1'b0}};
-		iv <= {`IV_BITS{1'b0}};
 	end
 	else begin
 		in_fifo_read_tready <= 1'b0;
@@ -359,7 +359,6 @@ always @(posedge clk) begin
 
 				if (in_fifo_read_req) begin
 					in_fifo_read_tready <= 1'b0;
-					iv <= in_fifo_data;
 					state <= AES_START;
 				end
 			end
@@ -367,7 +366,7 @@ always @(posedge clk) begin
 			begin
 				state <= AES_START;
 
-				if (!aes_op_in_progress)
+				if (!aes_op_in_progress && !aes_start)
 					in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
@@ -377,32 +376,12 @@ always @(posedge clk) begin
 
 					in_fifo_read_tready <= 1'b0;
 					in_blk <= in_fifo_data;
-					state <= AES_WAIT;
 					aes_start <= 1'b1;
 				end
 
-				if (axis_slave_done && in_fifo_empty) begin
+				if (aes_done && axis_slave_done && in_fifo_empty) begin
 					processing_done <= 1'b1;
 					state <= AES_GET_KEY_128;
-				end
-			end
-			AES_WAIT:
-			begin
-				state <= AES_WAIT;
-
-				if (aes_done == 1'b1) begin
-					state <= AES_STORE_BLOCK;
-
-					out_fifo_data <= out_blk_next;
-					iv <= iv_next;
-				end
-			end
-			AES_STORE_BLOCK:
-			begin
-				state <= AES_STORE_BLOCK;
-
-				if (out_fifo_write_req) begin
-					state <= AES_START;
 				end
 			end
 			default:
@@ -412,11 +391,20 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
+	if (get_iv)
+		iv <= in_fifo_data;
+	else if (aes_done && (aes_cipher_mode || aes_decipher_mode))
+		iv <= iv_next;
+end
+
+always @(posedge clk) begin
 	if (reset)
 		out_fifo_write_tvalid <= 1'b0;
 	else begin
-		if (aes_done && (aes_cipher_mode || aes_decipher_mode))
+		if (aes_done && (aes_cipher_mode || aes_decipher_mode)) begin
 			out_fifo_write_tvalid <= 1'b1;
+			out_fifo_data <= out_blk_next;
+		end
 
 		if (out_fifo_write_req)
 			out_fifo_write_tvalid <= 1'b0;
