@@ -51,7 +51,8 @@ report_timing_summary -delay_type max -report_unconstrained -check_timing_verbos
 report_power -file ${reports_dir}/syn_power.rpt
 
 launch_runs impl_1 -jobs ${cpus_no} -to_step write_bitstream
-wait_on_run impl_1   
+wait_on_run impl_1
+open_run impl_1
 if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {   
 	error "ERROR: impl_1 failed"   
 }
