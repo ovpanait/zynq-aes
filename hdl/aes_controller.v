@@ -346,9 +346,11 @@ always @(posedge clk) begin
 				in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
-					aes_start <= 1'b1;
-					state <= AES_START;
 					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_data;
+					in_fifo_read_tready <= 1'b0;
+					state <= AES_START;
+					aes_start <= 1'b1;
+
 					if (need_iv)
 						state <= AES_GET_IV;
 				end
