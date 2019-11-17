@@ -43,17 +43,17 @@
 
 #define ZYNQAES_ECB_ENCRYPT  (ZYNQAES_ECB_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_CBC_ENCRYPT  (ZYNQAES_CBC_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
+#define ZYNQAES_CTR_ENCRYPT  (ZYNQAES_CTR_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_CFB_ENCRYPT  (ZYNQAES_CFB_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_OFB_ENCRYPT  (ZYNQAES_OFB_FLAG  | ZYNQAES_ENCRYPTION_FLAG)
 #define ZYNQAES_PCBC_ENCRYPT (ZYNQAES_PCBC_FLAG | ZYNQAES_ENCRYPTION_FLAG)
 
 #define ZYNQAES_ECB_DECRYPT  (ZYNQAES_ECB_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_CBC_DECRYPT  (ZYNQAES_CBC_FLAG  | ZYNQAES_DECRYPTION_FLAG)
+#define ZYNQAES_CTR_DECRYPT  (ZYNQAES_CTR_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_CFB_DECRYPT  (ZYNQAES_CFB_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_OFB_DECRYPT  (ZYNQAES_OFB_FLAG  | ZYNQAES_DECRYPTION_FLAG)
 #define ZYNQAES_PCBC_DECRYPT (ZYNQAES_PCBC_FLAG | ZYNQAES_DECRYPTION_FLAG)
-
-#define ZYNQAES_CTR_OP       (ZYNQAES_CTR_FLAG)
 
 struct zynqaes_dev {
 	struct device *dev;
@@ -385,9 +385,14 @@ static int zynqaes_pcbc_decrypt(struct ablkcipher_request *areq)
 	return zynqaes_crypt(areq, ZYNQAES_PCBC_DECRYPT);
 }
 
-static int zynqaes_ctr_op(struct ablkcipher_request *areq)
+static int zynqaes_ctr_encrypt(struct ablkcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CTR_OP);
+	return zynqaes_crypt(areq, ZYNQAES_CTR_ENCRYPT);
+}
+
+static int zynqaes_ctr_decrypt(struct ablkcipher_request *areq)
+{
+	return zynqaes_crypt(areq, ZYNQAES_CTR_DECRYPT);
 }
 
 static int zynqaes_cfb_encrypt(struct ablkcipher_request *areq)
@@ -502,8 +507,8 @@ static struct crypto_alg zynqaes_ctr_alg = {
 			.max_keysize		=	AES_MAX_KEY_SIZE,
 			.ivsize			=	AES_BLOCK_SIZE,
 			.setkey			=	zynqaes_setkey,
-			.encrypt		=	zynqaes_ctr_op,
-			.decrypt		=	zynqaes_ctr_op,
+			.encrypt		=	zynqaes_ctr_encrypt,
+			.decrypt		=	zynqaes_ctr_decrypt,
 		}
 	}
 };
