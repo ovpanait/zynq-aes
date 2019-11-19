@@ -74,6 +74,7 @@ struct zynqaes_reqctx {
 };
 
 struct zynqaes_ctx {
+	struct crypto_engine_ctx enginectx;
 	u8 key[AES_MAX_KEY_SIZE];
 	unsigned int key_len;
 };
@@ -144,7 +145,7 @@ static void zynqaes_dma_callback(void *data)
 	dma_unmap_sg(dd->dev, dma_ctx->tx_sg, dma_ctx->tx_nents, DMA_TO_DEVICE);
 	dma_unmap_sg(dd->dev, dma_ctx->rx_sg, dma_ctx->rx_nents, DMA_FROM_DEVICE);
 
-	crypto_finalize_cipher_request(dd->engine, rctx->areq, 0);
+	crypto_finalize_ablkcipher_request(dd->engine, rctx->areq, 0);
 
 	kfree(dma_ctx);
 }
@@ -287,8 +288,9 @@ out_err:
 }
 
 static int zynqaes_crypt_req(struct crypto_engine *engine,
-			     struct ablkcipher_request *areq)
+			     void *req)
 {
+	struct ablkcipher_request *areq = container_of(req, struct ablkcipher_request, base);
 	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
@@ -329,7 +331,7 @@ static int zynqaes_crypt(struct ablkcipher_request *areq, const u32 cmd)
 
 	rctx->cmd = cmd;
 
-	return crypto_transfer_cipher_request_to_engine(dd->engine, areq);
+	return crypto_transfer_ablkcipher_request_to_engine(dd->engine, areq);
 }
 
 static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
@@ -417,7 +419,13 @@ static int zynqaes_ofb_decrypt(struct ablkcipher_request *areq)
 
 static int zynqaes_cra_init(struct crypto_tfm *tfm)
 {
+	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+
 	tfm->crt_ablkcipher.reqsize = sizeof(struct zynqaes_reqctx);
+
+	ctx->enginectx.op.prepare_request = NULL;
+	ctx->enginectx.op.unprepare_request = NULL;
+	ctx->enginectx.op.do_one_request = zynqaes_crypt_req;
 
 	return 0;
 }
@@ -595,7 +603,6 @@ static int zynqaes_probe(struct platform_device *pdev)
 		goto free_rx_chan;
 	}
 
-	dd->engine->cipher_one_request = zynqaes_crypt_req;
 	err = crypto_engine_start(dd->engine);
 	if (err)
 		goto free_engine;
