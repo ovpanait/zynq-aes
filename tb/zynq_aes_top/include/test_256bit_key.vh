@@ -33,14 +33,11 @@ task test_256bit_key_cbc_enc();
 
 	queue_wrapper#(`BLK_S) plaintext_queue;
 	queue_wrapper#(`BLK_S) ciphertext_queue;
-	queue_wrapper#(`WORD_S) expected_results_queue;
 
 	cmd = {`WORD_S{1'b0}};
-	comparison_cnt = 0;
 
 	ciphertext_queue = new();
 	plaintext_queue = new();
-	expected_results_queue = new();
 
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
@@ -54,10 +51,6 @@ task test_256bit_key_cbc_enc();
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
-	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(ciphertext_queue.get(i)),
-				expected_results_queue);
-
 	// Prepare encryption request
 	cmd = set_encryption_op_bit(cmd) |
 	      set_key_256_bit(cmd) |
@@ -65,16 +58,13 @@ task test_256bit_key_cbc_enc();
 	key = AES_KEY256;
 	iv = AES_IV;
 
+	bus_sem.get(1);
+	for (i = 0; i < total_blocks; i++)
+		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(ciphertext_queue.get(i)),
+				results);
 	aes_tester256.aes_send_request(cmd, key, iv, plaintext_queue, total_blocks, 1);
+	bus_sem.put(1);
 
-	wait(comparison_cnt == total_blocks * 4);
-
-	if (results.compare(expected_results_queue)) begin
-		$display("%s: FAIL!", testcase_name);
-		$finish;
-	end
-
-	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
 
@@ -98,14 +88,11 @@ task test_256bit_key_cbc_dec();
 
 	queue_wrapper#(`BLK_S) plaintext_queue;
 	queue_wrapper#(`BLK_S) ciphertext_queue;
-	queue_wrapper#(`WORD_S) expected_results_queue;
 
-        cmd = {`WORD_S{1'b0}};
-	comparison_cnt = 0;
+	cmd = {`WORD_S{1'b0}};
 
 	ciphertext_queue = new();
 	plaintext_queue = new();
-	expected_results_queue = new();
 
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
@@ -119,10 +106,6 @@ task test_256bit_key_cbc_dec();
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
-	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(plaintext_queue.get(i)),
-				expected_results_queue);
-
 	// Prepare encryption request
 	cmd = set_decryption_op_bit(cmd) |
 	      set_key_256_bit(cmd) |
@@ -130,16 +113,13 @@ task test_256bit_key_cbc_dec();
 	key = AES_KEY256;
 	iv = AES_IV;
 
+	bus_sem.get(1);
+	for (i = 0; i < total_blocks; i++)
+		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(plaintext_queue.get(i)),
+				results);
 	aes_tester256.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks, 1);
+	bus_sem.put(1);
 
-	wait(comparison_cnt == total_blocks * 4);
-
-	if (results.compare(expected_results_queue)) begin
-		$display("%s: FAIL!", testcase_name);
-		$finish;
-	end
-
-	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
 
@@ -162,14 +142,11 @@ task test_256bit_key_ecb_enc();
 
 	queue_wrapper#(`BLK_S) plaintext_queue;
 	queue_wrapper#(`BLK_S) ciphertext_queue;
-	queue_wrapper#(`WORD_S) expected_results_queue;
 
-        cmd = {`WORD_S{1'b0}};
-	comparison_cnt = 0;
+	cmd = {`WORD_S{1'b0}};
 
 	ciphertext_queue = new();
 	plaintext_queue = new();
-	expected_results_queue = new();
 
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
@@ -183,9 +160,6 @@ task test_256bit_key_ecb_enc();
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
-	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(ciphertext_queue.get(i)), expected_results_queue);
-
 	// Prepare encryption request
 	cmd = set_encryption_op_bit(cmd) |
 	      set_key_256_bit(cmd) |
@@ -193,16 +167,12 @@ task test_256bit_key_ecb_enc();
 	key = AES_KEY256;
 	iv = {`IV_BITS{1'b0}};
 
+	bus_sem.get(1);
+	for (i = 0; i < total_blocks; i++)
+		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(ciphertext_queue.get(i)), results);
 	aes_tester256.aes_send_request(cmd, key, iv, plaintext_queue, total_blocks, 0);
+	bus_sem.put(1);
 
-	wait(comparison_cnt == total_blocks * 4);
-
-	if (results.compare(expected_results_queue)) begin
-		$display("%s: FAIL!", testcase_name);
-		$finish;
-	end
-
-	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask
 
@@ -225,14 +195,11 @@ task test_256bit_key_ecb_dec();
 
 	queue_wrapper#(`BLK_S) plaintext_queue;
 	queue_wrapper#(`BLK_S) ciphertext_queue;
-	queue_wrapper#(`WORD_S) expected_results_queue;
 
-        cmd = {`WORD_S{1'b0}};
-	comparison_cnt = 0;
+	cmd = {`WORD_S{1'b0}};
 
 	ciphertext_queue = new();
 	plaintext_queue = new();
-	expected_results_queue = new();
 
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
@@ -246,10 +213,6 @@ task test_256bit_key_ecb_dec();
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
-	for (i = 0; i < total_blocks; i++)
-		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(plaintext_queue.get(i)),
-				expected_results_queue);
-
 	// Prepare decryption request
 	cmd = set_decryption_op_bit(cmd) |
 	      set_key_256_bit(cmd) |
@@ -257,15 +220,12 @@ task test_256bit_key_ecb_dec();
 	key = AES_KEY256;
 	iv = {`IV_BITS{1'b0}};
 
+	bus_sem.get(1);
+	for (i = 0; i < total_blocks; i++)
+		queue_tester.q_push_back32_rev(queue_tester.reverse_blk8(plaintext_queue.get(i)),
+				results);
 	aes_tester256.aes_send_request(cmd, key, iv, ciphertext_queue, total_blocks, 0);
+	bus_sem.put(1);
 
-	wait(comparison_cnt == total_blocks * 4);
-
-	if (results.compare(expected_results_queue)) begin
-		$display("%s: FAIL!", testcase_name);
-		$finish;
-	end
-
-	results.clear();
 	$display("%s: PASS!", testcase_name);
 endtask

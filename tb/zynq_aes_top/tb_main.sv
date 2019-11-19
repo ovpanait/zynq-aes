@@ -60,6 +60,7 @@ aes_test #(
 	.master_agent_t(design_1_axi4stream_vip_0_0_mst_t)
 	) aes_tester256;
 
+semaphore bus_sem = new(1);
 
 // instantiate bd
 design_1_wrapper DUT(
@@ -105,8 +106,11 @@ initial begin
 	slv_agent.start_slave();
 	slv_gen_tready();
 
-	test_128bit_key();
-	test_256bit_key();
+	fork
+		test_128bit_key();
+		test_256bit_key();
+	join
+
 	$finish;
 end
 
@@ -159,7 +163,13 @@ initial begin
                         slv_scb_transaction.get_data(slv_data);
 
                         tester#($size(slv_data_packed))::pack(slv_data, slv_data_packed);
-                        results.push_back(slv_data_packed);
+                        if (slv_data_packed !== results.get(comparison_cnt)) begin
+				$display("Data mismatch!");
+				$display("Word no. %d", comparison_cnt);
+				$display("Simulated value: %H", slv_data_packed);
+				$display("Expected value:  %H", results.get(comparison_cnt));
+				$finish;
+			end
                         comparison_cnt++;
                 end  
         end
