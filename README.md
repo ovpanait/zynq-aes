@@ -3,7 +3,7 @@
 - 128/256-bit keys
 - ECB/CBC/PCBC/CTR/CFB/OFB
 - IPSEC offloading OK
-- driver compatible with linux-xlnx v4.14 branch
+- driver compatible with linux-xlnx v4.19 branch
 
 ## Quick Start
 Generate bitstream for your platform (must have vivado environment sourced).  
