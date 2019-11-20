@@ -339,6 +339,7 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 {
 	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+	int ret = 0;
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
@@ -348,13 +349,20 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 		ctx->key_len = len;
 		memcpy(ctx->key, key, len);
 		break;
+	case AES_KEYSIZE_192:
+		dev_info(dd->dev, "[%s:%d] 192-bit keys not supported!",
+				__func__, __LINE__);
+		ret = -ENOTSUPP;
+		break;
 	default:
-		dev_info(dd->dev, "[%s:%d] Key size of %u bytes not supported!",
-				__func__, __LINE__, len);
-		return -ENOTSUPP;
+		crypto_ablkcipher_set_flags(cipher, CRYPTO_TFM_RES_BAD_KEY_LEN);
+		dev_err(dd->dev, "[%s:%d] Invalid key size! (must be 128/192/256 bits)",
+				__func__, __LINE__);
+
+		ret = -EINVAL;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
