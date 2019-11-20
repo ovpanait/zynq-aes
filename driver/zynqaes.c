@@ -581,8 +581,8 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 	pr_debug("[%s:%d]: Entering function\n", __func__, __LINE__);
 
-	dd = kmalloc(sizeof(struct zynqaes_dev), GFP_KERNEL);
-	if (dd == NULL) {
+	dd = devm_kzalloc(&pdev->dev, sizeof(*dd), GFP_KERNEL);
+	if (!dd) {
 		dev_err(dd->dev, "[%s:%d] zynqaes_dev: Allocating memory failed\n", __func__, __LINE__);
 		err = -ENOMEM;
 		goto out_err;
@@ -689,8 +689,6 @@ static int zynqaes_remove(struct platform_device *pdev)
 
 	dma_release_channel(dd->rx_chan);
 	dma_release_channel(dd->tx_chan);
-
-	kfree(dd);
 
 	return 0;
 }
