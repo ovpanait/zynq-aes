@@ -578,6 +578,8 @@ static struct crypto_alg zynqaes_ofb_alg = {
 static int zynqaes_probe(struct platform_device *pdev)
 {
 	int err;
+	const char *dma_name;
+	struct device_node *node;
 
 	pr_debug("[%s:%d]: Entering function\n", __func__, __LINE__);
 
@@ -590,17 +592,36 @@ static int zynqaes_probe(struct platform_device *pdev)
 
 	dd->dev = &pdev->dev;
 
-	dd->tx_chan = dma_request_chan(dd->dev, "axidma0");
-	if (IS_ERR(dd->tx_chan)) {
-		err = PTR_ERR(dd->tx_chan);
-		dev_err(dd->dev, "[%s:%d] xilinx_dmatest: No Tx channel\n", __func__, __LINE__);
-		goto free_zynqaes_dev;
+	if (!pdev->dev.of_node) {
+		dev_err(dd->dev, "[%s:%d] OF node not found!\n", __func__, __LINE__);
+		err = -ENODEV;
+		goto out_err;
 	}
 
-	dd->rx_chan = dma_request_chan(dd->dev, "axidma1");
+	node = pdev->dev.of_node;
+	err = of_property_read_string_index(node, "dma-names", 0, &dma_name);
+	if (err) {
+		dev_err(dd->dev, "[%s:%d] Tx: reading channel name failed!\n", __func__, __LINE__);
+		goto out_err;
+	}
+
+	dd->tx_chan = dma_request_chan(dd->dev, dma_name);
+	if (IS_ERR(dd->tx_chan)) {
+		err = PTR_ERR(dd->tx_chan);
+		dev_err(dd->dev, "[%s:%d] Tx: requesting channel failed!\n", __func__, __LINE__);
+		goto out_err;
+	}
+
+	err = of_property_read_string_index(node, "dma-names", 1, &dma_name);
+	if (err) {
+		dev_err(dd->dev, "[%s:%d] Rx: reading channel name failed!\n", __func__, __LINE__);
+		goto free_tx_chan;
+	}
+
+	dd->rx_chan = dma_request_chan(dd->dev, dma_name);
 	if (IS_ERR(dd->rx_chan)) {
 		err = PTR_ERR(dd->rx_chan);
-		dev_err(dd->dev, "[%s:%d] xilinx_dmatest: No Rx channel\n", __func__, __LINE__);
+		dev_err(dd->dev, "[%s:%d] Rx: requesting channel failed!\n", __func__, __LINE__);
 		goto free_tx_chan;
 	}
 
@@ -661,9 +682,6 @@ free_rx_chan:
 
 free_tx_chan:
 	dma_release_channel(dd->tx_chan);
-
-free_zynqaes_dev:
-	kfree(dd);
 
 out_err:
 	dev_err(&pdev->dev, "[%s:%d] Probe failed with error: %d", __func__, __LINE__, err);
