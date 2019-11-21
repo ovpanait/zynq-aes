@@ -4,10 +4,10 @@ obj-m := zynqaes.o
 SRC := $(shell pwd)
 
 all:
-	$(MAKE) -C $(KERNEL_SRC) M=$(SRC)
+	$(MAKE) -C $(KERNEL_DIR) M=$(SRC)
 
 modules_install:
-	$(MAKE) -C $(KERNEL_SRC) M=$(SRC) modules_install
+	$(MAKE) -C $(KERNEL_DIR) M=$(SRC) modules_install
 
 clean:
 	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
