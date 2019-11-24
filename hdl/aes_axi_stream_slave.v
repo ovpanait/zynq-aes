@@ -170,7 +170,7 @@ always @(posedge s00_axis_aclk) begin
 	if (!s00_axis_aresetn) begin
 		axis_packet_end <= 1'b0;
 	end else begin
-		if (s00_axis_tlast) begin
+		if (s00_axis_tlast && aes_block_available) begin
 			axis_packet_end <= 1'b1;
 		end
 
