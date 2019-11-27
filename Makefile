@@ -1,9 +1,16 @@
+VIP_SIM = 0
+
 HDL_DIR = $(shell readlink -f hdl)
 HDL_INCLUDE = $(HDL_DIR)/include
 
 TB_TOP = $(shell readlink -f tb)
 TB_INCLUDE = $(TB_TOP)/include
-TB_DIR = $(TB_TOP)/zynq_aes_top
+
+ifeq (VIP_SIM, 1)
+TB_DIR = $(TB_TOP)/zynq_aes_top_vip
+else
+TB_DIR = $(TB_TOP)/zynq_aes_top_novip
+endif
 
 TOOLS_DIR = $(shell readlink -f tools)
 SIM_DIR = $(shell readlink -f simulation)
@@ -40,10 +47,20 @@ $(SIM_PROJ): $(IP_REPO_DIR)
 	-nolog -nojour \
 	-tclargs $(IP_REPO_DIR) $(TB_DIR) $(SIM_DIR)
 
-sim: $(SIM_PROJ)
+$(XSIM_DIR): $(HDL_SOURCES)
+	rm -rf $@
+	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) vivado -mode tcl \
+	-source "$(TOOLS_DIR)/export_sim.tcl" \
+	-nolog -nojour \
+	-tclargs $(TB_DIR) $(SIM_DIR)
+
+sim_novip: $(XSIM_DIR)
 	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
 
-test: sim
+sim_vip: $(SIM_PROJ)
+	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
+
+test: sim_novip
 
 $(SYNTH_DIR): $(IP_REPO_DIR)
 	rm -rf $@
