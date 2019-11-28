@@ -1,3 +1,4 @@
+VERBOSE = 0
 VIP_SIM = 0
 
 HDL_DIR = $(shell readlink -f hdl)
@@ -42,14 +43,16 @@ $(IP_REPO_DIR): $(HDL_SOURCES)
 
 $(SIM_PROJ): $(IP_REPO_DIR)
 	rm -rf $@
-	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) vivado -mode tcl \
+	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) \
+	vivado -mode tcl \
 	-source "$(TOOLS_DIR)/create_axi_stream_sim_proj.tcl" \
 	-nolog -nojour \
 	-tclargs $(IP_REPO_DIR) $(TB_DIR) $(SIM_DIR)
 
 $(XSIM_DIR): $(HDL_SOURCES)
 	rm -rf $@
-	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) vivado -mode tcl \
+	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) VERBOSE=$(VERBOSE) \
+	vivado -mode tcl \
 	-source "$(TOOLS_DIR)/export_sim.tcl" \
 	-nolog -nojour \
 	-tclargs $(TB_DIR) $(SIM_DIR)
