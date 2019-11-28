@@ -143,7 +143,7 @@ always @(posedge clk) begin
 	end
 end
 
-`ifdef SIMULATION
+`ifdef SIMULATION_VERBOSE
 always @(posedge clk) begin
 	if (concurrent_rw) begin
 		$display("Concurrent r/w access!");
