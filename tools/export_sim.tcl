@@ -11,6 +11,8 @@ OUTPUT_DIR        output directory for the generated project/simulation env
 exit 1
 }
 
+set verbose_define {}
+
 set verbose $env(VERBOSE)
 set hdl_include $env(HDL_INCLUDE)
 set tb_include $env(TB_INCLUDE)
