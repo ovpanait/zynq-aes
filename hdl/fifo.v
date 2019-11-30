@@ -51,6 +51,7 @@ reg [ADDR_WIDTH-1:0] write_ptr;
 reg [ADDR_WIDTH-1:0] read_ptr;
 
 wire fifo_read_transaction;
+wire fifo_write_transaction;
 wire concurrent_rw;
 
 wire is_last_write;
@@ -84,8 +85,8 @@ initial fifo_read_tvalid = 1'b0;
 initial fifo_has_data = 1'b0;
 initial is_full = 1'b0;
 
-assign bram_addr = fifo_write_tready ? write_ptr : read_ptr;
-assign bram_w_e = fifo_write_tready;
+assign bram_addr = fifo_write_transaction ? write_ptr : read_ptr;
+assign bram_w_e = fifo_write_transaction;
 assign bram_i_data = fifo_wdata;
 assign fifo_rdata = bram_o_data;
 
@@ -95,15 +96,16 @@ assign is_last_read = (read_ptr == DEPTH - 1);
 assign write_ptr_next = is_last_write ? {ADDR_WIDTH{1'b0}} : (write_ptr + 1'b1);
 assign read_ptr_next = is_last_read ? {ADDR_WIDTH{1'b0}} : (read_ptr + 1'b1);
 
-
+assign fifo_write_transaction = fifo_write_tvalid && fifo_write_tready;
 assign fifo_read_transaction = fifo_read_tvalid && fifo_read_tready;
+
 assign fifo_write_tready = fifo_write_tvalid && !fifo_full;
 
 assign fifo_almost_full = (write_ptr_next == read_ptr);
 assign fifo_empty = ~fifo_has_data;
 assign fifo_full = is_full;
 
-assign concurrent_rw = (fifo_write_tready && fifo_read_transaction);
+assign concurrent_rw = (fifo_write_transaction && fifo_read_transaction);
 
 always @(posedge clk) begin
 	if (reset) begin
@@ -112,7 +114,7 @@ always @(posedge clk) begin
 		fifo_has_data <= 1'b0;
 		is_full <= 1'b0;
 	end else begin
-		if (fifo_write_tready) begin
+		if (fifo_write_transaction) begin
 			write_ptr <= write_ptr_next;
 
 			if (!fifo_has_data)
@@ -139,11 +141,11 @@ always @(posedge clk) begin
 	if (reset) begin
 		fifo_read_tvalid <= 1'b0;
 	end else begin
-		if (!fifo_empty && !fifo_read_tvalid && !fifo_write_tready) begin 
+		if (!fifo_empty && !fifo_read_tvalid && !fifo_write_transaction) begin
 			fifo_read_tvalid <= 1'b1;
 		end
 
-		if ((fifo_read_transaction) || fifo_write_tready) begin
+		if ((fifo_read_transaction) || fifo_write_transaction) begin
 			fifo_read_tvalid <= 1'b0;
 		end
 	end
@@ -155,7 +157,7 @@ always @(posedge clk) begin
 		$display("Concurrent r/w access!");
 	end
 
-	if (fifo_write_tready) begin
+	if (fifo_write_transaction) begin
 		$display("Writing %H to address %H", fifo_wdata, write_ptr);
 	end
 
