@@ -78,6 +78,12 @@ block_ram #(
 	.o_data(bram_o_data)
 );
 
+initial write_ptr = {ADDR_WIDTH{1'b0}};
+initial read_ptr = {ADDR_WIDTH{1'b0}};
+initial fifo_read_tvalid = 1'b0;
+initial fifo_has_data = 1'b0;
+initial is_full = 1'b0;
+
 assign bram_addr = fifo_write_tready ? write_ptr : read_ptr;
 assign bram_w_e = fifo_write_tready;
 assign bram_i_data = fifo_wdata;
