@@ -69,7 +69,7 @@ block_ram #(
 	.ADDR_WIDTH(ADDR_WIDTH),
 	.DATA_WIDTH(DATA_WIDTH),
 	.DEPTH(DEPTH)
-) out_fifo(
+) bram (
 	.clk(clk),
 
 	.addr(bram_addr),
@@ -165,6 +165,78 @@ always @(posedge clk) begin
 		$display("Reading %H from address %H", out_fifo.sram[read_ptr], read_ptr);
 	end
 end
+`endif
+
+`ifdef FORMAL
+
+`ifdef FIFO_FORMAL
+`define ASSUME assume
+`else
+`define ASSUME assert
+`endif
+
+reg f_past_valid;
+
+initial f_past_valid = 1'b0;
+always @(posedge clk)
+	f_past_valid <= 1'b1;
+
+always @(*)
+	if (!f_past_valid)
+		`ASSUME(reset);
+
+always @(*) begin
+	if (fifo_read_transaction)
+		assert(!fifo_empty);
+
+	// read TVALID should not be enabled when the fifo is empty
+	if (fifo_empty) begin
+		assert(!fifo_full);
+		assert(!fifo_read_tvalid);
+		assert(read_ptr == write_ptr);
+	end
+
+	// write TREADY should not be enabled when the fifo is full
+	if (fifo_full)
+		assert(!fifo_write_tready);
+end
+
+// If BRAM write_enable signal was asserted one clock prior to having a read
+// transaction, we would be reading the word from write_ptr instead of the one
+// that we are supposed to read from read_ptr.
+// Check this scenario here.
+always @(posedge clk) begin
+	if (fifo_read_transaction)
+		assert(!$past(bram_w_e));
+end
+
+always @(posedge clk) begin
+	if (f_past_valid) begin
+		// only deassert read tvalid after successful read or write
+		// transaction
+		if ($fell(fifo_read_tvalid)) begin
+			assert($past(fifo_read_tready ||
+					fifo_write_transaction || reset));
+		end
+
+		// This block is equivalent to the one below (?)
+		if ($past(fifo_read_tvalid && !fifo_read_tready &&
+				!fifo_write_transaction)) begin
+			assert($stable(fifo_rdata));
+		end
+
+		// fifo_rdata must be stable while fifo_read_tvalid is active
+		if (fifo_read_tvalid && $stable(fifo_read_tvalid))
+			assert($stable(fifo_rdata));
+
+		if (fifo_write_transaction) begin
+			assert(bram_w_e);
+			assert(bram_i_data == fifo_wdata);
+			assert(bram_addr == write_ptr);
+		end
+	end
+end
+
 `endif
 
 endmodule

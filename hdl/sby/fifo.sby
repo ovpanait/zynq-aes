@@ -1,0 +1,17 @@
+[tasks]
+prf
+
+[options]
+mode prove
+
+[engines]
+smtbmc boolector
+
+[script]
+read -formal -DFIFO_FORMAL fifo.v
+read -formal -DFIFO_FORMAL block_ram.v
+prep -top fifo
+
+[files]
+../fifo.v
+../block_ram.v
