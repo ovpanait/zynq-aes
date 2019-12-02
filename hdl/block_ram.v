@@ -20,4 +20,40 @@ always @ (posedge clk) begin
 	if (w_e)
 		sram[addr] <= i_data;
 end
+
+`ifdef FORMAL
+
+`ifdef BRAM_FORMAL
+`define ASSUME assume
+`else
+`define ASSUME assert
+`endif
+
+integer f_i;
+reg f_past_valid;
+
+initial o_data = {DATA_WIDTH{1'b0}};
+initial f_past_valid = 1'b0;
+initial f_i = 0;
+
+initial begin
+	for (f_i = 0; f_i < DEPTH; f_i++)
+		sram[f_i] = {DATA_WIDTH{1'b0}};
+end
+
+always @(posedge clk)
+	f_past_valid <= 1'b1;
+
+always @(posedge clk) begin
+	if (f_past_valid) begin
+		assert(o_data == $past(sram[addr]));
+
+		if ($past(w_e)) begin
+			assert(sram[$past(addr)] == $past(i_data));
+		end
+	end
+end
+
+`endif
+
 endmodule
