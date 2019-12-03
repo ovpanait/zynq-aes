@@ -49,7 +49,9 @@ reg axis_packet_end;
 
 wire axis_data_available;
 wire aes_block_available;
-wire axis_tready;
+wire axis_tlast;
+
+wire [C_S_AXIS_TDATA_WIDTH - 1 : 0] axis_data;
 
 wire [FIFO_DATA_WIDTH-1:0] axis_blk_shift;
 wire [FIFO_DATA_WIDTH-1:0] axis_blk_next;
@@ -71,6 +73,8 @@ wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 wire fifo_almost_full;
 wire fifo_full;
 wire fifo_empty;
+
+wire in_fifo_busy;
 
 // FIFO logic
 
@@ -104,18 +108,35 @@ assign in_fifo_rdata = fifo_rdata;
 assign in_fifo_empty = fifo_empty;
 assign in_fifo_full = fifo_full;
 
+assign in_fifo_busy = axis_slave_done || in_fifo_full || fifo_write_tvalid;
+
 // AXI logic
+
+axi_stream_slave #(
+	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH)
+) axi_stream_slave_controller (
+	.clk(s00_axis_aclk),
+	.resetn(s00_axis_aresetn),
+	.tready(s00_axis_tready),
+	.tlast(s00_axis_tlast),
+	.tvalid(s00_axis_tvalid),
+	.tdata(s00_axis_tdata),
+	.tstrb(s00_axis_tstrb),
+
+	.fifo_busy(in_fifo_busy),
+	.fifo_wren(axis_data_available),
+	.fifo_data(axis_data),
+
+	.stream_tlast(axis_tlast)
+);
 
 localparam AXIS_SLAVE_GET_CMD = 1'b0;
 localparam AXIS_SLAVE_GET_PAYLOAD = 1'b1;
 
 assign aes_block_available = axis_data_available && (axis_word_cnt == `Nb - 1'b1);
+
+assign axis_blk_next = {axis_data, axis_blk_shift[`BLK_S-1-`WORD_S:0]};
 assign axis_blk_shift = (axis_blk >> `WORD_S);
-assign axis_blk_next = {s00_axis_tdata, axis_blk_shift[`BLK_S-1-`WORD_S:0]};
-assign axis_tready = (!axis_slave_done && !fifo_write_tvalid && !fifo_full);
-assign axis_data_available = s00_axis_tvalid && axis_tready;
-assign fifo_wren = aes_block_available;
-assign s00_axis_tready = axis_tready;
 
 always @(posedge s00_axis_aclk) begin
 	if(!s00_axis_aresetn) begin
@@ -130,7 +151,7 @@ always @(posedge s00_axis_aclk) begin
 			begin
 				if (axis_data_available) begin
 					axis_fsm_state <= AXIS_SLAVE_GET_PAYLOAD;
-					axis_cmd <= s00_axis_tdata;
+					axis_cmd <= axis_data;
 				end
 			end
 			AXIS_SLAVE_GET_PAYLOAD:
@@ -143,7 +164,7 @@ always @(posedge s00_axis_aclk) begin
 						axis_word_cnt <= 1'b0;
 					end
 
-					if (s00_axis_tlast) begin
+					if (axis_tlast) begin
 						axis_fsm_state <= AXIS_SLAVE_GET_CMD;
 					end
 				end
@@ -170,7 +191,7 @@ always @(posedge s00_axis_aclk) begin
 	if (!s00_axis_aresetn) begin
 		axis_packet_end <= 1'b0;
 	end else begin
-		if (s00_axis_tlast && aes_block_available) begin
+		if (axis_tlast && aes_block_available) begin
 			axis_packet_end <= 1'b1;
 		end
 
