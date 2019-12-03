@@ -3,7 +3,7 @@
 `include "aes.vh"
 `include "queue_wrapper.vh"
 
-module axi_stream_master #
+module axi_stream_master_tb #
 (
 	// Width of master side bus
 	parameter integer C_M_AXIS_TDATA_WIDTH = 32,

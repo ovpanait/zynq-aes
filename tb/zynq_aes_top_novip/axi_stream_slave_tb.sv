@@ -2,7 +2,7 @@
 
 `include "aes.vh"
 
-module axi_stream_slave #(
+module axi_stream_slave_tb #(
 	// Width of slave side bus
 	parameter integer C_S_AXIS_TDATA_WIDTH = 32,
 	parameter integer FIFO_SIZE = 2048

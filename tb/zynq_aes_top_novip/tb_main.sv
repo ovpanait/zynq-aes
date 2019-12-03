@@ -58,7 +58,7 @@ initial begin
 	@(negedge clk) reset <= 1;
 end
 
-axi_stream_master #(
+axi_stream_master_tb #(
 	.C_M_AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH),
 	.FIFO_SIZE(AXI_MASTER_FIFO_SIZE)
 ) axi_master (
@@ -100,7 +100,7 @@ zynq_aes_top #(
 	.s00_axis_tvalid(m00_axis_tvalid)
 );
 
-axi_stream_slave #(
+axi_stream_slave_tb #(
 	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH),
 	.FIFO_SIZE(AXI_SLAVE_FIFO_SIZE)
 ) axi_slave (
