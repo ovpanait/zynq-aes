@@ -162,7 +162,7 @@ always @(posedge clk) begin
 	end
 
 	if (fifo_read_transaction) begin
-		$display("Reading %H from address %H", out_fifo.sram[read_ptr], read_ptr);
+		$display("Reading %H from address %H", bram.sram[read_ptr], read_ptr);
 	end
 end
 `endif
