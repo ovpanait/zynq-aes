@@ -99,7 +99,7 @@ assign fifo_read_tready = fifo_read_tvalid && !axis_tvalid;
 assign fifo_write_tvalid = out_fifo_write_tvalid;
 assign fifo_wdata = aes_controller_out_fifo_data;
 
-assign out_fifo_write_tready = out_fifo_write_tvalid && !fifo_full;
+assign out_fifo_write_tready = fifo_write_tready;
 assign out_fifo_almost_full = fifo_almost_full;
 assign out_fifo_full = fifo_full;
 assign out_fifo_empty = fifo_empty;
