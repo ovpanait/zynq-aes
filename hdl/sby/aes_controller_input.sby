@@ -1,0 +1,20 @@
+[tasks]
+prf
+
+[options]
+mode prove
+
+[engines]
+smtbmc boolector
+
+[script]
+read -formal -DAES_CONTROLLER_INPUT_FORMAL aes_controller_input.v
+read -formal -DAES_CONTROLLER_INPUT_FORMAL block_ram.v
+read -formal -DAES_CONTROLLER_INPUT_FORMAL fifo.v
+prep -top aes_controller_input
+
+[files]
+../aes_controller_input.v
+../include/aes.vh
+../block_ram.v
+../fifo.v
