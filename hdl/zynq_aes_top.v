@@ -73,32 +73,20 @@ localparam IN_BRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_BRAM_DATA_WIDTH;
 localparam IN_BRAM_ADDR_WIDTH = clogb2(IN_BRAM_DEPTH);
 
-// AXI slave signals
-wire start_processing;
 
-wire               axis_slave_done;
-wire [`WORD_S-1:0] axis_cmd;
 
-// input FIFO signals
-wire                          aes_controller_in_fifo_r_e;
-wire [IN_BRAM_DATA_WIDTH-1:0] aes_controller_in_fifo_data;
-wire [IN_BRAM_DATA_WIDTH-1:0] in_fifo_rdata;
+// AES controller signals
+wire                            in_bus_data_wren;
+wire [C_S_AXIS_TDATA_WIDTH-1:0] in_bus_data;
+wire                            in_bus_tlast;
 
-wire in_fifo_read_tready;
-wire in_fifo_almost_full;
-wire in_fifo_full;
-wire in_fifo_empty;
-wire in_fifo_read_tvalid;
-
-// aes signals
-wire               aes_controller_done;
-wire               aes_controller_start;
-wire [`WORD_S-1:0] aes_controller_cmd;
-wire               aes_controller_skip_key_expansion;
-wire               processing_done;
+wire                            aes_controller_done;
+wire                            aes_controller_start;
+wire                            aes_controller_skip_key_expansion;
+wire                            processing_done;
 
 // output FIFO signals
-wire [OUT_BRAM_DATA_WIDTH-1:0] aes_controller_out_fifo_data;
+wire [OUT_BRAM_DATA_WIDTH-1:0]  aes_controller_out_fifo_data;
 
 wire out_fifo_almost_full;
 wire out_fifo_full;
@@ -108,42 +96,31 @@ wire out_fifo_write_tvalid;
 
 // =====================================================================
 /*
-* AXI slave
+* AXI streaming slave
 */
+axi_stream_slave #(
+	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH)
+) axis_slave_controller (
+	.clk(s00_axis_aclk),
+	.resetn(s00_axis_aresetn),
+	.tready(s00_axis_tready),
+	.tvalid(s00_axis_tvalid),
+	.tlast(s00_axis_tlast),
+	.tdata(s00_axis_tdata),
+	.tstrb(s00_axis_tstrb),
 
-aes_axi_stream_slave #(
-	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH),
-	.FIFO_SIZE(IN_BRAM_DEPTH),
-	.FIFO_ADDR_WIDTH(IN_BRAM_ADDR_WIDTH),
-	.FIFO_DATA_WIDTH(IN_BRAM_DATA_WIDTH)
-) axi_stream_slave_controller (
-	.s00_axis_aclk(s00_axis_aclk),
-	.s00_axis_aresetn(s00_axis_aresetn),
-	.s00_axis_tready(s00_axis_tready),
-	.s00_axis_tlast(s00_axis_tlast),
-	.s00_axis_tvalid(s00_axis_tvalid),
-	.s00_axis_tdata(s00_axis_tdata),
-	.s00_axis_tstrb(s00_axis_tstrb),
+	.fifo_busy(controller_in_busy),
 
-	.aes_controller_in_fifo_r_e(in_fifo_read_tready),
+	.fifo_wren(in_bus_data_wren),
+	.fifo_data(in_bus_data),
 
-	.axis_cmd(axis_cmd),
-	.axis_slave_done(axis_slave_done),
-
-	.in_fifo_rdata(in_fifo_rdata),
-	.in_fifo_read_tvalid(in_fifo_read_tvalid),
-	.in_fifo_full(in_fifo_full),
-	.in_fifo_empty(in_fifo_empty),
-	.in_fifo_almost_full(in_fifo_almost_full)
+	.stream_tlast(in_bus_tlast)
 );
 
 // =====================================================================
 /*
-* AES specific stuff
+* AES controller
 */
-assign aes_controller_cmd = axis_cmd;
-
-assign aes_controller_in_fifo_data = in_fifo_rdata;
 
 aes_controller #(
 	.IN_FIFO_ADDR_WIDTH(IN_BRAM_ADDR_WIDTH),
@@ -161,15 +138,11 @@ aes_controller #(
 	.clk(s00_axis_aclk),
 	.reset(!s00_axis_aresetn),
 
-	.aes_cmd(aes_controller_cmd),
+	.in_bus_data_wren(in_bus_data_wren),
+	.in_bus_data(in_bus_data),
+	.in_bus_tlast(in_bus_tlast),
 
-	.axis_slave_done(axis_slave_done),
-	.in_fifo_read_tvalid(in_fifo_read_tvalid),
-	.in_fifo_data(aes_controller_in_fifo_data),
-	.in_fifo_read_tready(in_fifo_read_tready),
-	.in_fifo_full(in_fifo_full),
-	.in_fifo_empty(in_fifo_empty),
-	.in_fifo_almost_full(in_fifo_almost_full),
+	.controller_in_busy(controller_in_busy),
 
 	.out_fifo_data(aes_controller_out_fifo_data),
 	.out_fifo_write_tvalid(out_fifo_write_tvalid),

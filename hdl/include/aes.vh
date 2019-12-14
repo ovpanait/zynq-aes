@@ -12,6 +12,8 @@
 `define Nk_256 8
 `define Nr_256 14
 
+`define CMD_BITS 32
+
 `define ROUND_KEY_WORDS 4
 `define ROUND_KEY_BITS (`ROUND_KEY_WORDS * `WORD_S)
 

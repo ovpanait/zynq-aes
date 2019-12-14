@@ -2,8 +2,12 @@
 
 module aes_controller #
 (
-	IN_FIFO_ADDR_WIDTH = 9,
+	IN_BUS_DATA_WIDTH = 32,
+
 	IN_FIFO_DATA_WIDTH = 128,
+	IN_FIFO_ADDR_WIDTH = 9,
+	IN_FIFO_DEPTH = 256,
+
 	OUT_FIFO_ADDR_WIDTH = 9,
 	OUT_FIFO_DATA_WIDTH = 128,
 
@@ -18,18 +22,12 @@ module aes_controller #
 	input                                clk,
 	input                                reset,
 
-	input                                axis_slave_done,
+	// input stage
+	input                                in_bus_data_wren,
+	input                                in_bus_tlast,
+	input [IN_BUS_DATA_WIDTH-1:0]        in_bus_data,
 
-	// aes control path
-	input [`WORD_S-1:0]                  aes_cmd,
-
-	// input FIFO
-	input                                in_fifo_almost_full,
-	input [IN_FIFO_DATA_WIDTH-1:0]       in_fifo_data,
-	input                                in_fifo_empty,
-	input                                in_fifo_full,
-	input                                in_fifo_read_tvalid,
-	output reg                           in_fifo_read_tready,
+	output                               controller_in_busy,
 
 	// output FIFO
 	input                                out_fifo_almost_full,
@@ -40,7 +38,6 @@ module aes_controller #
 	output reg [OUT_FIFO_DATA_WIDTH-1:0] out_fifo_data,
 
 	output reg                           processing_done
-
 );
 
 `include "controller_fc.vh"
@@ -49,6 +46,21 @@ localparam [2:0] AES_GET_KEY_128  = 3'b010;
 localparam [2:0] AES_GET_KEY_256  = 3'b001;
 localparam [2:0] AES_GET_IV = 3'b011;
 localparam [2:0] AES_START = 3'b101;
+
+// ============================================================================
+// AES controller input stage signals
+
+wire                          in_fifo_read_tvalid;
+reg                           in_fifo_read_tready;
+wire [IN_FIFO_DATA_WIDTH-1:0] in_fifo_rdata;
+wire                          in_fifo_empty;
+
+wire                          controller_in_done;
+
+wire [`CMD_BITS-1:0]          aes_cmd;
+
+// ============================================================================
+// AES controller processing stage signals
 
 reg [2:0]         state;
 wire              aes_done;
@@ -105,6 +117,37 @@ wire in_fifo_read_req;
 wire need_iv;
 
 genvar i;
+
+// ============================================================================
+// AES controller input stage
+
+aes_controller_input #(
+	.BUS_DATA_WIDTH(IN_BUS_DATA_WIDTH),
+
+	.FIFO_ADDR_WIDTH(IN_FIFO_ADDR_WIDTH),
+	.FIFO_DATA_WIDTH(IN_FIFO_DATA_WIDTH),
+	.FIFO_SIZE(IN_FIFO_DEPTH)
+) controller_input_block (
+	.clk(clk),
+	.reset(reset),
+
+	.bus_data_wren(in_bus_data_wren),
+	.bus_tlast(in_bus_tlast),
+	.bus_data(in_bus_data),
+
+	.in_fifo_read_tvalid(in_fifo_read_tvalid),
+	.in_fifo_read_tready(in_fifo_read_tready),
+	.in_fifo_rdata(in_fifo_rdata),
+	.in_fifo_empty(in_fifo_empty),
+
+	.controller_in_done(controller_in_done),
+	.controller_in_busy(controller_in_busy),
+
+	.aes_cmd(aes_cmd)
+);
+
+// ============================================================================
+// AES controller processing stage
 
 assign aes_start_cipher = aes_start && aes_cipher_mode;
 assign aes_start_decipher = aes_start && aes_decipher_mode;
@@ -331,7 +374,7 @@ always @(posedge clk) begin
 
 					in_fifo_read_tready <= 1'b0;
 
-					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_data;
+					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_rdata;
 					aes_key_exp_mode <= 1'b1;
 					aes_start <= 1'b1;
 
@@ -349,7 +392,7 @@ always @(posedge clk) begin
 				in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
-					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_data;
+					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_rdata;
 					in_fifo_read_tready <= 1'b0;
 					state <= AES_START;
 					aes_start <= 1'b1;
@@ -380,7 +423,7 @@ always @(posedge clk) begin
 					aes_decipher_mode <= decryption_op;
 
 					in_fifo_read_tready <= 1'b0;
-					in_blk <= in_fifo_data;
+					in_blk <= in_fifo_rdata;
 					aes_start <= 1'b1;
 				end
 
@@ -399,7 +442,7 @@ always @(posedge clk) begin
 		controller_input_restart <= 1'b0;
 		processing_done <= 1'b0;
 	end else begin
-		if (axis_slave_done && in_fifo_empty)
+		if (controller_in_done && in_fifo_empty)
 			controller_input_restart <= 1'b1;
 
 		if (aes_done && controller_input_restart) begin
@@ -415,7 +458,7 @@ end
 
 always @(posedge clk) begin
 	if (get_iv)
-		iv <= in_fifo_data;
+		iv <= in_fifo_rdata;
 	else if (aes_done && (aes_cipher_mode || aes_decipher_mode))
 		iv <= iv_next;
 end
