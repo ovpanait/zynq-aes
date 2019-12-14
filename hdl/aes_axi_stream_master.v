@@ -41,9 +41,7 @@ module aes_axi_stream_master #
 	output                                    out_fifo_empty,
 	output                                    out_fifo_full,
 	output                                    out_fifo_write_tready,
-	input                                     out_fifo_write_tvalid,
-
-	output reg                                axis_master_done
+	input                                     out_fifo_write_tvalid
 );
 
 // FIFO signals
@@ -138,20 +136,13 @@ end
 
 always @(posedge m00_axis_aclk) begin
 	if(!m00_axis_aresetn) begin
-		axis_master_done <= 1'b0;
 		axis_word_cnt <= 1'b0;
 	end else begin
-		axis_master_done <= 1'b0;
-
 		if (axis_transaction) begin
 			axis_word_cnt <= axis_word_cnt + 1'b1;
 
 			if (axis_word_cnt == `Nb - 1'b1) begin
 				axis_word_cnt <= 1'b0;
-			end
-
-			if (axis_last_word) begin
-				axis_master_done <= 1'b1;
 			end
 		end
 	end

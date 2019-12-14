@@ -106,9 +106,6 @@ wire out_fifo_empty;
 wire out_fifo_write_tready;
 wire out_fifo_write_tvalid;
 
-// AXI master signals
-wire axis_master_done;
-
 // =====================================================================
 /*
 * AXI slave
@@ -128,7 +125,6 @@ aes_axi_stream_slave #(
 	.s00_axis_tdata(s00_axis_tdata),
 	.s00_axis_tstrb(s00_axis_tstrb),
 
-	.axis_master_done(axis_master_done),
 	.aes_controller_in_fifo_r_e(in_fifo_read_tready),
 
 	.axis_cmd(axis_cmd),
@@ -212,9 +208,7 @@ aes_axi_stream_master #(
 	.out_fifo_write_tready(out_fifo_write_tready),
 	.out_fifo_full(out_fifo_full),
 	.out_fifo_empty(out_fifo_empty),
-	.out_fifo_almost_full(out_fifo_almost_full),
-
-	.axis_master_done(axis_master_done)
+	.out_fifo_almost_full(out_fifo_almost_full)
 );
 
 endmodule

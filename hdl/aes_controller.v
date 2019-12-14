@@ -54,7 +54,10 @@ reg [2:0]         state;
 wire              aes_done;
 wire              get_iv;
 
+reg controller_input_restart;
+
 reg [`KEY_S-1:0]  aes_key;
+reg [`WORD_S-1:0] __aes_cmd;
 
 reg [`IV_BITS-1:0]  iv;
 wire [`IV_BITS-1:0] iv_next;
@@ -107,8 +110,8 @@ assign aes_start_cipher = aes_start && aes_cipher_mode;
 assign aes_start_decipher = aes_start && aes_decipher_mode;
 assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
-assign aes128_mode = is_128bit_key(aes_cmd);
-assign aes256_mode = is_256bit_key(aes_cmd);
+assign aes128_mode = is_128bit_key(__aes_cmd);
+assign aes256_mode = is_256bit_key(__aes_cmd);
 
 assign need_iv =
                  cbc_flag ||
@@ -144,8 +147,8 @@ assign iv_next =
                  ofb_flag  ? ofb_iv :
                  {`IV_BITS{1'b0}};
 
-assign encrypt_flag = is_encryption(aes_cmd);
-assign decrypt_flag = is_decryption(aes_cmd);
+assign encrypt_flag = is_encryption(__aes_cmd);
+assign decrypt_flag = is_decryption(__aes_cmd);
 
 assign encryption_op = encrypt_flag
                        || ctr_flag
@@ -158,7 +161,7 @@ assign decryption_op = decrypt_flag
                        && !ofb_flag;
 generate
 if (ECB_SUPPORT) begin
-	assign ecb_flag = is_ECB_op(aes_cmd);
+	assign ecb_flag = is_ECB_op(__aes_cmd);
 
 	ecb ecb_mod(
 		.in_blk(in_blk),
@@ -174,7 +177,7 @@ endgenerate
 
 generate
 if (CBC_SUPPORT) begin
-	assign cbc_flag = is_CBC_op(aes_cmd);
+	assign cbc_flag = is_CBC_op(__aes_cmd);
 
 	cbc cbc_mod(
 		.encryption(encrypt_flag),
@@ -195,7 +198,7 @@ endgenerate
 
 generate
 if (CTR_SUPPORT) begin
-	assign ctr_flag = is_CTR_op(aes_cmd);
+	assign ctr_flag = is_CTR_op(__aes_cmd);
 
 	ctr ctr_mod(
 		.in_blk(in_blk),
@@ -213,7 +216,7 @@ endgenerate
 
 generate
 if (PCBC_SUPPORT) begin
-	assign pcbc_flag = is_PCBC_op(aes_cmd);
+	assign pcbc_flag = is_PCBC_op(__aes_cmd);
 
 	pcbc pcbc_mod(
 		.encryption(encrypt_flag),
@@ -234,7 +237,7 @@ endgenerate
 
 generate
 if (CFB_SUPPORT) begin
-	assign cfb_flag = is_CFB_op(aes_cmd);
+	assign cfb_flag = is_CFB_op(__aes_cmd);
 
 	cfb cfb_mod(
 		.encryption(encrypt_flag),
@@ -254,7 +257,7 @@ endgenerate
 
 generate
 if (OFB_SUPPORT) begin
-	assign ofb_flag = is_OFB_op(aes_cmd);
+	assign ofb_flag = is_OFB_op(__aes_cmd);
 
 	ofb ofb_mod(
 		.in_blk(in_blk),
@@ -302,7 +305,6 @@ always @(posedge clk) begin
 		aes_decipher_mode <= 1'b0;
 		aes_key_exp_mode <= 1'b0;
 		aes_cipher_mode <= 1'b1;
-		processing_done <= 1'b0;
 
 		in_fifo_read_tready <= 1'b0;
 		aes_key <= {`KEY_S{1'b0}};
@@ -316,6 +318,8 @@ always @(posedge clk) begin
 		case (state)
 			AES_GET_KEY_128:
 			begin
+				__aes_cmd <= aes_cmd;
+
 				in_fifo_read_tready <= 1'b1;
 
 				aes_decipher_mode <= 1'b0;
@@ -325,7 +329,6 @@ always @(posedge clk) begin
 				if (in_fifo_read_req) begin
 					state <= AES_START;
 
-					processing_done <= 1'b0;
 					in_fifo_read_tready <= 1'b0;
 
 					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_data;
@@ -368,7 +371,7 @@ always @(posedge clk) begin
 			begin
 				state <= AES_START;
 
-				if (!aes_op_in_progress && !aes_start)
+				if (!processing_done && !aes_op_in_progress && !aes_start)
 					in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
@@ -381,14 +384,32 @@ always @(posedge clk) begin
 					aes_start <= 1'b1;
 				end
 
-				if (aes_done && axis_slave_done && in_fifo_empty) begin
-					processing_done <= 1'b1;
+				if (processing_done) begin
 					state <= AES_GET_KEY_128;
 				end
 			end
 			default:
 				state <= AES_GET_KEY_128;
 		endcase
+	end
+end
+
+always @(posedge clk) begin
+	if (reset == 1'b1) begin
+		controller_input_restart <= 1'b0;
+		processing_done <= 1'b0;
+	end else begin
+		if (axis_slave_done && in_fifo_empty)
+			controller_input_restart <= 1'b1;
+
+		if (aes_done && controller_input_restart) begin
+			processing_done <= 1'b1;
+		end
+
+		if (processing_done && out_fifo_empty) begin
+			controller_input_restart <= 1'b0;
+			processing_done <= 1'b0;
+		end
 	end
 end
 

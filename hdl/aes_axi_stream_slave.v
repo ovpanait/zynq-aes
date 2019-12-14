@@ -31,7 +31,6 @@ module aes_axi_stream_slave #(
 	input [C_S_AXIS_TDATA_WIDTH-1 : 0]      s00_axis_tdata,
 	input [(C_S_AXIS_TDATA_WIDTH/8)-1 : 0]  s00_axis_tstrb,
 
-	input                                   axis_master_done,
 	input                                   aes_controller_in_fifo_r_e,
 
 	output reg [`WORD_S-1:0]                axis_cmd,
@@ -195,7 +194,7 @@ always @(posedge s00_axis_aclk) begin
 			axis_packet_end <= 1'b1;
 		end
 
-		if (axis_master_done) begin
+		if (axis_slave_done && in_fifo_empty) begin
 			axis_packet_end <= 1'b0;
 		end
 	end
@@ -209,7 +208,7 @@ always @(posedge s00_axis_aclk) begin
 			axis_slave_done <= 1'b1;
 		end
 
-		if (axis_master_done) begin
+		if (axis_slave_done && in_fifo_empty) begin
 			axis_slave_done <= 1'b0;
 		end
 	end
