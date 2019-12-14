@@ -433,4 +433,57 @@ always @(posedge clk) begin
 			out_fifo_write_tvalid <= 1'b0;
 	end
 end
+
+`ifdef SIMULATION_VERBOSE_EXTREME
+always @(posedge clk) begin
+	$display("");
+	$display("---- time = %0t ----", $time);
+
+	case (state)
+	AES_GET_KEY_128:
+	begin
+		$display("STATE: AES_GET_KEY_128");
+	end
+	AES_GET_KEY_256:
+	begin
+		$display("STATE: AES_GET_KEY_256");
+	end
+	AES_GET_IV:
+	begin
+		$display("STATE: AES_GET_IV");
+	end
+	AES_START:
+	begin
+		$display("STATE: AES_START");
+	end
+	endcase
+
+	$display("in_fifo_read_tready     : %H", in_fifo_read_tready);
+	$display("in_fifo_read_tvalid     : %H", in_fifo_read_tvalid);
+	$display("in_fifo_almost_full     : %H", in_fifo_almost_full);
+	$display("in_fifo_empty           : %H", in_fifo_empty);
+	$display("in_fifo_full            : %H", in_fifo_full);
+
+	$display("out_fifo_read_tready    : %H", out_fifo_write_tready);
+	$display("out_fifo_read_tvalid    : %H", out_fifo_write_tvalid);
+	$display("out_fifo_almost_full    : %H", out_fifo_almost_full);
+	$display("out_fifo_empty          : %H", out_fifo_empty);
+	$display("out_fifo_full           : %H", out_fifo_full);
+
+	$display("aes_decipher_mode       : %H", aes_decipher_mode);
+	$display("aes_key_exp_mode        : %H", aes_key_exp_mode);
+	$display("aes_cipher_mode         : %H", aes_cipher_mode);
+
+	$display("aes_op_in_progress      : %H", aes_op_in_progress);
+	$display("aes256_mode             : %H", aes256_mode);
+	$display("aes_start               : %H", aes_start);
+	$display("aes_done                : %H", aes_done);
+
+	$display("controller_input_restart: %H", controller_input_restart);
+	$display("processing_done         : %H", processing_done);
+
+	$display("");
+end
+`endif
+
 endmodule
