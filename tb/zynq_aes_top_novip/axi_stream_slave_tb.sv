@@ -28,13 +28,21 @@ wire axis_tready;
 reg fifo_read_req;
 
 // Queue
-reg [31:0] arr[FIFO_SIZE];
+reg [31 + 1:0] arr[FIFO_SIZE];
 int arr_size = 0;
 int head_ptr = 0;
 
 always @(posedge s00_axis_aclk) begin
 	if (fifo_wren) begin
-		if (s00_axis_tdata !== arr[head_ptr]) begin
+		if (s00_axis_tlast !== arr[head_ptr][32]) begin
+			$display("TLAST wrong!");
+			$display("Word no.       : %0d", head_ptr);
+			$display("Simulated value: %H", s00_axis_tlast);
+			$display("Expected value : %H", arr[head_ptr][32]);
+			$finish;
+		end
+
+		if (s00_axis_tdata !== arr[head_ptr][31:0]) begin
 			$display("Data mismatch!");
 			$display("Word no. %d", head_ptr);
 			$display("Simulated value: %H", s00_axis_tdata);

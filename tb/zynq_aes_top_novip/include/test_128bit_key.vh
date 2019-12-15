@@ -78,7 +78,7 @@ task test_128bit_key_ofb_enc();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(ciphertext_queue.get(i));
+		axis_slave_queue_add128(ciphertext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, plaintext_queue, total_blocks);
 	wait_for_transfer();
@@ -126,7 +126,7 @@ task test_128bit_key_ofb_dec();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(plaintext_queue.get(i));
+		axis_slave_queue_add128(plaintext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, ciphertext_queue, total_blocks);
 	wait_for_transfer();
@@ -173,7 +173,7 @@ task test_128bit_key_cfb_enc();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(ciphertext_queue.get(i));
+		axis_slave_queue_add128(ciphertext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, plaintext_queue, total_blocks);
 	wait_for_transfer();
@@ -220,7 +220,7 @@ task test_128bit_key_cfb_dec();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(plaintext_queue.get(i));
+		axis_slave_queue_add128(plaintext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, ciphertext_queue, total_blocks);
 	wait_for_transfer();
@@ -268,7 +268,7 @@ task test_128bit_key_pcbc_enc();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(ciphertext_queue.get(i));
+		axis_slave_queue_add128(ciphertext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, plaintext_queue, total_blocks);
 	wait_for_transfer();
@@ -315,7 +315,7 @@ task test_128bit_key_pcbc_dec();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(plaintext_queue.get(i));
+		axis_slave_queue_add128(plaintext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, ciphertext_queue, total_blocks);
 	wait_for_transfer();
@@ -362,7 +362,7 @@ task test_128bit_key_ctr_enc();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(ciphertext_queue.get(i));
+		axis_slave_queue_add128(ciphertext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, plaintext_queue, total_blocks);
 	wait_for_transfer();
@@ -409,7 +409,7 @@ task test_128bit_key_ctr_dec();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(plaintext_queue.get(i));
+		axis_slave_queue_add128(plaintext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, ciphertext_queue, total_blocks);
 	wait_for_transfer();
@@ -456,7 +456,7 @@ task test_128bit_key_cbc_enc();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(ciphertext_queue.get(i));
+		axis_slave_queue_add128(ciphertext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, plaintext_queue, total_blocks);
 	wait_for_transfer();
@@ -504,7 +504,7 @@ task test_128bit_key_cbc_dec();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(plaintext_queue.get(i));
+		axis_slave_queue_add128(plaintext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 1, ciphertext_queue, total_blocks);
 	wait_for_transfer();
@@ -551,7 +551,7 @@ task test_128bit_key_ecb_enc();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(ciphertext_queue.get(i));
+		axis_slave_queue_add128(ciphertext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 0, plaintext_queue, total_blocks);
 	wait_for_transfer();
@@ -597,7 +597,7 @@ task test_128bit_key_ecb_dec();
 
 	bus_sem.get(1);
 	for (i = 0; i < total_blocks; i++)
-		axis_slave_queue_add128(plaintext_queue.get(i));
+		axis_slave_queue_add128(plaintext_queue.get(i), i == total_blocks - 1);
 
 	aes_send_request(cmd, key, 128, iv, 0, ciphertext_queue, total_blocks);
 	wait_for_transfer();

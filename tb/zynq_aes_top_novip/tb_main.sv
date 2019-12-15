@@ -119,17 +119,19 @@ function [`BLK_S-1:0] reverse_blk8(input [`BLK_S-1:0] blk);
 		reverse_blk8[i*8 +: 8] = blk[(`BLK_S / 8 - i - 1) * 8 +: 8];
 endfunction
 
-task axis_slave_queue_add32(input [31:0] word);
-	axi_slave.arr[axi_slave.arr_size] = word;
+task axis_slave_queue_add32(input [31:0] word, input last);
+	axi_slave.arr[axi_slave.arr_size][32] = last;
+	axi_slave.arr[axi_slave.arr_size][31:0] = word;
+
 	axi_slave.arr_size++;
 endtask
 
-task axis_slave_queue_add128(input [127:0] block);
+task axis_slave_queue_add128(input [127:0] block, input last);
 	// Reverse block before pushing it on the results queue
 	block = reverse_blk8(block);
 
 	for (integer i = 0; i < 128 / 32; i++)
-		axis_slave_queue_add32(block[i * 32 +: 32]);
+		axis_slave_queue_add32(block[i * 32 +: 32], (last && i == (128 / 32 - 1)));
 endtask
 
 task axis_send32(input [31:0] word);
