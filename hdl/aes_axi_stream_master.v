@@ -65,10 +65,11 @@ wire [FIFO_DATA_WIDTH-1:0] axis_blk_shift;
 reg  [FIFO_ADDR_WIDTH-1:0] axis_word_cnt;
 reg  [FIFO_DATA_WIDTH-1:0] axis_blk;
 wire axis_transaction;
-wire axis_last_blk;
 wire axis_last_word;
 reg  axis_tvalid;
 wire axis_tlast;
+
+reg aes_last_blk;
 
 // FIFO logic
 
@@ -111,9 +112,8 @@ assign m00_axis_tstrb  = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
 assign m00_axis_tvalid = axis_tvalid;
 assign m00_axis_tlast  = axis_tlast;
 
-assign axis_last_word = axis_last_blk && (axis_word_cnt == `Nb - 1'b1);
+assign axis_last_word = aes_last_blk && (axis_word_cnt == `Nb - 1'b1);
 assign axis_blk_shift = axis_blk >> axis_word_cnt * `WORD_S;
-assign axis_last_blk = processing_done && out_fifo_empty;
 assign axis_transaction = m00_axis_tready && axis_tvalid;
 assign axis_tlast =  axis_last_word;
 
@@ -145,6 +145,18 @@ always @(posedge m00_axis_aclk) begin
 				axis_word_cnt <= 1'b0;
 			end
 		end
+	end
+end
+
+always @(posedge m00_axis_aclk) begin
+	if (!m00_axis_aresetn) begin
+		aes_last_blk <= 1'b0;
+	end else begin
+		if (processing_done && out_fifo_empty)
+			aes_last_blk <= 1'b1;
+
+		if (axis_last_word && axis_transaction)
+			aes_last_blk <= 1'b0;
 	end
 end
 
