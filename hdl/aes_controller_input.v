@@ -223,11 +223,6 @@ always @(*) begin
 	if (controller_in_busy)
 		`ASSUME(!fifo_write_tvalid);
 
-	// controller output block couldn't have finished if the controller
-	// input side isn't done first
-	if (!controller_in_done)
-		`ASSUME(!controller_out_done);
-
 	// assume tlast will only be received for the last 32 bits of a
 	// 128-bit AES block
 	if ((bus_word_cnt != `Nb - 1) && !bus_data_wren)
@@ -248,13 +243,6 @@ always @(posedge clk) begin
 		// tlast on the bus and that last block written to FIFO
 		if ($rose(controller_in_done))
 			assert($past(bus_packet_end && fifo_write_transaction));
-
-		// controller_in_done must only be deasserted after
-		// controller_out_done gets asserted (the transmitting side
-		// must send all the AES blocks from its FIFO before
-		// deassserting controller_in_done)
-		if ($fell(controller_in_done) && $past(!reset)) // (?) reset
-			assert($past(controller_out_done));
 
 		// No write operations must occur after asserting
 		// controller_in_done
