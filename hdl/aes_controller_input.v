@@ -47,6 +47,7 @@ wire [FIFO_DATA_WIDTH-1:0] aes_blk_shift;
 wire [FIFO_DATA_WIDTH-1:0] aes_blk_next;
 reg [FIFO_DATA_WIDTH-1:0]  aes_blk;
 
+wire      bus_transaction;
 reg [1:0] bus_word_cnt;
 reg       fsm_state;
 
@@ -111,6 +112,7 @@ assign in_fifo_empty = fifo_empty;
 assign in_fifo_full = fifo_full;
 
 // Controller input logic
+assign bus_transaction = bus_data_wren && !controller_in_busy;
 assign controller_in_busy = controller_in_done || in_fifo_full || fifo_write_tvalid;
 
 assign aes_block_available = bus_data_wren && (bus_word_cnt == `Nb - 1'b1);
@@ -129,14 +131,14 @@ always @(posedge clk) begin
 		case (fsm_state)
 			GET_CMD:
 			begin
-				if (bus_data_wren) begin
+				if (bus_transaction) begin
 					fsm_state <= GET_PAYLOAD;
 					aes_cmd <= bus_data;
 				end
 			end
 			GET_PAYLOAD:
 			begin
-				if (bus_data_wren) begin
+				if (bus_transaction) begin
 					bus_word_cnt <= bus_word_cnt + 1'b1;
 					aes_blk <= aes_blk_next;
 
@@ -171,7 +173,7 @@ always @(posedge clk) begin
 	if (reset) begin
 		bus_packet_end <= 1'b0;
 	end else begin
-		if (bus_tlast && bus_data_wren) begin
+		if (bus_tlast && bus_transaction) begin
 			bus_packet_end <= 1'b1;
 		end
 
