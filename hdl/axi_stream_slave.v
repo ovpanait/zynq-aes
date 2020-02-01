@@ -151,9 +151,12 @@ always @(posedge clk)
 always @(*) begin
 	if (!f_past_valid) begin
 		`ASSUME(resetn);
+	end else begin
+		`ASSUME(!resetn);
 	end
 end
 
+// Slave interface
 always @(posedge clk) begin
 	if (f_past_valid) begin
 		// only deassert "valid" after successful transfer
@@ -182,6 +185,28 @@ always @(posedge clk) begin
 		end
 	end
 end
+
+// Master interface
+always @(posedge clk) begin
+	if (f_past_valid) begin
+		// only deassert "tlast" after a successful transfer
+		if ($fell(stream_tlast)) begin
+			assert($past(fifo_wren && !fifo_busy));
+		end
+
+		// (?) assert "tlast" at the same time as "valid"
+		if ($rose(stream_tlast)) begin
+			assert($rose(fifo_wren));
+		end
+
+		// data must be stable while "valid" is active
+		if ($past(fifo_wren && fifo_busy)) begin
+			assert($stable(fifo_data));
+		end
+	end
+end
+
+
 
 `endif
 
