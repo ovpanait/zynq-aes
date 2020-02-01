@@ -7,19 +7,19 @@
 
 module axi_stream_slave #(
 	// Width of slave side bus
-	parameter integer C_S_AXIS_TDATA_WIDTH = 32
+	parameter integer AXIS_TDATA_WIDTH = 32
 )(
 	input                                      clk,
 	input                                      resetn,
 	output reg                                 tready,
 	input                                      tlast,
 	input                                      tvalid,
-	input [C_S_AXIS_TDATA_WIDTH - 1 : 0]       tdata,
-	input [(C_S_AXIS_TDATA_WIDTH / 8) - 1 : 0] tstrb,
+	input [AXIS_TDATA_WIDTH - 1 : 0]           tdata,
+	input [(AXIS_TDATA_WIDTH / 8) - 1 : 0]     tstrb,
 
 	input                                      fifo_busy,
 	output reg                                 fifo_wren,
-	output reg [C_S_AXIS_TDATA_WIDTH - 1 : 0]  fifo_data,
+	output reg [AXIS_TDATA_WIDTH - 1 : 0]      fifo_data,
 
 	output reg                                 stream_tlast
 );
@@ -28,35 +28,35 @@ localparam [1:0] IDLE = 2'b00;
 localparam [1:0] BUSY = 2'b01;
 localparam [1:0] FULL = 2'b10;
 
-reg [C_S_AXIS_TDATA_WIDTH - 1 : 0] fifo_data_skidbuf;
+reg [AXIS_TDATA_WIDTH - 1 : 0] fifo_data_skidbuf;
 reg stream_tlast_skidbuf;
 
 reg [1:0] state;
 
 wire insert, flow, fill, flush, remove;
-wire fifo_transaction, in_transaction;
+wire fifo_transaction, axis_slave_transaction;
 
-initial fifo_data_skidbuf = {C_S_AXIS_TDATA_WIDTH{1'b0}};
-initial fifo_data = {C_S_AXIS_TDATA_WIDTH{1'b0}};
+initial fifo_data_skidbuf = {AXIS_TDATA_WIDTH{1'b0}};
+initial fifo_data = {AXIS_TDATA_WIDTH{1'b0}};
 initial stream_tlast_skidbuf = 1'b0;
 initial stream_tlast = 1'b0;
 initial fifo_wren = 1'b0;
 initial tready = 1'b0;
 
 assign fifo_transaction = fifo_wren && !fifo_busy;
-assign in_transaction = tvalid && tready;
+assign axis_slave_transaction = tvalid && tready;
 
-assign insert = (state == IDLE) && in_transaction && !fifo_transaction;
-assign flow = (state == BUSY) && in_transaction && fifo_transaction;
-assign fill = (state == BUSY) && in_transaction && !fifo_transaction;
-assign flush = (state == FULL) && !in_transaction && fifo_transaction;
-assign remove = (state == BUSY) && !in_transaction && fifo_transaction;
+assign insert = (state == IDLE) && axis_slave_transaction && !fifo_transaction;
+assign flow = (state == BUSY) && axis_slave_transaction && fifo_transaction;
+assign fill = (state == BUSY) && axis_slave_transaction && !fifo_transaction;
+assign flush = (state == FULL) && !axis_slave_transaction && fifo_transaction;
+assign remove = (state == BUSY) && !axis_slave_transaction && fifo_transaction;
 
 // Data path
 always @(posedge clk) begin
 	if (!resetn) begin
-		fifo_data_skidbuf <= {C_S_AXIS_TDATA_WIDTH{1'b0}};
-		fifo_data <= {C_S_AXIS_TDATA_WIDTH{1'b0}};
+		fifo_data_skidbuf <= {AXIS_TDATA_WIDTH{1'b0}};
+		fifo_data <= {AXIS_TDATA_WIDTH{1'b0}};
 
 		stream_tlast_skidbuf <= 1'b0;
 		stream_tlast <= 1'b0;
