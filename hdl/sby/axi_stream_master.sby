@@ -1,0 +1,15 @@
+[tasks]
+prf
+
+[options]
+mode prove
+
+[engines]
+smtbmc boolector
+
+[script]
+read -formal -DAXI_STREAM_MASTER_FORMAL axi_stream_master.v
+prep -top axi_stream_master
+
+[files]
+../axi_stream_master.v
