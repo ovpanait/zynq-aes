@@ -46,30 +46,36 @@ module aes_axi_stream_master #
 
 // FIFO signals
 
-wire fifo_almost_full;
 wire fifo_write_tready;
 wire fifo_write_tvalid;
-wire fifo_read_tready;
 wire fifo_read_tvalid;
+wire fifo_almost_full;
+wire fifo_read_tready;
 wire fifo_empty;
 wire fifo_full;
 
+reg  [FIFO_DATA_WIDTH-1:0] fifo_data;
 wire [FIFO_DATA_WIDTH-1:0] fifo_wdata;
 wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 
-wire out_fifo_read_req;
+wire [FIFO_DATA_WIDTH-1:0] fifo_data_shift;
 
-// AXI signals
+reg fifo_data_last;
+reg data_loaded;
 
-wire [FIFO_DATA_WIDTH-1:0] axis_blk_shift;
-reg  [FIFO_ADDR_WIDTH-1:0] axis_word_cnt;
-reg  [FIFO_DATA_WIDTH-1:0] axis_blk;
-wire axis_transaction;
-wire axis_last_word;
-reg  axis_tvalid;
-wire axis_tlast;
+wire fifo_read_req;
 
-reg aes_last_blk;
+// bus signals
+
+reg [FIFO_ADDR_WIDTH-1:0] bus_word_cnt;
+
+wire [C_M_AXIS_TDATA_WIDTH-1:0] bus_tdata;
+wire bus_tready;
+wire bus_tvalid;
+wire bus_tlast;
+
+wire bus_transaction;
+wire bus_last_word;
 
 // FIFO logic
 
@@ -94,55 +100,72 @@ fifo #(
 	.fifo_empty(fifo_empty)
 );
 
-assign fifo_read_tready = fifo_read_tvalid && !axis_tvalid;
+assign fifo_read_tready = fifo_read_tvalid && !data_loaded;
 assign fifo_write_tvalid = out_fifo_write_tvalid;
 assign fifo_wdata = aes_controller_out_fifo_data;
+
+assign fifo_read_req = fifo_read_tready && fifo_read_tvalid;
 
 assign out_fifo_write_tready = fifo_write_tready;
 assign out_fifo_almost_full = fifo_almost_full;
 assign out_fifo_full = fifo_full;
 assign out_fifo_empty = fifo_empty;
 
-assign out_fifo_read_req = fifo_read_tready && fifo_read_tvalid;
-
 // AXI logic
+axi_stream_master #(
+	.AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH)
+) axis_master (
+	.clk(m00_axis_aclk),
+	.resetn(m00_axis_aresetn),
 
-assign m00_axis_tdata  = axis_blk_shift[0 +: `WORD_S];
+	.fifo_tready(bus_tready),
+	.fifo_tvalid(bus_tvalid),
+	.fifo_tdata(bus_tdata),
+	.fifo_tlast(bus_tlast),
+
+	.tready(m00_axis_tready),
+	.tvalid(m00_axis_tvalid),
+	.tdata(m00_axis_tdata),
+	.tlast(m00_axis_tlast)
+);
+
 assign m00_axis_tstrb  = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
-assign m00_axis_tvalid = axis_tvalid;
-assign m00_axis_tlast  = axis_tlast;
 
-assign axis_last_word = aes_last_blk && (axis_word_cnt == `Nb - 1'b1);
-assign axis_blk_shift = axis_blk >> axis_word_cnt * `WORD_S;
-assign axis_transaction = m00_axis_tready && axis_tvalid;
-assign axis_tlast =  axis_last_word;
+assign bus_last_word = fifo_data_last && (bus_word_cnt == `Nb - 1'b1);
+assign fifo_data_shift = fifo_data >> bus_word_cnt * `WORD_S;
+
+assign bus_tdata = fifo_data_shift[0 +: `WORD_S];
+assign bus_tlast = bus_last_word;
+assign bus_tvalid = data_loaded;
+
+assign bus_transaction = bus_tready && bus_tvalid;
 
 always @(posedge m00_axis_aclk) begin
 	if(!m00_axis_aresetn) begin
-		axis_blk <= 1'b0;
-		axis_tvalid <= 1'b0;
+		fifo_data <= {C_M_AXIS_TDATA_WIDTH{1'b0}};
+		data_loaded <= 1'b0;
 	end 
 	else begin
-		if (out_fifo_read_req) begin
-			axis_blk <= fifo_rdata;
-			axis_tvalid <= 1'b1;
+		if (fifo_read_req) begin
+			fifo_data <= fifo_rdata;
+			data_loaded <= 1'b1;
 		end
 
-		if (axis_transaction && axis_word_cnt == `Nb - 1'b1) begin
-			axis_tvalid <= 1'b0;
+		if (bus_transaction && bus_word_cnt == `Nb - 1'b1) begin
+			data_loaded <= 1'b0;
 		end
 	end
 end
 
 always @(posedge m00_axis_aclk) begin
 	if(!m00_axis_aresetn) begin
-		axis_word_cnt <= 1'b0;
+		bus_word_cnt <= 1'b0;
 	end else begin
-		if (axis_transaction) begin
-			axis_word_cnt <= axis_word_cnt + 1'b1;
+		if (bus_transaction) begin
+			bus_word_cnt <= bus_word_cnt + 1'b1;
 
-			if (axis_word_cnt == `Nb - 1'b1) begin
-				axis_word_cnt <= 1'b0;
+			if (bus_word_cnt == `Nb - 1'b1) begin
+				bus_word_cnt <= 1'b0;
 			end
 		end
 	end
@@ -150,13 +173,13 @@ end
 
 always @(posedge m00_axis_aclk) begin
 	if (!m00_axis_aresetn) begin
-		aes_last_blk <= 1'b0;
+		fifo_data_last <= 1'b0;
 	end else begin
 		if (processing_done && out_fifo_empty)
-			aes_last_blk <= 1'b1;
+			fifo_data_last <= 1'b1;
 
-		if (axis_last_word && axis_transaction)
-			aes_last_blk <= 1'b0;
+		if (bus_last_word && bus_transaction)
+			fifo_data_last <= 1'b0;
 	end
 end
 
