@@ -93,7 +93,7 @@ wire out_bus_tlast;
 * AXI streaming slave
 */
 axi_stream_slave #(
-	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH)
+	.AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH)
 ) axis_slave_controller (
 	.clk(s00_axis_aclk),
 	.resetn(s00_axis_aresetn),
