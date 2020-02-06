@@ -73,8 +73,6 @@ localparam IN_BRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_BRAM_DATA_WIDTH;
 localparam IN_BRAM_ADDR_WIDTH = clogb2(IN_BRAM_DEPTH);
 
-
-
 // AES controller signals
 wire                            in_bus_data_wren;
 wire [C_S_AXIS_TDATA_WIDTH-1:0] in_bus_data;
@@ -85,14 +83,10 @@ wire                            aes_controller_start;
 wire                            aes_controller_skip_key_expansion;
 wire                            processing_done;
 
-// output FIFO signals
-wire [OUT_BRAM_DATA_WIDTH-1:0]  aes_controller_out_fifo_data;
-
-wire out_fifo_almost_full;
-wire out_fifo_full;
-wire out_fifo_empty;
-wire out_fifo_write_tready;
-wire out_fifo_write_tvalid;
+wire [C_M_AXIS_TDATA_WIDTH-1:0]  out_bus_tdata;
+wire out_bus_tready;
+wire out_bus_tvalid;
+wire out_bus_tlast;
 
 // =====================================================================
 /*
@@ -144,44 +138,32 @@ aes_controller #(
 
 	.controller_in_busy(controller_in_busy),
 
-	.out_fifo_data(aes_controller_out_fifo_data),
-	.out_fifo_write_tvalid(out_fifo_write_tvalid),
-	.out_fifo_write_tready(out_fifo_write_tready),
-	.out_fifo_full(out_fifo_full),
-	.out_fifo_empty(out_fifo_empty),
-	.out_fifo_almost_full(out_fifo_almost_full),
-
-	.processing_done(processing_done)
+	.out_bus_tvalid(out_bus_tvalid),
+	.out_bus_tready(out_bus_tready),
+	.out_bus_tdata(out_bus_tdata),
+	.out_bus_tlast(out_bus_tlast)
 );
 
 // =====================================================================
 /*
-* AXI master
+* AXI streaming master
 */
 
-aes_axi_stream_master #(
-	.C_M_AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH),
-	.FIFO_SIZE(OUT_BRAM_DEPTH),
-	.FIFO_ADDR_WIDTH(OUT_BRAM_ADDR_WIDTH),
-	.FIFO_DATA_WIDTH(OUT_BRAM_DATA_WIDTH)
+axi_stream_master #(
+	.AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH)
 ) axi_stream_master_controller (
-	.m00_axis_aclk(m00_axis_aclk),
-	.m00_axis_aresetn(m00_axis_aresetn),
-	.m00_axis_tvalid(m00_axis_tvalid),
-	.m00_axis_tdata(m00_axis_tdata),
-	.m00_axis_tstrb(m00_axis_tstrb),
-	.m00_axis_tlast(m00_axis_tlast),
-	.m00_axis_tready(m00_axis_tready),
+	.clk(m00_axis_aclk),
+	.resetn(m00_axis_aresetn),
 
-	.processing_done(processing_done),
+	.fifo_tready(out_bus_tready),
+	.fifo_tvalid(out_bus_tvalid),
+	.fifo_tdata(out_bus_tdata),
+	.fifo_tlast(out_bus_tlast),
 
-	.aes_controller_out_fifo_data(aes_controller_out_fifo_data),
-
-	.out_fifo_write_tvalid(out_fifo_write_tvalid),
-	.out_fifo_write_tready(out_fifo_write_tready),
-	.out_fifo_full(out_fifo_full),
-	.out_fifo_empty(out_fifo_empty),
-	.out_fifo_almost_full(out_fifo_almost_full)
+	.tvalid(m00_axis_tvalid),
+	.tdata(m00_axis_tdata),
+	.tlast(m00_axis_tlast),
+	.tready(m00_axis_tready)
 );
 
 endmodule

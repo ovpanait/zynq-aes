@@ -8,8 +8,10 @@ module aes_controller #
 	IN_FIFO_ADDR_WIDTH = 9,
 	IN_FIFO_DEPTH = 256,
 
+	OUT_BUS_DATA_WIDTH = 32,
 	OUT_FIFO_ADDR_WIDTH = 9,
 	OUT_FIFO_DATA_WIDTH = 128,
+	OUT_FIFO_DEPTH = 256,
 
 	parameter ECB_SUPPORT =  1,
 	parameter CBC_SUPPORT =  1,
@@ -29,15 +31,11 @@ module aes_controller #
 
 	output                               controller_in_busy,
 
-	// output FIFO
-	input                                out_fifo_almost_full,
-	input                                out_fifo_empty,
-	input                                out_fifo_full,
-	input                                out_fifo_write_tready,
-	output reg                           out_fifo_write_tvalid,
-	output reg [OUT_FIFO_DATA_WIDTH-1:0] out_fifo_data,
-
-	output reg                           processing_done
+	// output stage
+	output                               out_bus_tvalid,
+	input                                out_bus_tready,
+	output     [OUT_BUS_DATA_WIDTH-1:0]  out_bus_tdata,
+	output                               out_bus_tlast
 );
 
 `include "controller_fc.vh"
@@ -67,6 +65,7 @@ wire              aes_done;
 wire              get_iv;
 
 reg controller_input_restart;
+reg processing_done;
 
 reg [`KEY_S-1:0]  aes_key;
 reg [`WORD_S-1:0] __aes_cmd;
@@ -112,11 +111,23 @@ wire [`BLK_S-1:0] pcbc_out_blk;
 wire              aes128_mode;
 wire              aes256_mode;
 
-wire out_fifo_write_req;
 wire in_fifo_read_req;
 wire need_iv;
 
 genvar i;
+
+// ============================================================================
+// AES controller output stage signals
+
+reg [OUT_FIFO_DATA_WIDTH-1:0] out_fifo_wdata;
+reg out_fifo_write_tvalid;
+wire out_fifo_write_tready;
+
+wire out_fifo_almost_full;
+wire out_fifo_full;
+wire out_fifo_empty;
+
+wire out_fifo_write_req;
 
 // ============================================================================
 // AES controller input stage
@@ -469,13 +480,41 @@ always @(posedge clk) begin
 	else begin
 		if (aes_done && (aes_cipher_mode || aes_decipher_mode)) begin
 			out_fifo_write_tvalid <= 1'b1;
-			out_fifo_data <= out_blk_next;
+			out_fifo_wdata <= out_blk_next;
 		end
 
 		if (out_fifo_write_req)
 			out_fifo_write_tvalid <= 1'b0;
 	end
 end
+
+// ============================================================================
+// AES controller output stage
+
+aes_controller_output #(
+	.BUS_TDATA_WIDTH(OUT_BUS_DATA_WIDTH),
+	.FIFO_SIZE(OUT_FIFO_DEPTH),
+	.FIFO_ADDR_WIDTH(OUT_FIFO_ADDR_WIDTH),
+	.FIFO_DATA_WIDTH(OUT_FIFO_DATA_WIDTH)
+) controller_output_block (
+	.clk(clk),
+	.resetn(!reset),
+
+	.processing_done(processing_done),
+
+	.fifo_write_tready(out_fifo_write_tready),
+	.fifo_write_tvalid(out_fifo_write_tvalid),
+	.fifo_wdata(out_fifo_wdata),
+
+	.fifo_almost_full(out_fifo_almost_full),
+	.fifo_full(out_fifo_full),
+	.fifo_empty(out_fifo_empty),
+
+	.bus_tvalid(out_bus_tvalid),
+	.bus_tready(out_bus_tready),
+	.bus_tdata(out_bus_tdata),
+	.bus_tlast(out_bus_tlast)
+);
 
 `ifdef SIMULATION_VERBOSE_EXTREME
 always @(posedge clk) begin
