@@ -23,6 +23,7 @@ module axi_stream_master #(
 	input                                      tready,
 	output reg                                 tlast,
 	output reg                                 tvalid,
+	output reg [AXIS_TDATA_WIDTH/8-1:0]        tstrb,
 	output reg [AXIS_TDATA_WIDTH - 1 : 0]      tdata
 );
 
@@ -135,6 +136,10 @@ always @(posedge clk) begin
 		if (fill)
 			fifo_tready <= 1'b0;
 	end
+end
+
+always @(posedge clk) begin
+	tstrb  <= {(AXIS_TDATA_WIDTH/8){1'b1}};
 end
 
 `ifdef FORMAL

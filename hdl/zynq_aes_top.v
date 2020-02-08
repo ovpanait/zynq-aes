@@ -171,6 +171,7 @@ axi_stream_master #(
 	.fifo_tlast(out_bus_tlast),
 
 	.tvalid(m00_axis_tvalid),
+	.tstrb(m00_axis_tstrb),
 	.tdata(m00_axis_tdata),
 	.tlast(m00_axis_tlast),
 	.tready(m00_axis_tready)
