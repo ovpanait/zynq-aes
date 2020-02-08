@@ -7,7 +7,7 @@ HDL_INCLUDE = $(HDL_DIR)/include
 TB_TOP = $(shell readlink -f tb)
 TB_INCLUDE = $(TB_TOP)/include
 
-ifeq (VIP_SIM, 1)
+ifeq ($(VIP_SIM), 1)
 TB_DIR = $(TB_TOP)/zynq_aes_top_vip
 else
 TB_DIR = $(TB_TOP)/zynq_aes_top_novip
