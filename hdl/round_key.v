@@ -30,6 +30,11 @@ reg [`Nb-1:0] round_no;
 wire copy_initial_key;
 wire round_key_en;
 wire compute_g;
+
+wire second_round;
+wire first_round;
+wire last_round;
+
 genvar i;
 
 `include "aes_common.vh"
