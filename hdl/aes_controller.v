@@ -78,10 +78,20 @@ wire [`IV_BITS-1:0] cfb_iv;
 wire [`IV_BITS-1:0] ofb_iv;
 wire [`IV_BITS-1:0] pcbc_iv;
 
-reg               aes_start;
-reg               aes_cipher_mode;
-reg               aes_decipher_mode;
-reg               aes_key_exp_mode;
+reg aes_decipher_mode;
+reg aes_key_exp_mode;
+reg aes_cipher_mode;
+reg aes_start;
+
+wire aes_op_in_progress;
+wire aes_start_decipher;
+wire aes_start_key_exp;
+wire aes_start_cipher;
+
+wire encryption_op;
+wire decryption_op;
+wire encrypt_flag;
+wire decrypt_flag;
 
 wire ecb_flag;
 wire cbc_flag;
@@ -108,8 +118,8 @@ wire [`BLK_S-1:0] cfb_out_blk;
 wire [`BLK_S-1:0] ofb_out_blk;
 wire [`BLK_S-1:0] pcbc_out_blk;
 
-wire              aes128_mode;
-wire              aes256_mode;
+wire aes128_mode;
+wire aes256_mode;
 
 wire in_fifo_read_req;
 wire need_iv;
