@@ -73,15 +73,25 @@ localparam IN_BRAM_DATA_WIDTH = `Nb * `WORD_S;
 localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_BRAM_DATA_WIDTH;
 localparam IN_BRAM_ADDR_WIDTH = clogb2(IN_BRAM_DEPTH);
 
-// AES controller signals
+/// =====================================================================
+// Input interface signals
+
 wire                            in_bus_data_wren;
 wire [C_S_AXIS_TDATA_WIDTH-1:0] in_bus_data;
 wire                            in_bus_tlast;
 
-wire                            aes_controller_done;
-wire                            aes_controller_start;
-wire                            aes_controller_skip_key_expansion;
-wire                            processing_done;
+// =====================================================================
+// AES Controller signals
+
+wire aes_controller_done;
+wire aes_controller_start;
+wire aes_controller_skip_key_expansion;
+wire processing_done;
+
+wire controller_in_busy;
+
+// =====================================================================
+// Output interface signals
 
 wire [C_M_AXIS_TDATA_WIDTH-1:0]  out_bus_tdata;
 wire out_bus_tready;
