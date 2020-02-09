@@ -43,9 +43,9 @@ reg bus_packet_end;
 
 wire aes_block_available;
 
-wire [FIFO_DATA_WIDTH-1:0] aes_blk_shift;
-wire [FIFO_DATA_WIDTH-1:0] aes_blk_next;
-reg [FIFO_DATA_WIDTH-1:0]  aes_blk;
+wire [`BLK_S-1:0] aes_blk_shift;
+wire [`BLK_S-1:0] aes_blk_next;
+wire [`BLK_S-1:0] aes_blk;
 
 wire      bus_transaction;
 reg [1:0] bus_word_cnt;
@@ -59,7 +59,7 @@ reg  fifo_write_tvalid;
 wire fifo_read_tready;
 wire fifo_read_tvalid;
 
-wire [FIFO_DATA_WIDTH-1:0] fifo_wdata;
+reg [FIFO_DATA_WIDTH-1:0] fifo_wdata;
 wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 
 wire fifo_almost_full;
@@ -71,7 +71,7 @@ wire in_fifo_busy;
 wire in_fifo_full;
 
 // Initial assignments
-initial aes_blk = {FIFO_DATA_WIDTH{1'b0}};
+initial fifo_wdata = {FIFO_DATA_WIDTH{1'b0}};
 initial aes_cmd = {`CMD_BITS{1'b0}};
 initial controller_in_done = 1'b0;
 initial fifo_write_tvalid = 1'b0;
@@ -103,7 +103,6 @@ fifo #(
 
 assign fifo_write_transaction = fifo_write_tvalid && fifo_write_tready;
 assign fifo_read_tready = in_fifo_read_tready;
-assign fifo_wdata = aes_blk;
 
 assign in_fifo_read_tvalid = fifo_read_tvalid;
 assign in_fifo_almost_full = fifo_almost_full;
@@ -117,12 +116,13 @@ assign controller_in_busy = controller_in_done || in_fifo_full || fifo_write_tva
 
 assign aes_block_available = bus_data_wren && (bus_word_cnt == `Nb - 1'b1);
 
-assign aes_blk_next = {bus_data, aes_blk_shift[`BLK_S-1-`WORD_S:0]};
+assign aes_blk = fifo_wdata[`BLK_S-1:0];
 assign aes_blk_shift = (aes_blk >> `WORD_S);
+assign aes_blk_next = {bus_data, aes_blk_shift[`BLK_S-1-`WORD_S:0]};
 
 always @(posedge clk) begin
 	if(reset) begin
-		aes_blk <= {FIFO_DATA_WIDTH{1'b0}};
+		fifo_wdata <= {FIFO_DATA_WIDTH{1'b0}};
 		aes_cmd <= {`CMD_BITS{1'b0}};
 		fsm_state <= GET_CMD;
 		bus_word_cnt <= 2'b0;
@@ -140,7 +140,7 @@ always @(posedge clk) begin
 			begin
 				if (bus_transaction) begin
 					bus_word_cnt <= bus_word_cnt + 1'b1;
-					aes_blk <= aes_blk_next;
+					fifo_wdata <= {bus_tlast, aes_blk_next};
 
 					if (aes_block_available) begin
 						bus_word_cnt <= 1'b0;

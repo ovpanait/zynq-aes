@@ -35,10 +35,10 @@ module aes_controller #
 
 `include "controller_fc.vh"
 
-localparam IN_FIFO_DATA_WIDTH = 128;
+localparam IN_FIFO_DATA_WIDTH = `BLK_S + 1; // tlast bit + 1 x 128-bit AES block
 localparam IN_FIFO_ADDR_WIDTH = clogb2(IN_FIFO_DATA_WIDTH);
 
-localparam OUT_FIFO_DATA_WIDTH = 128;
+localparam OUT_FIFO_DATA_WIDTH = `BLK_S + 1; // tlast bit + 1 x 128-bit AES block
 localparam OUT_FIFO_ADDR_WIDTH = clogb2(OUT_FIFO_DATA_WIDTH);
 
 localparam [2:0] AES_GET_KEY_128  = 3'b010;
