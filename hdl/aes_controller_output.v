@@ -13,8 +13,6 @@ module aes_controller_output #
 	input                                     clk,
 	input                                     resetn,
 
-	input                                     processing_done,
-
 	output                                    fifo_write_tready,
 	input                                     fifo_write_tvalid,
 	input  [FIFO_DATA_WIDTH-1:0]              fifo_wdata,
@@ -89,15 +87,18 @@ assign bus_transaction = bus_tready && bus_tvalid;
 always @(posedge clk) begin
 	if(!resetn) begin
 		fifo_data <= {BUS_TDATA_WIDTH{1'b0}};
+		fifo_data_last <= 1'b0;
 		data_loaded <= 1'b0;
 	end 
 	else begin
 		if (fifo_read_req) begin
-			fifo_data <= fifo_rdata;
+			fifo_data <= fifo_rdata[`BLK_S-1:0];
+			fifo_data_last <= fifo_rdata[`BLK_S];
 			data_loaded <= 1'b1;
 		end
 
 		if (bus_transaction && bus_word_cnt == `Nb - 1'b1) begin
+			fifo_data_last <= 1'b0;
 			data_loaded <= 1'b0;
 		end
 	end
@@ -114,18 +115,6 @@ always @(posedge clk) begin
 				bus_word_cnt <= 1'b0;
 			end
 		end
-	end
-end
-
-always @(posedge clk) begin
-	if (!resetn) begin
-		fifo_data_last <= 1'b0;
-	end else begin
-		if (processing_done && fifo_empty)
-			fifo_data_last <= 1'b1;
-
-		if (bus_last_word && bus_transaction)
-			fifo_data_last <= 1'b0;
 	end
 end
 

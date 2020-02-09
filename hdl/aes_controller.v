@@ -34,6 +34,7 @@ module aes_controller #
 );
 
 `include "controller_fc.vh"
+`include "common.vh"
 
 localparam IN_FIFO_DATA_WIDTH = `BLK_S + 1; // tlast bit + 1 x 128-bit AES block
 localparam IN_FIFO_ADDR_WIDTH = clogb2(IN_FIFO_DATA_WIDTH);
@@ -64,6 +65,8 @@ wire [`CMD_BITS-1:0]          aes_cmd;
 reg [2:0]         state;
 wire              aes_done;
 wire              get_iv;
+
+reg last_blk;
 
 reg controller_input_restart;
 reg processing_done;
@@ -375,6 +378,7 @@ always @(posedge clk) begin
 		aes_key <= {`KEY_S{1'b0}};
 		state <= AES_GET_KEY_128;
 		in_blk <= {`BLK_S{1'b0}};
+		last_blk <= 1'b0;
 	end
 	else begin
 		in_fifo_read_tready <= 1'b0;
@@ -445,11 +449,13 @@ always @(posedge clk) begin
 					aes_decipher_mode <= decryption_op;
 
 					in_fifo_read_tready <= 1'b0;
-					in_blk <= in_fifo_rdata;
+					in_blk <= in_fifo_rdata[`BLK_S-1:0];
+					last_blk <= in_fifo_rdata[`BLK_S];
 					aes_start <= 1'b1;
 				end
 
-				if (processing_done) begin
+				if (aes_done && last_blk) begin
+					last_blk <= 1'b0;
 					state <= AES_GET_KEY_128;
 				end
 			end
@@ -491,7 +497,7 @@ always @(posedge clk) begin
 	else begin
 		if (aes_done && (aes_cipher_mode || aes_decipher_mode)) begin
 			out_fifo_write_tvalid <= 1'b1;
-			out_fifo_wdata <= out_blk_next;
+			out_fifo_wdata <= {last_blk, out_blk_next};
 		end
 
 		if (out_fifo_write_req)
@@ -510,8 +516,6 @@ aes_controller_output #(
 ) controller_output_block (
 	.clk(clk),
 	.resetn(!reset),
-
-	.processing_done(processing_done),
 
 	.fifo_write_tready(out_fifo_write_tready),
 	.fifo_write_tvalid(out_fifo_write_tvalid),
