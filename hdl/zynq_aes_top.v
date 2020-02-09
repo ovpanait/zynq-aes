@@ -54,13 +54,7 @@ module zynq_aes_top #
         input wire                                   s00_axis_tvalid
 );
 
-// returns ceiling of the log base 2 of the input
-function integer clogb2 (input integer bit_depth);
-        begin
-                for(clogb2=0; bit_depth>0; clogb2=clogb2+1)
-                        bit_depth = bit_depth >> 1;
-        end
-endfunction
+`include "common.vh"
 
 /*
  * 32kB AES block + 2 x 128-bit slots for key and iv.
