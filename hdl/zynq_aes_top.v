@@ -59,13 +59,8 @@ module zynq_aes_top #
 /*
  * 32kB AES block + 2 x 128-bit slots for key and iv.
  */
-localparam OUT_BRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam OUT_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / OUT_BRAM_DATA_WIDTH;
-localparam OUT_BRAM_ADDR_WIDTH = clogb2(OUT_BRAM_DEPTH);
-
-localparam IN_BRAM_DATA_WIDTH = `Nb * `WORD_S;
-localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + (`KEY_S + `IV_BITS) / IN_BRAM_DATA_WIDTH;
-localparam IN_BRAM_ADDR_WIDTH = clogb2(IN_BRAM_DEPTH);
+localparam OUT_BRAM_DEPTH = DATA_FIFO_SIZE + 2;
+localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + 2;
 
 /// =====================================================================
 // Input interface signals
@@ -121,10 +116,8 @@ axi_stream_slave #(
 */
 
 aes_controller #(
-	.IN_FIFO_ADDR_WIDTH(IN_BRAM_ADDR_WIDTH),
-	.IN_FIFO_DATA_WIDTH(IN_BRAM_DATA_WIDTH),
-	.OUT_FIFO_ADDR_WIDTH(OUT_BRAM_ADDR_WIDTH),
-	.OUT_FIFO_DATA_WIDTH(OUT_BRAM_DATA_WIDTH),
+	.IN_FIFO_DEPTH(IN_BRAM_DEPTH),
+	.OUT_FIFO_DEPTH(OUT_BRAM_DEPTH),
 
 	.ECB_SUPPORT(ECB_SUPPORT),
 	.CBC_SUPPORT(CBC_SUPPORT),

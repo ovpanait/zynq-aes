@@ -3,14 +3,9 @@
 module aes_controller #
 (
 	IN_BUS_DATA_WIDTH = 32,
-
-	IN_FIFO_DATA_WIDTH = 128,
-	IN_FIFO_ADDR_WIDTH = 9,
 	IN_FIFO_DEPTH = 256,
 
 	OUT_BUS_DATA_WIDTH = 32,
-	OUT_FIFO_ADDR_WIDTH = 9,
-	OUT_FIFO_DATA_WIDTH = 128,
 	OUT_FIFO_DEPTH = 256,
 
 	parameter ECB_SUPPORT =  1,
@@ -39,6 +34,12 @@ module aes_controller #
 );
 
 `include "controller_fc.vh"
+
+localparam IN_FIFO_DATA_WIDTH = 128;
+localparam IN_FIFO_ADDR_WIDTH = clogb2(IN_FIFO_DATA_WIDTH);
+
+localparam OUT_FIFO_DATA_WIDTH = 128;
+localparam OUT_FIFO_ADDR_WIDTH = clogb2(OUT_FIFO_DATA_WIDTH);
 
 localparam [2:0] AES_GET_KEY_128  = 3'b010;
 localparam [2:0] AES_GET_KEY_256  = 3'b001;
