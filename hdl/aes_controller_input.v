@@ -29,17 +29,12 @@ module aes_controller_input #(
 	output [FIFO_DATA_WIDTH-1:0]            in_fifo_rdata,
 	output                                  in_fifo_empty,
 
-	output reg                              controller_in_done,
-	output                                  controller_in_busy,
-
-	output reg [`CMD_BITS-1:0]              aes_cmd
+	output                                  controller_in_busy
 );
 
 // AXI related signals
 localparam GET_CMD = 1'b0;
 localparam GET_PAYLOAD = 1'b1;
-
-reg bus_packet_end;
 
 wire aes_block_available;
 
@@ -72,11 +67,8 @@ wire in_fifo_full;
 
 // Initial assignments
 initial fifo_wdata = {FIFO_DATA_WIDTH{1'b0}};
-initial aes_cmd = {`CMD_BITS{1'b0}};
-initial controller_in_done = 1'b0;
 initial fifo_write_tvalid = 1'b0;
 initial bus_word_cnt = {2{1'b0}};
-initial bus_packet_end = 1'b0;
 initial fsm_state = GET_CMD;
 
 // FIFO logic
@@ -112,9 +104,10 @@ assign in_fifo_full = fifo_full;
 
 // Controller input logic
 assign bus_transaction = bus_data_wren && !controller_in_busy;
-assign controller_in_busy = controller_in_done || in_fifo_full || fifo_write_tvalid;
+assign controller_in_busy = in_fifo_full || fifo_write_tvalid;
 
 assign aes_block_available = bus_data_wren && (bus_word_cnt == `Nb - 1'b1);
+assign aes_cmd_available = bus_transaction && (fsm_state == GET_CMD);
 
 assign aes_blk = fifo_wdata[`BLK_S-1:0];
 assign aes_blk_shift = (aes_blk >> `WORD_S);
@@ -123,7 +116,6 @@ assign aes_blk_next = {bus_data, aes_blk_shift[`BLK_S-1-`WORD_S:0]};
 always @(posedge clk) begin
 	if(reset) begin
 		fifo_wdata <= {FIFO_DATA_WIDTH{1'b0}};
-		aes_cmd <= {`CMD_BITS{1'b0}};
 		fsm_state <= GET_CMD;
 		bus_word_cnt <= 2'b0;
 	end
@@ -133,7 +125,7 @@ always @(posedge clk) begin
 			begin
 				if (bus_transaction) begin
 					fsm_state <= GET_PAYLOAD;
-					aes_cmd <= bus_data;
+					fifo_wdata <= {{97'b0}, bus_data};
 				end
 			end
 			GET_PAYLOAD:
@@ -159,40 +151,12 @@ always @(posedge clk) begin
 	if (reset) begin
 		fifo_write_tvalid <= 1'b0;
 	end else begin
-		if (aes_block_available) begin
+		if (aes_block_available || aes_cmd_available) begin
 			fifo_write_tvalid <= 1'b1;
 		end
 
 		if (fifo_write_tvalid && fifo_write_tready) begin
 			fifo_write_tvalid <= 1'b0;
-		end
-	end
-end
-
-always @(posedge clk) begin
-	if (reset) begin
-		bus_packet_end <= 1'b0;
-	end else begin
-		if (bus_tlast && bus_transaction) begin
-			bus_packet_end <= 1'b1;
-		end
-
-		if (controller_in_done && in_fifo_empty) begin
-			bus_packet_end <= 1'b0;
-		end
-	end
-end
-
-always @(posedge clk) begin
-	if (reset) begin
-		controller_in_done <= 1'b0;
-	end else begin
-		if (bus_packet_end && fifo_write_transaction) begin
-			controller_in_done <= 1'b1;
-		end
-
-		if (controller_in_done && in_fifo_empty) begin
-			controller_in_done <= 1'b0;
 		end
 	end
 end
@@ -241,15 +205,7 @@ always @(posedge clk) begin
 		if ($rose(bus_tlast))
 			`ASSUME($rose(bus_data_wren));
 
-		// controller_in_done must be asserted only after we received
-		// tlast on the bus and that last block written to FIFO
-		if ($rose(controller_in_done))
-			assert($past(bus_packet_end && fifo_write_transaction));
-
-		// No write operations must occur after asserting
-		// controller_in_done
-		if (controller_in_done)
-			assert(!fifo_write_transaction);
+		/* TODO */
 	end
 end
 

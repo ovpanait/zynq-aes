@@ -36,12 +36,13 @@ module aes_controller #
 `include "controller_fc.vh"
 `include "common.vh"
 
-localparam IN_FIFO_DATA_WIDTH = `BLK_S + 1; // tlast bit + 1 x 128-bit AES block
+localparam IN_FIFO_DATA_WIDTH = `BLK_S + 1; // {command bit, tlast bit, 1 x 128-bit AES block}
 localparam IN_FIFO_ADDR_WIDTH = clogb2(IN_FIFO_DATA_WIDTH);
 
-localparam OUT_FIFO_DATA_WIDTH = `BLK_S + 1; // tlast bit + 1 x 128-bit AES block
+localparam OUT_FIFO_DATA_WIDTH = `BLK_S + 1; // {tlast bit, 1 x 128-bit AES block}
 localparam OUT_FIFO_ADDR_WIDTH = clogb2(OUT_FIFO_DATA_WIDTH);
 
+localparam [2:0] AES_GET_CMD = 3'b000;
 localparam [2:0] AES_GET_KEY_128  = 3'b010;
 localparam [2:0] AES_GET_KEY_256  = 3'b001;
 localparam [2:0] AES_GET_IV = 3'b011;
@@ -55,10 +56,6 @@ reg                           in_fifo_read_tready;
 wire [IN_FIFO_DATA_WIDTH-1:0] in_fifo_rdata;
 wire                          in_fifo_empty;
 
-wire                          controller_in_done;
-
-wire [`CMD_BITS-1:0]          aes_cmd;
-
 // ============================================================================
 // AES controller processing stage signals
 
@@ -68,11 +65,8 @@ wire              get_iv;
 
 reg last_blk;
 
-reg controller_input_restart;
-reg processing_done;
-
 reg [`KEY_S-1:0]  aes_key;
-reg [`WORD_S-1:0] __aes_cmd;
+reg [`WORD_S-1:0] aes_cmd;
 
 reg [`IV_BITS-1:0]  iv;
 wire [`IV_BITS-1:0] iv_next;
@@ -165,10 +159,7 @@ aes_controller_input #(
 	.in_fifo_rdata(in_fifo_rdata),
 	.in_fifo_empty(in_fifo_empty),
 
-	.controller_in_done(controller_in_done),
-	.controller_in_busy(controller_in_busy),
-
-	.aes_cmd(aes_cmd)
+	.controller_in_busy(controller_in_busy)
 );
 
 // ============================================================================
@@ -178,8 +169,8 @@ assign aes_start_cipher = aes_start && aes_cipher_mode;
 assign aes_start_decipher = aes_start && aes_decipher_mode;
 assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
-assign aes128_mode = is_128bit_key(__aes_cmd);
-assign aes256_mode = is_256bit_key(__aes_cmd);
+assign aes128_mode = is_128bit_key(aes_cmd);
+assign aes256_mode = is_256bit_key(aes_cmd);
 
 assign need_iv =
                  cbc_flag ||
@@ -215,8 +206,8 @@ assign iv_next =
                  ofb_flag  ? ofb_iv :
                  {`IV_BITS{1'b0}};
 
-assign encrypt_flag = is_encryption(__aes_cmd);
-assign decrypt_flag = is_decryption(__aes_cmd);
+assign encrypt_flag = is_encryption(aes_cmd);
+assign decrypt_flag = is_decryption(aes_cmd);
 
 assign encryption_op = encrypt_flag
                        || ctr_flag
@@ -229,7 +220,7 @@ assign decryption_op = decrypt_flag
                        && !ofb_flag;
 generate
 if (ECB_SUPPORT) begin
-	assign ecb_flag = is_ECB_op(__aes_cmd);
+	assign ecb_flag = is_ECB_op(aes_cmd);
 
 	ecb ecb_mod(
 		.in_blk(in_blk),
@@ -245,7 +236,7 @@ endgenerate
 
 generate
 if (CBC_SUPPORT) begin
-	assign cbc_flag = is_CBC_op(__aes_cmd);
+	assign cbc_flag = is_CBC_op(aes_cmd);
 
 	cbc cbc_mod(
 		.encryption(encrypt_flag),
@@ -266,7 +257,7 @@ endgenerate
 
 generate
 if (CTR_SUPPORT) begin
-	assign ctr_flag = is_CTR_op(__aes_cmd);
+	assign ctr_flag = is_CTR_op(aes_cmd);
 
 	ctr ctr_mod(
 		.in_blk(in_blk),
@@ -284,7 +275,7 @@ endgenerate
 
 generate
 if (PCBC_SUPPORT) begin
-	assign pcbc_flag = is_PCBC_op(__aes_cmd);
+	assign pcbc_flag = is_PCBC_op(aes_cmd);
 
 	pcbc pcbc_mod(
 		.encryption(encrypt_flag),
@@ -305,7 +296,7 @@ endgenerate
 
 generate
 if (CFB_SUPPORT) begin
-	assign cfb_flag = is_CFB_op(__aes_cmd);
+	assign cfb_flag = is_CFB_op(aes_cmd);
 
 	cfb cfb_mod(
 		.encryption(encrypt_flag),
@@ -325,7 +316,7 @@ endgenerate
 
 generate
 if (OFB_SUPPORT) begin
-	assign ofb_flag = is_OFB_op(__aes_cmd);
+	assign ofb_flag = is_OFB_op(aes_cmd);
 
 	ofb ofb_mod(
 		.in_blk(in_blk),
@@ -376,7 +367,8 @@ always @(posedge clk) begin
 
 		in_fifo_read_tready <= 1'b0;
 		aes_key <= {`KEY_S{1'b0}};
-		state <= AES_GET_KEY_128;
+		aes_cmd <= {`CMD_BITS{1'b0}};
+		state <= AES_GET_CMD;
 		in_blk <= {`BLK_S{1'b0}};
 		last_blk <= 1'b0;
 	end
@@ -385,10 +377,19 @@ always @(posedge clk) begin
 		aes_start <= 1'b0;
 
 		case (state)
+			AES_GET_CMD:
+			begin
+				in_fifo_read_tready <= 1'b1;
+
+				if (in_fifo_read_req) begin
+					aes_cmd <= in_fifo_rdata[`CMD_BITS-1:0];
+
+					in_fifo_read_tready <= 1'b0;
+					state <= AES_GET_KEY_128;
+				end
+			end
 			AES_GET_KEY_128:
 			begin
-				__aes_cmd <= aes_cmd;
-
 				in_fifo_read_tready <= 1'b1;
 
 				aes_decipher_mode <= 1'b0;
@@ -440,7 +441,7 @@ always @(posedge clk) begin
 			begin
 				state <= AES_START;
 
-				if (!processing_done && !aes_op_in_progress && !aes_start)
+				if (!aes_op_in_progress && !aes_start)
 					in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin
@@ -456,31 +457,12 @@ always @(posedge clk) begin
 
 				if (aes_done && last_blk) begin
 					last_blk <= 1'b0;
-					state <= AES_GET_KEY_128;
+					state <= AES_GET_CMD;
 				end
 			end
 			default:
-				state <= AES_GET_KEY_128;
+				state <= AES_GET_CMD;
 		endcase
-	end
-end
-
-always @(posedge clk) begin
-	if (reset == 1'b1) begin
-		controller_input_restart <= 1'b0;
-		processing_done <= 1'b0;
-	end else begin
-		if (controller_in_done && in_fifo_empty)
-			controller_input_restart <= 1'b1;
-
-		if (aes_done && controller_input_restart) begin
-			processing_done <= 1'b1;
-		end
-
-		if (processing_done && out_fifo_empty) begin
-			controller_input_restart <= 1'b0;
-			processing_done <= 1'b0;
-		end
 	end
 end
 
@@ -575,9 +557,6 @@ always @(posedge clk) begin
 	$display("aes256_mode             : %H", aes256_mode);
 	$display("aes_start               : %H", aes_start);
 	$display("aes_done                : %H", aes_done);
-
-	$display("controller_input_restart: %H", controller_input_restart);
-	$display("processing_done         : %H", processing_done);
 
 	$display("");
 end
