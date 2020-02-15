@@ -40,7 +40,7 @@ task test_256bit_key_cbc_enc();
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
 
-	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % DATA_FIFO_SIZE;
+	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % (4*DATA_FIFO_SIZE);
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
@@ -89,7 +89,7 @@ task test_256bit_key_cbc_dec();
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
 
-	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % DATA_FIFO_SIZE;
+	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % (4*DATA_FIFO_SIZE);
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
@@ -137,7 +137,7 @@ task test_256bit_key_ecb_enc();
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
 
-	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % DATA_FIFO_SIZE;
+	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % (4*DATA_FIFO_SIZE);
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
@@ -185,7 +185,7 @@ task test_256bit_key_ecb_dec();
 	plaintext_queue.fill_from_file(plaintext_fn);
 	ciphertext_queue.fill_from_file(ciphertext_fn);
 
-	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % DATA_FIFO_SIZE;
+	total_blocks = 1 + ($urandom() % plaintext_queue.size()) % (4*DATA_FIFO_SIZE);
 	$display("%s: START", testcase_name);
 	$display("%s: Sending %d AES blocks.", testcase_name, total_blocks);
 
