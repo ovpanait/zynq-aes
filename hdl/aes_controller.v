@@ -514,51 +514,53 @@ aes_controller_output #(
 );
 
 `ifdef SIMULATION_VERBOSE_EXTREME
-always @(posedge clk) begin
-	$display("");
-	$display("---- time = %0t ----", $time);
+integer s_in_blk_cnt = 0;
+integer s_in_cmd_cnt = 0;
+integer s_out_blk_cnt = 0;
 
+always @(posedge clk) begin
 	case (state)
+	AES_GET_CMD:
+	begin
+		if (in_fifo_read_req) begin
+			$display("AES PROCESSING: cmd no %d: %H", s_in_cmd_cnt, in_fifo_rdata[`CMD_BITS-1:0]);
+			s_in_cmd_cnt = s_in_cmd_cnt + 1;
+		end
+	end
 	AES_GET_KEY_128:
 	begin
-		$display("STATE: AES_GET_KEY_128");
+		if (in_fifo_read_req) begin
+			$display("AES PROCESSING: key 128 - blk %0d: %H", s_in_blk_cnt, in_fifo_rdata);
+			s_in_blk_cnt = s_in_blk_cnt + 1;
+		end
 	end
 	AES_GET_KEY_256:
 	begin
-		$display("STATE: AES_GET_KEY_256");
+		if (in_fifo_read_req) begin
+			$display("AES POCESSING: key 256 - blk %0d: %H", s_in_blk_cnt, in_fifo_rdata);
+			s_in_blk_cnt = s_in_blk_cnt + 1;
+		end
 	end
 	AES_GET_IV:
 	begin
-		$display("STATE: AES_GET_IV");
+		if (in_fifo_read_req) begin
+			$display("AES PROCESSING: IV - blk %0d: %H", s_in_blk_cnt, in_fifo_rdata);
+			s_in_blk_cnt = s_in_blk_cnt + 1;
+		end
 	end
 	AES_START:
 	begin
-		$display("STATE: AES_START");
+		if (in_fifo_read_req) begin
+			$display("AES PROCESSING: input block no %d: %H", s_in_blk_cnt, in_fifo_rdata);
+			s_in_blk_cnt = s_in_blk_cnt + 1;
+		end
 	end
 	endcase
 
-	$display("in_fifo_read_tready     : %H", in_fifo_read_tready);
-	$display("in_fifo_read_tvalid     : %H", in_fifo_read_tvalid);
-	$display("in_fifo_almost_full     : %H", in_fifo_almost_full);
-	$display("in_fifo_empty           : %H", in_fifo_empty);
-	$display("in_fifo_full            : %H", in_fifo_full);
-
-	$display("out_fifo_read_tready    : %H", out_fifo_write_tready);
-	$display("out_fifo_read_tvalid    : %H", out_fifo_write_tvalid);
-	$display("out_fifo_almost_full    : %H", out_fifo_almost_full);
-	$display("out_fifo_empty          : %H", out_fifo_empty);
-	$display("out_fifo_full           : %H", out_fifo_full);
-
-	$display("aes_decipher_mode       : %H", aes_decipher_mode);
-	$display("aes_key_exp_mode        : %H", aes_key_exp_mode);
-	$display("aes_cipher_mode         : %H", aes_cipher_mode);
-
-	$display("aes_op_in_progress      : %H", aes_op_in_progress);
-	$display("aes256_mode             : %H", aes256_mode);
-	$display("aes_start               : %H", aes_start);
-	$display("aes_done                : %H", aes_done);
-
-	$display("");
+	if (aes_done && (aes_cipher_mode || aes_decipher_mode)) begin
+		$display("AES PROCESSING: computed aes block no %0d: %H", s_out_blk_cnt, {last_blk, out_blk_next});
+		s_out_blk_cnt = s_out_blk_cnt + 1;
+	end
 end
 `endif
 

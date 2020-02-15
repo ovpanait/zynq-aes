@@ -118,4 +118,15 @@ always @(posedge clk) begin
 	end
 end
 
+`ifdef SIMULATION_VERBOSE_EXTREME
+integer s_fifo_blk_cnt = 0;
+
+always @(posedge clk) begin
+	if (fifo_read_req) begin
+		$display("AES OUTPUT: FIFO blk no: %0d: %H", s_fifo_blk_cnt, fifo_rdata[`BLK_S-1:0]);
+		s_fifo_blk_cnt = s_fifo_blk_cnt + 1;
+	end
+end
+`endif
+
 endmodule
