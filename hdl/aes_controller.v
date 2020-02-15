@@ -441,7 +441,7 @@ always @(posedge clk) begin
 			begin
 				state <= AES_START;
 
-				if (!aes_op_in_progress && !aes_start)
+				if (!out_fifo_write_tvalid && !aes_op_in_progress && !aes_start)
 					in_fifo_read_tready <= 1'b1;
 
 				if (in_fifo_read_req) begin

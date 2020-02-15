@@ -106,7 +106,7 @@ assign in_fifo_full = fifo_full;
 assign bus_transaction = bus_data_wren && !controller_in_busy;
 assign controller_in_busy = in_fifo_full || fifo_write_tvalid;
 
-assign aes_block_available = bus_data_wren && (bus_word_cnt == `Nb - 1'b1);
+assign aes_block_available = bus_transaction && (bus_word_cnt == `Nb - 1'b1);
 assign aes_cmd_available = bus_transaction && (fsm_state == GET_CMD);
 
 assign aes_blk = fifo_wdata[`BLK_S-1:0];
