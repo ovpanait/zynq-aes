@@ -1,17 +1,10 @@
 VERBOSE = 0
-VIP_SIM = 0
 
 HDL_DIR = $(shell readlink -f hdl)
 HDL_INCLUDE = $(HDL_DIR)/include
 
 TB_TOP = $(shell readlink -f tb)
 TB_INCLUDE = $(TB_TOP)/include
-
-ifeq ($(VIP_SIM), 1)
-TB_DIR = $(TB_TOP)/zynq_aes_top_vip
-else
-TB_DIR = $(TB_TOP)/zynq_aes_top_novip
-endif
 
 TOOLS_DIR = $(shell readlink -f tools)
 SIM_DIR = $(shell readlink -f simulation)
@@ -57,9 +50,11 @@ $(XSIM_DIR): $(HDL_SOURCES)
 	-nolog -nojour \
 	-tclargs $(TB_DIR) $(SIM_DIR)
 
+sim_novip: TB_DIR = $(TB_TOP)/zynq_aes_top_novip
 sim_novip: $(XSIM_DIR)
 	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
 
+sim_vip: TB_DIR = $(TB_TOP)/zynq_aes_top_vip
 sim_vip: $(SIM_PROJ)
 	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
 
