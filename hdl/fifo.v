@@ -99,7 +99,7 @@ assign read_ptr_next = is_last_read ? {ADDR_WIDTH{1'b0}} : (read_ptr + 1'b1);
 assign fifo_write_transaction = fifo_write_tvalid && fifo_write_tready;
 assign fifo_read_transaction = fifo_read_tvalid && fifo_read_tready;
 
-assign fifo_write_tready = fifo_write_tvalid && !fifo_full;
+assign fifo_write_tready = !fifo_full;
 
 assign fifo_almost_full = (write_ptr_next == read_ptr);
 assign fifo_empty = ~fifo_has_data;
