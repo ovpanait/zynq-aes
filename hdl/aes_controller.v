@@ -441,8 +441,9 @@ always @(posedge clk) begin
 			begin
 				state <= AES_START;
 
-				if (!out_fifo_write_tvalid && !aes_op_in_progress && !aes_start)
+				if (out_fifo_write_tready && !aes_op_in_progress && !aes_start) begin
 					in_fifo_read_tready <= 1'b1;
+				end
 
 				if (in_fifo_read_req) begin
 					aes_key_exp_mode <= 1'b0;
