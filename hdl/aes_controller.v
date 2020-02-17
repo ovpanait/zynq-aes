@@ -52,7 +52,7 @@ localparam [2:0] AES_START = 3'b101;
 // AES controller input stage signals
 
 wire                          in_fifo_read_tvalid;
-reg                           in_fifo_read_tready;
+wire                          in_fifo_read_tready;
 wire [IN_FIFO_DATA_WIDTH-1:0] in_fifo_rdata;
 wire                          in_fifo_empty;
 
@@ -62,6 +62,12 @@ wire                          in_fifo_empty;
 reg [2:0]         state;
 wire              aes_done;
 wire              get_iv;
+
+reg fsm_cmd_state,
+    fsm_key128_state,
+    fsm_key256_state,
+    fsm_iv_state,
+    fsm_process_state;
 
 reg last_blk;
 
@@ -164,6 +170,14 @@ aes_controller_input #(
 
 // ============================================================================
 // AES controller processing stage
+
+always @(*) begin
+	fsm_cmd_state     = (state == AES_GET_CMD);
+	fsm_key128_state  = (state == AES_GET_KEY_128);
+	fsm_key256_state  = (state == AES_GET_KEY_256);
+	fsm_iv_state      = (state == AES_GET_IV);
+	fsm_process_state = (state == AES_START);
+end
 
 assign aes_start_cipher = aes_start && aes_cipher_mode;
 assign aes_start_decipher = aes_start && aes_decipher_mode;
@@ -357,7 +371,7 @@ aes_top aes_mod(
 assign out_fifo_write_req = out_fifo_write_tready && out_fifo_write_tvalid;
 assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
 
-assign get_iv = (state == AES_GET_IV && in_fifo_read_req);
+assign get_iv = (fsm_iv_state && in_fifo_read_req);
 
 always @(posedge clk) begin
 	if (reset == 1'b1) begin
@@ -365,7 +379,6 @@ always @(posedge clk) begin
 		aes_key_exp_mode <= 1'b0;
 		aes_cipher_mode <= 1'b1;
 
-		in_fifo_read_tready <= 1'b0;
 		aes_key <= {`KEY_S{1'b0}};
 		aes_cmd <= {`CMD_BITS{1'b0}};
 		state <= AES_GET_CMD;
@@ -373,33 +386,25 @@ always @(posedge clk) begin
 		last_blk <= 1'b0;
 	end
 	else begin
-		in_fifo_read_tready <= 1'b0;
 		aes_start <= 1'b0;
 
 		case (state)
 			AES_GET_CMD:
 			begin
-				in_fifo_read_tready <= 1'b1;
-
 				if (in_fifo_read_req) begin
 					aes_cmd <= in_fifo_rdata[`CMD_BITS-1:0];
 
-					in_fifo_read_tready <= 1'b0;
 					state <= AES_GET_KEY_128;
 				end
 			end
 			AES_GET_KEY_128:
 			begin
-				in_fifo_read_tready <= 1'b1;
-
 				aes_decipher_mode <= 1'b0;
 				aes_key_exp_mode <= 1'b0;
 				aes_cipher_mode <= 1'b0;
 
 				if (in_fifo_read_req) begin
 					state <= AES_START;
-
-					in_fifo_read_tready <= 1'b0;
 
 					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_rdata;
 					aes_key_exp_mode <= 1'b1;
@@ -416,11 +421,8 @@ always @(posedge clk) begin
 			end
 			AES_GET_KEY_256:
 			begin
-				in_fifo_read_tready <= 1'b1;
-
 				if (in_fifo_read_req) begin
 					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_rdata;
-					in_fifo_read_tready <= 1'b0;
 					state <= AES_START;
 					aes_start <= 1'b1;
 
@@ -430,10 +432,7 @@ always @(posedge clk) begin
 			end
 			AES_GET_IV:
 			begin
-				in_fifo_read_tready <= 1'b1;
-
 				if (in_fifo_read_req) begin
-					in_fifo_read_tready <= 1'b0;
 					state <= AES_START;
 				end
 			end
@@ -441,16 +440,11 @@ always @(posedge clk) begin
 			begin
 				state <= AES_START;
 
-				if (out_fifo_write_tready && !aes_op_in_progress && !aes_start) begin
-					in_fifo_read_tready <= 1'b1;
-				end
-
 				if (in_fifo_read_req) begin
 					aes_key_exp_mode <= 1'b0;
 					aes_cipher_mode <= encryption_op;
 					aes_decipher_mode <= decryption_op;
 
-					in_fifo_read_tready <= 1'b0;
 					in_blk <= in_fifo_rdata[`BLK_S-1:0];
 					last_blk <= in_fifo_rdata[`BLK_S];
 					aes_start <= 1'b1;
@@ -466,6 +460,13 @@ always @(posedge clk) begin
 		endcase
 	end
 end
+
+assign in_fifo_read_tready =
+	fsm_cmd_state      ||
+	fsm_key128_state   ||
+	fsm_key256_state   ||
+	fsm_iv_state       ||
+	(fsm_process_state && (out_fifo_write_tready && !aes_op_in_progress && !aes_start));
 
 always @(posedge clk) begin
 	if (get_iv)
