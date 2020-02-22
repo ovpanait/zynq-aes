@@ -2,11 +2,11 @@
 
 module aes_controller #
 (
-	IN_BUS_DATA_WIDTH = 32,
-	IN_FIFO_DEPTH = 256,
+	parameter IN_BUS_DATA_WIDTH = 32,
+	parameter IN_FIFO_DEPTH = 256,
 
-	OUT_BUS_DATA_WIDTH = 32,
-	OUT_FIFO_DEPTH = 256,
+	parameter OUT_BUS_DATA_WIDTH = 32,
+	parameter OUT_FIFO_DEPTH = 256,
 
 	parameter ECB_SUPPORT =  1,
 	parameter CBC_SUPPORT =  1,
