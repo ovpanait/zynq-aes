@@ -525,7 +525,7 @@ always @(posedge clk) begin
 	AES_GET_CMD:
 	begin
 		if (in_fifo_read_req) begin
-			$display("AES PROCESSING: cmd no %d: %H", s_in_cmd_cnt, in_fifo_rdata[`CMD_BITS-1:0]);
+			$display("AES PROCESSING: cmd no %0d: %H", s_in_cmd_cnt, in_fifo_rdata[`CMD_BITS-1:0]);
 			s_in_cmd_cnt = s_in_cmd_cnt + 1;
 		end
 	end
@@ -553,7 +553,7 @@ always @(posedge clk) begin
 	AES_START:
 	begin
 		if (in_fifo_read_req) begin
-			$display("AES PROCESSING: input block no %d: %H", s_in_blk_cnt, in_fifo_rdata);
+			$display("AES PROCESSING: input block no %0d: %H", s_in_blk_cnt, in_fifo_rdata);
 			s_in_blk_cnt = s_in_blk_cnt + 1;
 		end
 	end

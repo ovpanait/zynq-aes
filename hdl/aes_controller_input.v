@@ -167,12 +167,12 @@ integer s_cmd_cnt = 0;
 
 always @(posedge clk) begin
 	if (aes_block_available) begin
-		$display("AES INPUT: input block no %d: %H", s_blk_cnt, {bus_tlast, aes_blk_next});
+		$display("AES INPUT: input block no %0d: %H", s_blk_cnt, {bus_tlast, aes_blk_next});
 		s_blk_cnt = s_blk_cnt + 1;
 	end
 
 	if (aes_cmd_available) begin
-		$display("AES_INPUT: cmd no %d: %H", s_cmd_cnt, {{97'b0}, bus_data});
+		$display("AES_INPUT: cmd no %0d: %H", s_cmd_cnt, {{97'b0}, bus_data});
 		s_cmd_cnt = s_cmd_cnt + 1;
 	end
 end
