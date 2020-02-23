@@ -88,9 +88,6 @@ reg aes_cipher_mode;
 reg aes_start;
 
 wire aes_op_in_progress;
-wire aes_start_decipher;
-wire aes_start_key_exp;
-wire aes_start_cipher;
 
 wire encryption_op;
 wire decryption_op;
@@ -178,10 +175,6 @@ always @(*) begin
 	fsm_iv_state      = (state == AES_GET_IV);
 	fsm_process_state = (state == AES_START);
 end
-
-assign aes_start_cipher = aes_start && aes_cipher_mode;
-assign aes_start_decipher = aes_start && aes_decipher_mode;
-assign aes_start_key_exp = aes_start && aes_key_exp_mode;
 
 assign aes128_mode = is_128bit_key(aes_cmd);
 assign aes256_mode = is_256bit_key(aes_cmd);
