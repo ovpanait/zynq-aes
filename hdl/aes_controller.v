@@ -60,7 +60,7 @@ wire                          in_fifo_empty;
 // AES controller processing stage signals
 
 reg [2:0]         state;
-wire              aes_done;
+wire              aes_alg_done;
 wire              get_iv;
 
 reg fsm_cmd_state,
@@ -100,6 +100,14 @@ wire ctr_flag;
 wire cfb_flag;
 wire ofb_flag;
 wire pcbc_flag;
+
+wire op_done;
+wire ecb_op_done;
+wire cbc_op_done;
+wire ctr_op_done;
+wire cfb_op_done;
+wire ofb_op_done;
+wire pcbc_op_done;
 
 reg [`BLK_S-1:0]  in_blk;
 wire [`BLK_S-1:0] in_blk_next;
@@ -213,6 +221,15 @@ assign iv_next =
                  ofb_flag  ? ofb_iv :
                  {`IV_BITS{1'b0}};
 
+assign op_done =
+	pcbc_flag ? pcbc_op_done :
+	cbc_flag  ? cbc_op_done  :
+	ctr_flag  ? ctr_op_done  :
+	cfb_flag  ? cfb_op_done  :
+	ofb_flag  ? ofb_op_done  :
+	ecb_flag  ? ecb_op_done  :
+	1'b0;
+
 assign encrypt_flag = is_encryption(aes_cmd);
 assign decrypt_flag = is_decryption(aes_cmd);
 
@@ -233,6 +250,9 @@ if (ECB_SUPPORT) begin
 		.in_blk(in_blk),
 		.out_blk(out_blk),
 
+		.aes_alg_done(aes_alg_done),
+
+		.ecb_op_done(ecb_op_done),
 		.in_blk_next(ecb_in_blk),
 		.out_blk_next(ecb_out_blk)
 	);
@@ -253,6 +273,9 @@ if (CBC_SUPPORT) begin
 		.out_blk(out_blk),
 		.iv(iv),
 
+		.aes_alg_done(aes_alg_done),
+
+		.cbc_op_done(cbc_op_done),
 		.in_blk_next(cbc_in_blk),
 		.out_blk_next(cbc_out_blk),
 		.iv_next(cbc_iv)
@@ -271,6 +294,9 @@ if (CTR_SUPPORT) begin
 		.out_blk(out_blk),
 		.iv(iv),
 
+		.aes_alg_done(aes_alg_done),
+
+		.ctr_op_done(ctr_op_done),
 		.in_blk_next(ctr_in_blk),
 		.out_blk_next(ctr_out_blk),
 		.iv_next(ctr_iv)
@@ -292,6 +318,9 @@ if (PCBC_SUPPORT) begin
 		.out_blk(out_blk),
 		.iv(iv),
 
+		.aes_alg_done(aes_alg_done),
+
+		.pcbc_op_done(pcbc_op_done),
 		.in_blk_next(pcbc_in_blk),
 		.out_blk_next(pcbc_out_blk),
 		.iv_next(pcbc_iv)
@@ -312,6 +341,9 @@ if (CFB_SUPPORT) begin
 		.out_blk(out_blk),
 		.iv(iv),
 
+		.aes_alg_done(aes_alg_done),
+
+		.cfb_op_done(cfb_op_done),
 		.in_blk_next(cfb_in_blk),
 		.out_blk_next(cfb_out_blk),
 		.iv_next(cfb_iv)
@@ -330,6 +362,9 @@ if (OFB_SUPPORT) begin
 		.out_blk(out_blk),
 		.iv(iv),
 
+		.aes_alg_done(aes_alg_done),
+
+		.ofb_op_done(ofb_op_done),
 		.in_blk_next(ofb_in_blk),
 		.out_blk_next(ofb_out_blk),
 		.iv_next(ofb_iv)
@@ -358,7 +393,7 @@ aes_top aes_mod(
 	.aes_in_blk(in_blk_next),
 
 	.aes_out_blk(out_blk),
-	.en_o(aes_done)
+	.en_o(aes_alg_done)
 );
 
 assign out_fifo_write_req = out_fifo_write_tready && out_fifo_write_tvalid;
@@ -443,7 +478,7 @@ always @(posedge clk) begin
 					aes_start <= 1'b1;
 				end
 
-				if (aes_done && last_blk) begin
+				if (op_done && last_blk) begin
 					last_blk <= 1'b0;
 					state <= AES_GET_CMD;
 				end
@@ -464,7 +499,7 @@ assign in_fifo_read_tready =
 always @(posedge clk) begin
 	if (get_iv)
 		iv <= in_fifo_rdata;
-	else if (aes_done && (aes_cipher_mode || aes_decipher_mode))
+	else if (op_done && (aes_cipher_mode || aes_decipher_mode))
 		iv <= iv_next;
 end
 
@@ -472,7 +507,7 @@ always @(posedge clk) begin
 	if (reset)
 		out_fifo_write_tvalid <= 1'b0;
 	else begin
-		if (aes_done && (aes_cipher_mode || aes_decipher_mode)) begin
+		if (op_done && (aes_cipher_mode || aes_decipher_mode)) begin
 			out_fifo_write_tvalid <= 1'b1;
 			out_fifo_wdata <= {last_blk, out_blk_next};
 		end
@@ -552,7 +587,7 @@ always @(posedge clk) begin
 	end
 	endcase
 
-	if (aes_done && (aes_cipher_mode || aes_decipher_mode)) begin
+	if (aes_alg_done && (aes_cipher_mode || aes_decipher_mode)) begin
 		$display("AES PROCESSING: computed aes block no %0d: %H", s_out_blk_cnt, {last_blk, out_blk_next});
 		s_out_blk_cnt = s_out_blk_cnt + 1;
 	end
