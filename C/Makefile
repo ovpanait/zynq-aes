@@ -13,7 +13,7 @@ endif
 
 %.o: %.c $(HEADERS)
 
-test: cipher.o decipher.o key_expansion.o test.o aes_utils.o
+test: cipher.o decipher.o key_expansion.o test.o aes_utils.o test_utils.o
 
 .SILENT: clean
 .PHONY: clean
