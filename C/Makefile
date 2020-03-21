@@ -15,8 +15,10 @@ endif
 
 test: cipher.o decipher.o key_expansion.o test.o aes_utils.o test_utils.o
 
+gcm: test_utils.o gcm.o
+
 .SILENT: clean
 .PHONY: clean
 
 clean:
-	rm -f *.o test
+	rm -f *.o test gcm
