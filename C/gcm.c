@@ -66,18 +66,22 @@ static void shr128(uint8_t *data)
 #endif
 }
 
-static void gcm_gf_mult(uint8_t *a, uint8_t *b, uint8_t *result)
+static void gcm_gf_mult(uint8_t *op1, uint8_t *op2, uint8_t *result)
 {
-	size_t i;
-	uint8_t a0;
+	uint8_t a[BYTES_128BIT];
+	uint8_t b[BYTES_128BIT];
 	uint8_t polynomial[16] = {
 		0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x87
 	};
+	uint8_t a0;
+	size_t i;
 
 	memset(result, 0, BYTES_128BIT);
+	memcpy(a, op1, BYTES_128BIT);
+	memcpy(b, op2, BYTES_128BIT);
 
 	for (i = 0; i < 128; ++i) {
 		a0 = BIT7(a[0]);
