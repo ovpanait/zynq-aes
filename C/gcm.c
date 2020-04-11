@@ -185,7 +185,7 @@ static void aes_gcm(uint8_t *key, uint8_t *iv, uint64_t iv_len,
 		uint8_t iv_padding[4] = {0x00, 0x00, 0x00, 0x01};
 
 		memcpy(j0, iv, IV_SIZE);
-		(j0 + IV_SIZE, iv_padding, 4);
+		memcpy(j0 + IV_SIZE, iv_padding, 4);
 	}
 
 	memcpy(crypto_icb, j0, BLOCK_SIZE);
