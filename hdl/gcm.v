@@ -105,6 +105,55 @@ always @(posedge clk) begin
 		end
 	end
 end
+endmodule
+
+/*
+ * GHASH module
+ */
+
+module ghash #(
+	parameter integer GFM_CYCLES = 8,
+	parameter integer GHASH_BITS = 128,
+	parameter integer SUBKEY_BITS = 128
+)(
+	input                          clk,
+	input                          reset,
+	input                          en,
+
+	input [GHASH_BITS-1:0]         g_prev,
+	input [GHASH_BITS-1:0]         data_block,
+	input [SUBKEY_BITS-1:0]        subkey_H,
+
+	output [GHASH_BITS-1:0]        ghash,
+	output                         done
+);
+
+localparam integer GFM_BITS = 128;
+localparam reg [GFM_BITS-1:0] POLYNOMIAL = 'he1000000000000000000000000000000;
+
+wire [GFM_BITS-1:0] gfm_result;
+wire [GFM_BITS-1:0] g_i;
+wire gfm_done;
+
+assign g_i = g_prev ^ data_block;
+assign ghash = gfm_result;
+assign done = gfm_done;
+
+gfm #(
+	.GFM_BITS(GFM_BITS),
+	.GFM_CYCLES(GFM_CYCLES),
+	.POLYNOMIAL(POLYNOMIAL)
+) DUT (
+	.clk(clk),
+	.reset(reset),
+	.en(en),
+
+	.a(g_i),
+	.b(subkey_H),
+
+	.result(gfm_result),
+	.done(gfm_done)
+);
 
 endmodule
 
