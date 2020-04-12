@@ -11,11 +11,11 @@ reg en;
 localparam integer GFM_BITS = 128;
 localparam integer GFM_CYCLES = 8;
 
-localparam reg [GFM_BITS:0] op1 = 'h7b5b54657374566563746f725d53475d;
-localparam reg [GFM_BITS:0] op2 = 'h48692853686179295b477565726f6e5d;
-localparam reg [GFM_BITS:0] POLYNOMIAL = 'h100000000000000000000000000000087;
+localparam reg [GFM_BITS:0] op1 = 'h7d924cfd37b3d046a96eb5e132042405;
+localparam reg [GFM_BITS:0] op2 = 'hfe62256362600ac766636f962bb05f66;
+localparam reg [GFM_BITS-1:0] POLYNOMIAL = 'he1000000000000000000000000000000;
 
-localparam EXPECTED_RESULT = 'h040229a09a5ed12e7e4e10da323506d2;
+localparam EXPECTED_RESULT = 'h0c33e33e3288ca631ca47544293d03ee;
 
 reg [GFM_BITS-1:0] a;
 reg [GFM_BITS-1:0] b;

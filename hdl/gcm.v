@@ -8,13 +8,15 @@ module gfm #(
 	// Latency in clock cycles for one multiplication
 	parameter integer GFM_CYCLES = 8,
 
-	/* Default polynomial for GHASH function of AES GCM mode
+	/* The default polynomial for GHASH function of AES GCM mode is:
 	 * x^128 + x^7 + x^2 + x + 1
 	 * 1 0000 0000 ... 0000 1000 0111
 	 * ^                            ^
 	 * 128..........................0
+	 *
+	 * Reverse it to match LSB ----> MSB implementation.
 	 */
-	parameter reg [GFM_BITS:0] POLYNOMIAL = 'h100000000000000000000000000000087
+	parameter reg [GFM_BITS-1:0] POLYNOMIAL = 'he1000000000000000000000000000000
 )(
 	input                      clk,
 	input                      reset,
@@ -40,15 +42,22 @@ reg [GFM_BITS:0] op1_next;
 reg [GFM_BITS:0] op2_next;
 reg [GFM_BITS-1:0] result_next;
 
+/*
+ * The GCM standard treats blocks LSB ----> MSB, which is the
+ * opposite of how we treat them in Verilog code (MSB <---- LSB).
+ * In order to avoid unnecessary complications in other parts of the
+ * algorithm, reverse the shifts and polynomial here and treat the
+ * input blocks and result LSB ----> MSB.
+ */
 always @(*) begin
 	result_next = result;
 	op1_next = op1;
 	op2_next = op2;
 
 	for (i = 0; i < (GFM_BITS / GFM_CYCLES); i=i+1) begin
-		result_next = result_next ^ (op2_next[0] ? op1_next : {GFM_BITS{1'b0}});
-		op1_next = (op1_next << 1) ^ (op1_next[GFM_BITS-1] ? POLYNOMIAL : {GFM_BITS{1'b0}});
-		op2_next = op2_next >> 1;
+		result_next = result_next ^ (op2_next[GFM_BITS-1] ? op1_next : {GFM_BITS{1'b0}});
+		op1_next = (op1_next >> 1) ^ (op1_next[0] ? POLYNOMIAL : {GFM_BITS{1'b0}});
+		op2_next = op2_next << 1;
 	end
 end
 
