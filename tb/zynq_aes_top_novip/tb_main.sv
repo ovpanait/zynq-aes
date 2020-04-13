@@ -113,12 +113,22 @@ axi_stream_slave_tb #(
 	.s00_axis_tready(s00_axis_tready)
 );
 
+/*
+   * reverse_blk8: Reverse a block of data byte by byte.
+   *
+   * 11 22 33 44 ----> 44 33 22 11
+ */
 function [`BLK_S-1:0] reverse_blk8(input [`BLK_S-1:0] blk);
 	integer i;
 	for (i = 0; i < `BLK_S / 8; i=i+1)
 		reverse_blk8[i*8 +: 8] = blk[(`BLK_S / 8 - i - 1) * 8 +: 8];
 endfunction
 
+/*
+   * Functions for manipulating the AXI slave queue (data from this queue is
+   * compared with the data received from the AES engine to make sure it is
+   * sending the expected blocks)
+ */
 task axis_slave_queue_add32(input [31:0] word, input last);
 	axi_slave.arr[axi_slave.arr_size][32] = last;
 	axi_slave.arr[axi_slave.arr_size][31:0] = word;
@@ -134,6 +144,10 @@ task axis_slave_queue_add128(input [127:0] block, input last);
 		axis_slave_queue_add32(block[i * 32 +: 32], (last && i == (128 / 32 - 1)));
 endtask
 
+/*
+   * Routines for placing data into the AXI master queue. This data will be
+   * sent to the AES engine for processing.
+ */
 task axis_send32(input [31:0] word);
 	axi_master.arr[axi_master.arr_size] = word;
 	axi_master.arr_size++;
@@ -147,6 +161,12 @@ task axis_send128(input [127:0] block);
 		axis_send32(block[i * 32 +: 32]);
 endtask
 
+/*
+   * aes_send_request - Send a full packet to the AES engine
+   *
+   * One packet consists of:
+   * CMD + KEY + [IV] + PAYLOAD
+ */
 task aes_send_request(
 	input reg [`WORD_S-1:0]      cmd,
 	input reg [`KEY_S-1:0]       key,
