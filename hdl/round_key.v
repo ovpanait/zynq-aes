@@ -21,7 +21,6 @@ module round_key(
 localparam KWORD_BITS = 32;
 
 reg  [`ROUND_KEY_BITS-1:0] round_key_next;
-wire [`WORD_S-1:0] prev_sched_word;
 reg  [`KEY_S-1:0]  prev_key;
 reg  [`BYTE_S-1:0] g0;
 reg [`WORD_S-1:0] g;
@@ -58,9 +57,6 @@ assign second_round = (round_no == 1'b1);
 assign last_round = (round_no == rounds_total);
 assign copy_initial_key = (first_round || (second_round && aes256_mode));
 
-assign prev_sched_word = aes256_mode ?
-                         prev_key[`AES256_KEY_BITS-1 : `AES256_KEY_BITS-`WORD_S] :
-                         prev_key[`AES128_KEY_BITS-1 : `AES128_KEY_BITS-`WORD_S] ;
 assign compute_g = copy_initial_key ? 1'b0 :
                    aes256_mode ? ~round_no[0]: 1'b1;
 
@@ -75,7 +71,7 @@ always @(*) begin
 		w2 = prev_key[KWORD_BITS * 2 +: KWORD_BITS];
 		w3 = prev_key[KWORD_BITS * 3 +: KWORD_BITS];
 
-		g = prev_sched_word;
+		g = prev_key[`AES256_KEY_BITS-1 : `AES256_KEY_BITS-`WORD_S];
 
 		if (compute_g) begin
 			g = word2sbox(word_rotr(g));
@@ -99,7 +95,7 @@ always @(posedge clk) begin
 	if (aes256_mode)
 		prev_key <= {round_key_next, prev_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS]};
 	else
-		prev_key <= {{128{1'b0}}, round_key_next};
+		prev_key <= {round_key_next, round_key_next};
 end
 
 always @(posedge clk) begin
