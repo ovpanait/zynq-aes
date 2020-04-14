@@ -48,6 +48,10 @@ function [`WORD_S-1:0] word_rotr(input [`WORD_S-1:0] word);
 	word_rotr = {word[0 +: `BYTE_S], word[`BYTE_S +: `WORD_S - `BYTE_S]};
 endfunction
 
+function [`WORD_S-1:0] word_rotl(input [`WORD_S-1:0] word);
+	word_rotl = {word[0 +: `WORD_S - `BYTE_S], word[`WORD_S - `BYTE_S +: `BYTE_S]};
+endfunction
+
 function [`BYTE_S-1:0] get_byte(
 	input [`WORD_S-1:0] word,
 	input [2:0]         byte_no
