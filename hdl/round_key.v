@@ -18,12 +18,18 @@ module round_key(
 	output reg                        en_o
 );
 
-wire [`WORD_S - 1:0] prev_key_arr[0:`ROUND_KEY_WORDS];
+localparam KWORD_BITS = 32;
+
 reg  [`ROUND_KEY_BITS-1:0] round_key_next;
 wire [`WORD_S-1:0] prev_sched_word;
 reg  [`KEY_S-1:0]  prev_key;
 reg  [`BYTE_S-1:0] g0;
 reg [`WORD_S-1:0] g;
+
+reg [KWORD_BITS-1:0] w0;
+reg [KWORD_BITS-1:0] w1;
+reg [KWORD_BITS-1:0] w2;
+reg [KWORD_BITS-1:0] w3;
 
 reg [`Nb-1:0] rcon_index;
 reg [`Nb-1:0] round_no;
@@ -35,8 +41,6 @@ wire second_round;
 wire first_round;
 wire last_round;
 
-genvar i;
-
 `include "aes_common.vh"
 
 localparam rcon = {
@@ -47,12 +51,6 @@ localparam rcon = {
 function [`BYTE_S-1:0] get_rcon(input [`BYTE_S-1:0] index);
 	get_rcon = rcon[index*`BYTE_S +: `BYTE_S];
 endfunction
-
-generate
-for (i=0; i < `ROUND_KEY_WORDS; i=i+1) begin
-	assign prev_key_arr[i] = prev_key[i*`WORD_S +: `WORD_S];
-end
-endgenerate
 
 assign round_key_en = (en || round_no);
 assign first_round = (round_no == 1'b0);
@@ -76,6 +74,11 @@ always @(posedge clk) begin
 end
 
 always @(*) begin
+	w0 = prev_key[KWORD_BITS * 0 +: KWORD_BITS];
+	w1 = prev_key[KWORD_BITS * 1 +: KWORD_BITS];
+	w2 = prev_key[KWORD_BITS * 2 +: KWORD_BITS];
+	w3 = prev_key[KWORD_BITS * 3 +: KWORD_BITS];
+
 	g = prev_sched_word;
 
 	if (compute_g) begin
@@ -87,10 +90,10 @@ always @(*) begin
 		g = word2sbox(g);
 	end
 
-	round_key_next[`WORD_S * 0 +: `WORD_S] = g ^ prev_key_arr[0];
-	round_key_next[`WORD_S * 1 +: `WORD_S] = round_key_next[`WORD_S * 0 +: `WORD_S] ^ prev_key_arr[1];
-	round_key_next[`WORD_S * 2 +: `WORD_S] = round_key_next[`WORD_S * 1 +: `WORD_S] ^ prev_key_arr[2];
-	round_key_next[`WORD_S * 3 +: `WORD_S] = round_key_next[`WORD_S * 2 +: `WORD_S] ^ prev_key_arr[3];
+	round_key_next[`WORD_S * 0 +: `WORD_S] = g ^ w0;
+	round_key_next[`WORD_S * 1 +: `WORD_S] = round_key_next[`WORD_S * 0 +: `WORD_S] ^ w1;
+	round_key_next[`WORD_S * 2 +: `WORD_S] = round_key_next[`WORD_S * 1 +: `WORD_S] ^ w2;
+	round_key_next[`WORD_S * 3 +: `WORD_S] = round_key_next[`WORD_S * 2 +: `WORD_S] ^ w3;
 end
 
 always @(posedge clk) begin
