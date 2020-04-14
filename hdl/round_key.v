@@ -21,6 +21,7 @@ module round_key(
 localparam KWORD_BITS = 32;
 
 reg  [`ROUND_KEY_BITS-1:0] round_key_next;
+reg  [`ROUND_KEY_BITS-1:0] schedule_next;
 reg  [`KEY_S-1:0]  prev_key;
 reg  [`BYTE_S-1:0] g0;
 reg [`WORD_S-1:0] g;
@@ -59,34 +60,36 @@ assign copy_initial_key = (first_round || (second_round && aes256_mode));
 
 assign compute_g = copy_initial_key ? 1'b0 :
                    aes256_mode ? ~round_no[0]: 1'b1;
+always @(*) begin
+	w0 = prev_key[KWORD_BITS * 0 +: KWORD_BITS];
+	w1 = prev_key[KWORD_BITS * 1 +: KWORD_BITS];
+	w2 = prev_key[KWORD_BITS * 2 +: KWORD_BITS];
+	w3 = prev_key[KWORD_BITS * 3 +: KWORD_BITS];
+
+	g = prev_key[`AES256_KEY_BITS-1 : `AES256_KEY_BITS-`WORD_S];
+
+	if (compute_g) begin
+		g = word2sbox(word_rotr(g));
+		g0 = get_byte(g, 0) ^ get_rcon(rcon_index);
+		g = {g[`BYTE_S +: `WORD_S - `BYTE_S], g0};
+	end
+	else begin
+		g = word2sbox(g);
+	end
+
+	schedule_next[`WORD_S * 0 +: `WORD_S] = g ^ w0;
+	schedule_next[`WORD_S * 1 +: `WORD_S] = schedule_next[`WORD_S * 0 +: `WORD_S] ^ w1;
+	schedule_next[`WORD_S * 2 +: `WORD_S] = schedule_next[`WORD_S * 1 +: `WORD_S] ^ w2;
+	schedule_next[`WORD_S * 3 +: `WORD_S] = schedule_next[`WORD_S * 2 +: `WORD_S] ^ w3;
+end
 
 always @(*) begin
 	if (first_round)
 		round_key_next = key[`AES128_KEY_BITS-1 : 0];
 	else if (aes256_mode && second_round)
 		round_key_next = key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS];
-	else begin
-		w0 = prev_key[KWORD_BITS * 0 +: KWORD_BITS];
-		w1 = prev_key[KWORD_BITS * 1 +: KWORD_BITS];
-		w2 = prev_key[KWORD_BITS * 2 +: KWORD_BITS];
-		w3 = prev_key[KWORD_BITS * 3 +: KWORD_BITS];
-
-		g = prev_key[`AES256_KEY_BITS-1 : `AES256_KEY_BITS-`WORD_S];
-
-		if (compute_g) begin
-			g = word2sbox(word_rotr(g));
-			g0 = get_byte(g, 0) ^ get_rcon(rcon_index);
-			g = {g[`BYTE_S +: `WORD_S - `BYTE_S], g0};
-		end
-		else begin
-			g = word2sbox(g);
-		end
-
-		round_key_next[`WORD_S * 0 +: `WORD_S] = g ^ w0;
-		round_key_next[`WORD_S * 1 +: `WORD_S] = round_key_next[`WORD_S * 0 +: `WORD_S] ^ w1;
-		round_key_next[`WORD_S * 2 +: `WORD_S] = round_key_next[`WORD_S * 1 +: `WORD_S] ^ w2;
-		round_key_next[`WORD_S * 3 +: `WORD_S] = round_key_next[`WORD_S * 2 +: `WORD_S] ^ w3;
-	end
+	else
+		round_key_next = schedule_next;
 end
 
 always @(posedge clk) begin
