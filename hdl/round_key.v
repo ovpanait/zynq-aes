@@ -64,13 +64,6 @@ assign prev_sched_word = aes256_mode ?
 assign compute_g = copy_initial_key ? 1'b0 :
                    aes256_mode ? ~round_no[0]: 1'b1;
 
-always @(posedge clk) begin
-	if (aes256_mode)
-		prev_key <= {round_key_next, prev_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS]};
-	else
-		prev_key <= {{128{1'b0}}, round_key_next};
-end
-
 always @(*) begin
 	if (first_round)
 		round_key_next = key[`AES128_KEY_BITS-1 : 0];
@@ -101,6 +94,15 @@ always @(*) begin
 end
 
 always @(posedge clk) begin
+	round_key <= round_key_next;
+
+	if (aes256_mode)
+		prev_key <= {round_key_next, prev_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS]};
+	else
+		prev_key <= {{128{1'b0}}, round_key_next};
+end
+
+always @(posedge clk) begin
 	if (reset) begin
 		rcon_index = {`Nb{1'b0}};
 		round_no <= {`Nb{1'b0}};
@@ -119,10 +121,6 @@ always @(posedge clk) begin
 			rcon_index <= {`Nb{1'b0}};
 		end
 	end
-end
-
-always @(posedge clk) begin
-	round_key <= round_key_next;
 end
 
 always @(posedge clk) begin
