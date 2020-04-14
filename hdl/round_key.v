@@ -65,35 +65,39 @@ assign compute_g = copy_initial_key ? 1'b0 :
                    aes256_mode ? ~round_no[0]: 1'b1;
 
 always @(posedge clk) begin
-	if (copy_initial_key)
-		prev_key <= key;
-	else if (aes256_mode)
+	if (aes256_mode)
 		prev_key <= {round_key_next, prev_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS]};
 	else
 		prev_key <= {{128{1'b0}}, round_key_next};
 end
 
 always @(*) begin
-	w0 = prev_key[KWORD_BITS * 0 +: KWORD_BITS];
-	w1 = prev_key[KWORD_BITS * 1 +: KWORD_BITS];
-	w2 = prev_key[KWORD_BITS * 2 +: KWORD_BITS];
-	w3 = prev_key[KWORD_BITS * 3 +: KWORD_BITS];
-
-	g = prev_sched_word;
-
-	if (compute_g) begin
-		g = word2sbox(word_rotr(g));
-		g0 = get_byte(g, 0) ^ get_rcon(rcon_index);
-		g = {g[`BYTE_S +: `WORD_S - `BYTE_S], g0};
-	end
+	if (first_round)
+		round_key_next = key[`AES128_KEY_BITS-1 : 0];
+	else if (aes256_mode && second_round)
+		round_key_next = key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS];
 	else begin
-		g = word2sbox(g);
-	end
+		w0 = prev_key[KWORD_BITS * 0 +: KWORD_BITS];
+		w1 = prev_key[KWORD_BITS * 1 +: KWORD_BITS];
+		w2 = prev_key[KWORD_BITS * 2 +: KWORD_BITS];
+		w3 = prev_key[KWORD_BITS * 3 +: KWORD_BITS];
 
-	round_key_next[`WORD_S * 0 +: `WORD_S] = g ^ w0;
-	round_key_next[`WORD_S * 1 +: `WORD_S] = round_key_next[`WORD_S * 0 +: `WORD_S] ^ w1;
-	round_key_next[`WORD_S * 2 +: `WORD_S] = round_key_next[`WORD_S * 1 +: `WORD_S] ^ w2;
-	round_key_next[`WORD_S * 3 +: `WORD_S] = round_key_next[`WORD_S * 2 +: `WORD_S] ^ w3;
+		g = prev_sched_word;
+
+		if (compute_g) begin
+			g = word2sbox(word_rotr(g));
+			g0 = get_byte(g, 0) ^ get_rcon(rcon_index);
+			g = {g[`BYTE_S +: `WORD_S - `BYTE_S], g0};
+		end
+		else begin
+			g = word2sbox(g);
+		end
+
+		round_key_next[`WORD_S * 0 +: `WORD_S] = g ^ w0;
+		round_key_next[`WORD_S * 1 +: `WORD_S] = round_key_next[`WORD_S * 0 +: `WORD_S] ^ w1;
+		round_key_next[`WORD_S * 2 +: `WORD_S] = round_key_next[`WORD_S * 1 +: `WORD_S] ^ w2;
+		round_key_next[`WORD_S * 3 +: `WORD_S] = round_key_next[`WORD_S * 2 +: `WORD_S] ^ w3;
+	end
 end
 
 always @(posedge clk) begin
@@ -118,13 +122,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-	if (first_round)
-		round_key <= key[`AES128_KEY_BITS-1 : 0];
-	else if (aes256_mode && second_round)
-		round_key <= key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS];
-	else begin
-		round_key <= round_key_next;
-	end
+	round_key <= round_key_next;
 end
 
 always @(posedge clk) begin
