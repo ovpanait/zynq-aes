@@ -18,6 +18,13 @@ module decipher (
 
 // ------------------------- AES Decipher functions -------------------------
 
+/* ============================================================================
+ *
+ * The InvSubBytes transformation consists of:
+ *  (i)   byte by byte substitution of the state array using the following rule
+ *                            sij = rsbox[sij]
+ *
+ * ========================================================================= */
 localparam rsbox = {
         8'h7D, 8'h0C, 8'h21, 8'h55, 8'h63, 8'h14, 8'h69, 8'hE1,
         8'h26, 8'hD6, 8'h77, 8'hBA, 8'h7E, 8'h04, 8'h2B, 8'h17,
@@ -63,6 +70,29 @@ function [`BLK_S-1:0] inv_sub_bytes(input [`BLK_S-1:0] blk);
 		inv_sub_bytes[i*`BYTE_S +: `BYTE_S] = get_rsbox(blk[i*`BYTE_S +: `BYTE_S]);
 endfunction
 
+/* ============================================================================
+ *
+ * The InvShiftRows transformation consists of:
+ *  (i)   replacing each byte of a column by a function of all the bytes in the
+ *        same column
+ *
+ * Input block:
+ *  s00 s10 s20 s30  s01 s11 s21 s31  s02 s12 s22 s23  s03 s13 s23 s33
+ *
+ *   ----     ----     ----         ----     ----             ----
+ *  | 0E 0B 0D 09 |   | s00 s01 s02 s03 |   | 's00 's01 's02 's03 |
+ *  | 09 0E 0B 0D | X | s10 s11 s12 s13 | = | 's10 's11 's12 's13 |
+ *  | 0D 09 0E 0B |   | s20 s21 s22 s23 |   | 's20 's21 's22 's23 |
+ *  | 0B 0D 09 0E |   | s30 s31 s32 s33 |   | 's30 's31 's32 's33 |
+ *   ----     ----     ----         ----     ----             ----
+ *
+ * Output block:
+ *  's00 's10 's20 's30  's01 's11 's21 's31  's02 's12 's22 's23  's03 's13 's23 's33
+ *
+ * NOTE: Multiplications and additions are in GF(2^128)
+ *
+ * ========================================================================= */
+
 function [`WORD_S-1:0] inv_mix_word(input [`WORD_S-1:0] word);
 	reg [`BYTE_S-1:0]   byte0;
 	reg [`BYTE_S-1:0]   byte1;
@@ -88,6 +118,28 @@ function [`BLK_S-1:0] inv_mix_cols(input [`BLK_S-1:0] blk);
 		inv_mix_cols[i*`WORD_S +: `WORD_S] = inv_mix_word(get_word(blk,i));
 endfunction
 
+/* ============================================================================
+ *
+ * The InvShiftRows transformation consists of:
+ *  (i)   not shifting the first row of the state array
+ *  (ii)  circularly shifting the second row by one byte to the right
+ *  (iii) circularly shifting the third row by two bytes to the right
+ *  (iv)  circularly shifting the last row by three bytes to the right
+ *
+ * Input block:
+ *  s00 s10 s20 s30  s01 s11 s21 s31  s02 s12 s22 s23  s03 s13 s23 s33
+ *
+ *   ----         ----             ----         ----
+ *  | s00 s01 s02 s03 |           | s00 s01 s02 s03 |
+ *  | s10 s11 s12 s13 |    ==>    | s13 s10 s11 s12 |
+ *  | s20 s21 s22 s23 |           | s22 s23 s20 s21 |
+ *  | s30 s31 s32 s33 |           | s31 s32 s33 s30 |
+ *   ----         ----             ----         ----
+ *
+ * Output block:
+ *  s00 s13 s22 s31  s01 s10 s23 s32  s02 s11 s20 s33  s03 s12 s21 s30
+ *
+ * ========================================================================= */
 function [`BLK_S-1:0] inv_shift_rows(input [`BLK_S-1:0] blk);
 	integer i, j, k;
 
@@ -96,7 +148,7 @@ function [`BLK_S-1:0] inv_shift_rows(input [`BLK_S-1:0] blk);
 			inv_shift_rows[i*`BYTE_S +: `BYTE_S] = blk_get_byte(blk, k % 16);
 endfunction
 
-// ------------------------- AES Decipher functions -------------------------
+// ------------------------- Decipher logic  ----------------------------------
 
 reg [`Nb-1:0] round_no;
 
