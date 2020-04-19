@@ -18,6 +18,13 @@ module cipher(
 
 // --------------------- AES Cipher functions ---------------------
 
+/* ============================================================================
+ *
+ * The SubBytes transformation consists of:
+ *  (i)   byte by byte substitution of the state array using the following rule
+ *                            sij = sbox[sij]
+ *
+ * ========================================================================= */
 function [`BLK_S-1:0] sub_bytes(input [`BLK_S-1:0] blk);
 	integer i;
 
@@ -25,6 +32,28 @@ function [`BLK_S-1:0] sub_bytes(input [`BLK_S-1:0] blk);
 		sub_bytes[i*`BYTE_S +: `BYTE_S] = get_sbox(blk[i*`BYTE_S +: `BYTE_S]);
 endfunction
 
+/* ============================================================================
+ *
+ * The ShiftRows transformation consists of:
+ *  (i)   not shifting the first row of the state array
+ *  (ii)  circularly shifting the second row by one byte to the left
+ *  (iii) circularly shifting the third row by two bytes to the left
+ *  (iv)  circularly shifting the last row by three bytes to the left
+ *
+ * Input block:
+ *  s00 s10 s20 s30  s01 s11 s21 s31  s02 s12 s22 s23  s03 s13 s23 s33
+ *
+ *   ----         ----             ----         ----
+ *  | s00 s01 s02 s03 |           | s00 s01 s02 s03 |
+ *  | s10 s11 s12 s13 |    ==>    | s11 s12 s13 s10 |
+ *  | s20 s21 s22 s23 |           | s22 s23 s20 s21 |
+ *  | s30 s31 s32 s33 |           | s33 s30 s31 s32 |
+ *   ----         ----             ----         ----
+ *
+ * Output block:
+ *  s00 s13 s22 s31  s01 s10 s23 s32  s02 s11 s20 s33  s03 s12 s21 s30
+ *
+ * ========================================================================= */
 function [`BLK_S-1:0] shift_rows(input [`BLK_S-1:0] blk);
 	integer i, j, k;
 
@@ -34,6 +63,28 @@ function [`BLK_S-1:0] shift_rows(input [`BLK_S-1:0] blk);
 	end
 endfunction
 
+/* ============================================================================
+ *
+ * The MixColumns transformation consists of:
+ *  (i)   replacing each byte of a column by a function of all the bytes in the
+ *        same column
+ *
+ * Input block:
+ *  s00 s10 s20 s30  s01 s11 s21 s31  s02 s12 s22 s23  s03 s13 s23 s33
+ *
+ *   ----     ----     ----         ----     ----             ----
+ *  | 02 03 01 01 |   | s00 s01 s02 s03 |   | 's00 's01 's02 's03 |
+ *  | 01 02 03 01 | X | s10 s11 s12 s13 | = | 's10 's11 's12 's13 |
+ *  | 01 01 02 03 |   | s20 s21 s22 s23 |   | 's20 's21 's22 's23 |
+ *  | 03 01 01 02 |   | s30 s31 s32 s33 |   | 's30 's31 's32 's33 |
+ *   ----     ----     ----         ----     ----             ----
+ *
+ * Output block:
+ *  's00 's10 's20 's30  's01 's11 's21 's31  's02 's12 's22 's23  's03 's13 's23 's33
+ *
+ * NOTE: Multiplications and additions are in GF(2^128)
+ *
+ * ========================================================================= */
 function [`WORD_S-1:0] mix_word(input [`WORD_S-1:0] word);
 	reg [`BYTE_S-1:0] byte0;
 	reg [`BYTE_S-1:0] byte1;
@@ -60,7 +111,7 @@ function [`BLK_S-1:0] mix_cols(input [`BLK_S-1:0] blk);
 	end
 endfunction
 
-// --------------------- AES Cipher functions ---------------------
+// --------------------- AES Cipher logic ---------------------
 
 reg [`BLK_S-1:0] aes_state_sub_bytes;
 reg [`BLK_S-1:0] aes_state_shift_rows;
