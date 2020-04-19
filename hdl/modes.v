@@ -63,17 +63,10 @@ module ctr(
 	output reg [`IV_BITS-1:0]    iv_next
 );
 
-function [`IV_BITS-1:0] reverse_iv(input [`IV_BITS-1:0] iv);
-	integer i;
-
-	for (i = 0; i < `IV_BITS / `BYTE_S; i=i+1)
-		reverse_iv[i*`BYTE_S +: `BYTE_S] = iv[`IV_BITS - (i+1)*`BYTE_S +: `BYTE_S];
-endfunction
-
 always @(*) begin
 	in_blk_next = iv;
 	out_blk_next = out_blk ^ in_blk;
-	iv_next = reverse_iv(reverse_iv(iv) + 1'b1);
+	iv_next = iv + 1'b1;
 
 	ctr_op_done = aes_alg_done;
 end

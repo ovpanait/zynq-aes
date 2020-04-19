@@ -32,12 +32,15 @@ module aes_controller_input #(
 	output                                  controller_in_busy
 );
 
+`include "controller_fc.vh"
+
 // AXI related signals
 localparam GET_CMD = 1'b0;
 localparam GET_PAYLOAD = 1'b1;
 
 wire aes_block_available;
 
+wire [`BLK_S-1:0] aes_blk_next_rev;
 wire [`BLK_S-1:0] aes_blk_shift;
 wire [`BLK_S-1:0] aes_blk_next;
 wire [`BLK_S-1:0] aes_blk;
@@ -112,6 +115,7 @@ assign aes_cmd_available = bus_transaction && (fsm_state == GET_CMD);
 assign aes_blk = fifo_wdata[`BLK_S-1:0];
 assign aes_blk_shift = (aes_blk >> `WORD_S);
 assign aes_blk_next = {bus_data, aes_blk_shift[`BLK_S-1-`WORD_S:0]};
+assign aes_blk_next_rev = blk_rev8(aes_blk_next);
 
 always @(posedge clk) begin
 	if(reset) begin
@@ -135,6 +139,7 @@ always @(posedge clk) begin
 					fifo_wdata <= {bus_tlast, aes_blk_next};
 
 					if (aes_block_available) begin
+						fifo_wdata <= {bus_tlast, aes_blk_next_rev};
 						bus_word_cnt <= 1'b0;
 					end
 
@@ -167,7 +172,7 @@ integer s_cmd_cnt = 0;
 
 always @(posedge clk) begin
 	if (aes_block_available) begin
-		$display("AES INPUT: input block no %0d: %H", s_blk_cnt, {bus_tlast, aes_blk_next});
+		$display("AES INPUT: input block no %0d: %H", s_blk_cnt, {bus_tlast, aes_blk_next_rev});
 		s_blk_cnt = s_blk_cnt + 1;
 	end
 

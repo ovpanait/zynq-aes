@@ -434,7 +434,7 @@ always @(posedge clk) begin
 				if (in_fifo_read_req) begin
 					state <= AES_START;
 
-					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_rdata;
+					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_rdata;
 					aes_key_exp_mode <= 1'b1;
 					aes_start <= 1'b1;
 
@@ -450,7 +450,7 @@ always @(posedge clk) begin
 			AES_GET_KEY_256:
 			begin
 				if (in_fifo_read_req) begin
-					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_rdata;
+					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_rdata;
 					state <= AES_START;
 					aes_start <= 1'b1;
 

@@ -88,3 +88,30 @@ function [`WORD_S-1:0] set_PCBC_mode_bit(input [`WORD_S-1:0] cmd);
 	set_PCBC_mode_bit = cmd | (1 << `PCBC_MODE_BIT);
 endfunction
 
+/*
+  * blk_rev8: Reverse a block byte by byte
+  *
+  * AES standard:
+  *  0x7d 0x92 0x4c 0xfd 0x37 0xb3 0xd0 0x46 0xa9 0x6e 0xb5 0xe1 0x32 0x04 0x24 0x05
+  *
+  * Linux Kernel Buffer:
+  *  0x7d 0x92 0x4c 0xfd 0x37 0xb3 0xd0 0x46 0xa9 0x6e 0xb5 0xe1 0x32 0x04 0x24 0x05
+  *
+  *  Hardware Engine:
+  *  0x05 0x24 0x04 0x32 0xe1 0xb5 0x6e 0xa9 0x46 0xd0 0xb3 0x37 0xfd 0x4c 0x92 0x7d
+  *
+  * As indicated above, due to the way data is transferred from the kernel, we
+  * end up having the bytes in the opposite direction compared to the AES
+  * specification.
+  *
+  * blk_rev8 is used to change the byte direction of input blocks to align with
+  * the AES specification and also to reverse the blocks before sending them
+  * out on the bus.
+  *
+ */
+function [`BLK_S-1:0] blk_rev8(input [`BLK_S-1:0] blk);
+	integer i;
+
+	for (i = 0; i < `BLK_S / 8; i=i+1)
+		blk_rev8[i*8 +: 8] = blk[(`BLK_S / 8 - i - 1)*8+: 8];
+endfunction

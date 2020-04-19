@@ -27,12 +27,15 @@ module aes_controller_output #
 	output                                    bus_tlast
 );
 
+`include "controller_fc.vh"
+
 // FIFO signals
 
 wire fifo_read_tvalid;
 wire fifo_read_tready;
 
-wire [FIFO_DATA_WIDTH-1:0] fifo_data_shift;
+wire [FIFO_DATA_WIDTH-1:0] fifo_data_rev_shift;
+wire [FIFO_DATA_WIDTH-1:0] fifo_data_rev;
 reg  [FIFO_DATA_WIDTH-1:0] fifo_data;
 wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 
@@ -76,9 +79,10 @@ assign fifo_read_tready = fifo_read_tvalid && !data_loaded;
 
 // Bus logic
 assign bus_last_word = fifo_data_last && (bus_word_cnt == `Nb - 1'b1);
-assign fifo_data_shift = fifo_data >> bus_word_cnt * `WORD_S;
+assign fifo_data_rev = blk_rev8(fifo_data);
+assign fifo_data_rev_shift = fifo_data_rev >> bus_word_cnt * `WORD_S;
 
-assign bus_tdata = fifo_data_shift[0 +: `WORD_S];
+assign bus_tdata = fifo_data_rev_shift[0 +: `WORD_S];
 assign bus_tlast = bus_last_word;
 assign bus_tvalid = data_loaded;
 
