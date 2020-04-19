@@ -42,13 +42,6 @@ reg [GFM_BITS:0] op1_next;
 reg [GFM_BITS:0] op2_next;
 reg [GFM_BITS-1:0] result_next;
 
-/*
- * The GCM standard treats blocks LSB ----> MSB, which is the
- * opposite of how we treat them in Verilog code (MSB <---- LSB).
- * In order to avoid unnecessary complications in other parts of the
- * algorithm, reverse the shifts and polynomial here and treat the
- * input blocks and result LSB ----> MSB.
- */
 always @(*) begin
 	result_next = result;
 	op1_next = op1;
