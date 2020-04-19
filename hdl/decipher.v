@@ -99,15 +99,15 @@ function [`WORD_S-1:0] inv_mix_word(input [`WORD_S-1:0] word);
 	reg [`BYTE_S-1:0]   byte2;
 	reg [`BYTE_S-1:0]   byte3;
 begin
-	byte0 = get_byte(word, 0);
-	byte1 = get_byte(word, 1);
-	byte2 = get_byte(word, 2);
-	byte3 = get_byte(word, 3);
+	byte0 = get_byte(word, 3);
+	byte1 = get_byte(word, 2);
+	byte2 = get_byte(word, 1);
+	byte3 = get_byte(word, 0);
 
-	inv_mix_word[0*`BYTE_S +: `BYTE_S] = gm14(byte0) ^ gm11(byte1) ^ gm13(byte2) ^ gm9(byte3);
-	inv_mix_word[1*`BYTE_S +: `BYTE_S] = gm9(byte0) ^ gm14(byte1) ^ gm11(byte2) ^ gm13(byte3);
-	inv_mix_word[2*`BYTE_S +: `BYTE_S] = gm13(byte0) ^ gm9(byte1) ^ gm14(byte2) ^ gm11(byte3);
-	inv_mix_word[3*`BYTE_S +: `BYTE_S] = gm11(byte0) ^ gm13(byte1) ^ gm9(byte2) ^ gm14(byte3);
+	inv_mix_word[3*`BYTE_S +: `BYTE_S] = gm14(byte0) ^ gm11(byte1) ^ gm13(byte2) ^ gm9(byte3);
+	inv_mix_word[2*`BYTE_S +: `BYTE_S] = gm9(byte0) ^ gm14(byte1) ^ gm11(byte2) ^ gm13(byte3);
+	inv_mix_word[1*`BYTE_S +: `BYTE_S] = gm13(byte0) ^ gm9(byte1) ^ gm14(byte2) ^ gm11(byte3);
+	inv_mix_word[0*`BYTE_S +: `BYTE_S] = gm11(byte0) ^ gm13(byte1) ^ gm9(byte2) ^ gm14(byte3);
 end
 endfunction
 
@@ -141,11 +141,23 @@ endfunction
  *
  * ========================================================================= */
 function [`BLK_S-1:0] inv_shift_rows(input [`BLK_S-1:0] blk);
-	integer i, j, k;
+	reg [`WORD_S-1:0] w0, w1, w2, w3;
+	reg [`WORD_S-1:0] ws0, ws1, ws2, ws3;
+	integer i, j;
 
-	for (j = 0; j < `BLK_S / `BYTE_S; j=j+4)
-		for (i=j, k=j; i < `BLK_S / `BYTE_S; i=i+1, k=k+13)
-			inv_shift_rows[i*`BYTE_S +: `BYTE_S] = blk_get_byte(blk, k % 16);
+begin
+	w0 = aes_word(blk, 0);
+	w1 = aes_word(blk, 1);
+	w2 = aes_word(blk, 2);
+	w3 = aes_word(blk, 3);
+
+	ws0 = {aes_byte(w0, 0), aes_byte(w3, 1), aes_byte(w2, 2), aes_byte(w1, 3)};
+	ws1 = {aes_byte(w1, 0), aes_byte(w0, 1), aes_byte(w3, 2), aes_byte(w2, 3)};
+	ws2 = {aes_byte(w2, 0), aes_byte(w1, 1), aes_byte(w0, 2), aes_byte(w3, 3)};
+	ws3 = {aes_byte(w3, 0), aes_byte(w2, 1), aes_byte(w1, 2), aes_byte(w0, 3)};
+
+	inv_shift_rows = {ws0, ws1, ws2, ws3};
+end
 endfunction
 
 // ------------------------- Decipher logic  ----------------------------------

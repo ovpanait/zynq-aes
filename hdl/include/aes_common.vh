@@ -76,6 +76,29 @@ function [`WORD_S-1:0] get_word(
 	get_word = blk[word_no*`WORD_S +: `WORD_S];
 endfunction
 
+/*
+  * Same as get_byte(), but takes into account the AES byte ordering:
+  *                     byte0 byte1 byte2 byte3
+ */
+function [`BYTE_S-1:0] aes_byte(
+	input [`WORD_S-1:0] word,
+	input [2:0]         byte_no
+);
+	aes_byte = word[`WORD_S - (1+byte_no)*`BYTE_S +: `BYTE_S];
+endfunction
+
+/*
+  * Same as get_word(), but takes into account the AES word ordering:
+  *                     word0 word1 word2 word3
+ */
+function [`WORD_S-1:0] aes_word(
+	input [`BLK_S-1:0] blk,
+	input [2:0]        word_no
+);
+	aes_word = blk[`BLK_S - (1+word_no)*`WORD_S +: `WORD_S];
+endfunction
+
+
 // Galois multiplication functions
 function [7:0] gm2(input [7:0] op);
 	gm2 = {op[6:0], 1'b0} ^ (8'h1b & {8{op[7]}});
