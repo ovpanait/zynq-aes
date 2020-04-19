@@ -27,7 +27,6 @@ module cipher(
  * ========================================================================= */
 function [`BLK_S-1:0] sub_bytes(input [`BLK_S-1:0] blk);
 	integer i;
-
 	for (i = 0; i < `BLK_S / `BYTE_S; i=i+1)
 		sub_bytes[i*`BYTE_S +: `BYTE_S] = get_sbox(blk[i*`BYTE_S +: `BYTE_S]);
 endfunction
@@ -55,12 +54,21 @@ endfunction
  *
  * ========================================================================= */
 function [`BLK_S-1:0] shift_rows(input [`BLK_S-1:0] blk);
-	integer i, j, k;
+	reg [`WORD_S-1:0] w0, w1, w2, w3;
+	reg [`WORD_S-1:0] ws0, ws1, ws2, ws3;
+begin
+	w0 = aes_word(blk, 0);
+	w1 = aes_word(blk, 1);
+	w2 = aes_word(blk, 2);
+	w3 = aes_word(blk, 3);
 
-	for (j = 0; j < `BLK_S / `BYTE_S; j=j+`Nb) begin
-		for (i=j, k=j; i < `BLK_S / `BYTE_S; i=i+1, k=k+5)
-			shift_rows[i*`BYTE_S +: `BYTE_S] = blk_get_byte(blk, k % 16);
-	end
+	ws0 = {aes_byte(w0, 0), aes_byte(w1, 1), aes_byte(w2, 2), aes_byte(w3, 3)};
+	ws1 = {aes_byte(w1, 0), aes_byte(w2, 1), aes_byte(w3, 2), aes_byte(w0, 3)};
+	ws2 = {aes_byte(w2, 0), aes_byte(w3, 1), aes_byte(w0, 2), aes_byte(w1, 3)};
+	ws3 = {aes_byte(w3, 0), aes_byte(w0, 1), aes_byte(w1, 2), aes_byte(w2, 3)};
+
+	shift_rows = {ws0, ws1, ws2, ws3};
+end
 endfunction
 
 /* ============================================================================
@@ -86,20 +94,20 @@ endfunction
  *
  * ========================================================================= */
 function [`WORD_S-1:0] mix_word(input [`WORD_S-1:0] word);
-	reg [`BYTE_S-1:0] byte0;
-	reg [`BYTE_S-1:0] byte1;
-	reg [`BYTE_S-1:0] byte2;
-	reg [`BYTE_S-1:0] byte3;
+	reg [`BYTE_S-1:0] b0, b1, b2, b3;
+	reg [`BYTE_S-1:0] mb0, mb1, mb2, mb3;
 begin
-	byte0 = get_byte(word, 0);
-	byte1 = get_byte(word, 1);
-	byte2 = get_byte(word, 2);
-	byte3 = get_byte(word, 3);
+	b0 = aes_byte(word, 0);
+	b1 = aes_byte(word, 1);
+	b2 = aes_byte(word, 2);
+	b3 = aes_byte(word, 3);
 
-	mix_word[0*`BYTE_S +: `BYTE_S] = gm2(byte0) ^ gm3(byte1) ^ byte2 ^ byte3;
-	mix_word[1*`BYTE_S +: `BYTE_S] = byte0 ^ gm2(byte1) ^ gm3(byte2) ^ byte3;
-	mix_word[2*`BYTE_S +: `BYTE_S] = byte0 ^ byte1 ^ gm2(byte2) ^ gm3(byte3);
-	mix_word[3*`BYTE_S +: `BYTE_S] = gm3(byte0) ^ byte1 ^ byte2 ^gm2(byte3);
+	mb0 = gm2(b0) ^ gm3(b1) ^ b2 ^ b3;
+	mb1 = b0 ^ gm2(b1) ^ gm3(b2) ^ b3;
+	mb2 = b0 ^ b1 ^ gm2(b2) ^ gm3(b3);
+	mb3 = gm3(b0) ^ b1 ^ b2 ^gm2(b3);
+
+	mix_word = {mb0, mb1, mb2, mb3};
 end
 endfunction
 
