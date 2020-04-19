@@ -43,15 +43,15 @@ aes_top DUT (
 
 `include "test_fc.vh"
 
-localparam [`KEY_S-1:0] key_128 = 'h00000000000000000000000000000000754620676e754b20796d207374616854;
-localparam [`KEY_S-1:0] key_256 = 'h1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100;
+localparam [`KEY_S-1:0] key_128 = 'h000102030405060708090a0b0c0d0e0f00000000000000000000000000000000;
+localparam [`KEY_S-1:0] key_256 = 'h000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f;
 
-localparam [`BLK_S-1:0] plaintext_256_t1 = 'hffeeddccbbaa99887766554433221100;
-localparam [`BLK_S-1:0] ciphertext_256_t1 = 'h8960494b9049fceabf456751cab7a28e;
-localparam [`BLK_S-1:0] plaintext_128_t1 = 'h6F775420656E694E20656E4F206F7754;
-localparam [`BLK_S-1:0] ciphertext_128_t1 = 'h3ad7021ab3992240f62014575f50c329;
+localparam [`BLK_S-1:0] plaintext_256_t1 = 'h00112233445566778899aabbccddeeff;
+localparam [`BLK_S-1:0] ciphertext_256_t1 = 'h8ea2b7ca516745bfeafc49904b496089;
+localparam [`BLK_S-1:0] plaintext_128_t1 = 'h00112233445566778899aabbccddeeff;
+localparam [`BLK_S-1:0] ciphertext_128_t1 = 'h69c4e0d86a7b0430d8cdb78070b4c55a;
 localparam [`BLK_S-1:0] plaintext_128_t2 = 'h01896745230189674523119178563412;
-localparam [`BLK_S-1:0] ciphertext_128_t2 = 'h153e7de995d7d6481eba136046b11429;
+localparam [`BLK_S-1:0] ciphertext_128_t2 = 'h14aa0d560e4a7b60d52bba86dece5277;
 
 integer i;
 
@@ -73,8 +73,8 @@ initial begin
         @(negedge clk) reset = 0;
 
         test_aes(1'b1, 1'b0, key_128, plaintext_128_t1, ciphertext_128_t1);
-        test_aes(1'b1, 1'b0, key_128, plaintext_128_t2, ciphertext_128_t2);
         test_aes(1'b0, 1'b1, key_256, plaintext_256_t1, ciphertext_256_t1);
+        test_aes(1'b1, 1'b0, key_128, plaintext_128_t2, ciphertext_128_t2);
 
         // Testcase end
         @(negedge clk) reset = 1;
