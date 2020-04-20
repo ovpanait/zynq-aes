@@ -118,8 +118,8 @@ wire [`BLK_S-1:0] cfb_in_blk;
 wire [`BLK_S-1:0] ofb_in_blk;
 wire [`BLK_S-1:0] pcbc_in_blk;
 
-wire [`BLK_S-1:0] out_blk;
 wire [`BLK_S-1:0] out_blk_next;
+wire [`BLK_S-1:0] aes_out_blk;
 wire [`BLK_S-1:0] cbc_out_blk;
 wire [`BLK_S-1:0] ecb_out_blk;
 wire [`BLK_S-1:0] ctr_out_blk;
@@ -247,14 +247,14 @@ if (ECB_SUPPORT) begin
 	assign ecb_flag = is_ECB_op(aes_cmd);
 
 	ecb ecb_mod(
-		.in_blk(in_blk),
-		.out_blk(out_blk),
+		.data_blk(in_blk),
 
+		.aes_alg_out_blk(aes_out_blk),
+		.aes_alg_in_blk(ecb_in_blk),
 		.aes_alg_done(aes_alg_done),
 
-		.ecb_op_done(ecb_op_done),
-		.in_blk_next(ecb_in_blk),
-		.out_blk_next(ecb_out_blk)
+		.ecb_out_blk(ecb_out_blk),
+		.ecb_op_done(ecb_op_done)
 	);
 end else begin
 	assign ecb_flag = 1'b0;
@@ -267,18 +267,18 @@ if (CBC_SUPPORT) begin
 
 	cbc cbc_mod(
 		.encryption(encrypt_flag),
-		.decryption(decrypt_flag),
 
-		.in_blk(in_blk),
-		.out_blk(out_blk),
+		.data_blk(in_blk),
+
 		.iv(iv),
+		.iv_next(cbc_iv),
 
+		.aes_alg_in_blk(cbc_in_blk),
+		.aes_alg_out_blk(aes_out_blk),
 		.aes_alg_done(aes_alg_done),
 
-		.cbc_op_done(cbc_op_done),
-		.in_blk_next(cbc_in_blk),
-		.out_blk_next(cbc_out_blk),
-		.iv_next(cbc_iv)
+		.cbc_out_blk(cbc_out_blk),
+		.cbc_op_done(cbc_op_done)
 	);
 end else begin
 	assign cbc_flag = 1'b0;
@@ -290,16 +290,17 @@ if (CTR_SUPPORT) begin
 	assign ctr_flag = is_CTR_op(aes_cmd);
 
 	ctr ctr_mod(
-		.in_blk(in_blk),
-		.out_blk(out_blk),
-		.iv(iv),
+		.data_blk(in_blk),
 
+		.iv(iv),
+		.iv_next(ctr_iv),
+
+		.aes_alg_in_blk(ctr_in_blk),
+		.aes_alg_out_blk(aes_out_blk),
 		.aes_alg_done(aes_alg_done),
 
 		.ctr_op_done(ctr_op_done),
-		.in_blk_next(ctr_in_blk),
-		.out_blk_next(ctr_out_blk),
-		.iv_next(ctr_iv)
+		.ctr_out_blk(ctr_out_blk)
 	);
 end else begin
 	assign ctr_flag = 1'b0;
@@ -312,18 +313,18 @@ if (PCBC_SUPPORT) begin
 
 	pcbc pcbc_mod(
 		.encryption(encrypt_flag),
-		.decryption(decrypt_flag),
 
-		.in_blk(in_blk),
-		.out_blk(out_blk),
+		.data_blk(in_blk),
+
 		.iv(iv),
+		.iv_next(pcbc_iv),
 
+		.aes_alg_in_blk(pcbc_in_blk),
+		.aes_alg_out_blk(aes_out_blk),
 		.aes_alg_done(aes_alg_done),
 
 		.pcbc_op_done(pcbc_op_done),
-		.in_blk_next(pcbc_in_blk),
-		.out_blk_next(pcbc_out_blk),
-		.iv_next(pcbc_iv)
+		.pcbc_out_blk(pcbc_out_blk)
 	);
 end else begin
 	assign pcbc_flag = 1'b0;
@@ -337,16 +338,17 @@ if (CFB_SUPPORT) begin
 	cfb cfb_mod(
 		.encryption(encrypt_flag),
 
-		.in_blk(in_blk),
-		.out_blk(out_blk),
-		.iv(iv),
+		.data_blk(in_blk),
 
+		.iv(iv),
+		.iv_next(cfb_iv),
+
+		.aes_alg_in_blk(cfb_in_blk),
+		.aes_alg_out_blk(aes_out_blk),
 		.aes_alg_done(aes_alg_done),
 
 		.cfb_op_done(cfb_op_done),
-		.in_blk_next(cfb_in_blk),
-		.out_blk_next(cfb_out_blk),
-		.iv_next(cfb_iv)
+		.cfb_out_blk(cfb_out_blk)
 	);
 end else begin
 	assign cfb_flag = 1'b0;
@@ -358,16 +360,17 @@ if (OFB_SUPPORT) begin
 	assign ofb_flag = is_OFB_op(aes_cmd);
 
 	ofb ofb_mod(
-		.in_blk(in_blk),
-		.out_blk(out_blk),
-		.iv(iv),
+		.data_blk(in_blk),
 
+		.iv(iv),
+		.iv_next(ofb_iv),
+
+		.aes_alg_in_blk(ofb_in_blk),
+		.aes_alg_out_blk(aes_out_blk),
 		.aes_alg_done(aes_alg_done),
 
 		.ofb_op_done(ofb_op_done),
-		.in_blk_next(ofb_in_blk),
-		.out_blk_next(ofb_out_blk),
-		.iv_next(ofb_iv)
+		.ofb_out_blk(ofb_out_blk)
 	);
 end else begin
 	assign ofb_flag = 1'b0;
@@ -392,7 +395,7 @@ aes_top aes_mod(
 	.aes_key(aes_key),
 	.aes_in_blk(in_blk_next),
 
-	.aes_out_blk(out_blk),
+	.aes_out_blk(aes_out_blk),
 	.en_o(aes_alg_done)
 );
 
