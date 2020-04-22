@@ -128,4 +128,32 @@ always @(posedge clk) begin
 		aes_op_in_progress <= 1'b0;
 end
 
+//`define AES_TOP_DEBUG
+`ifdef AES_TOP_DEBUG
+always @(posedge clk) begin
+	if (en) begin
+		if (cipher_mode)
+			$display("AES: Encrypting block %H", aes_in_blk);
+
+		if (decipher_mode)
+			$display("AES: Decrypting block %H", aes_in_blk);
+
+		if (key_exp_mode)
+			$display("AES: Expanding key %H", aes_key);
+	end
+
+	if (en_o) begin
+		if (cipher_mode)
+			$display("AES: Encryption result: %H", aes_out_blk);
+
+		if (decipher_mode)
+			$display("AES: Decryption result %H", aes_out_blk);
+
+		if (key_exp_mode)
+			$display("AES: Key expanded!");
+	end
+
+end
+`endif
+
 endmodule
