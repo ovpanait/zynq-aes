@@ -85,7 +85,7 @@ wire [`IV_BITS-1:0] pcbc_iv;
 reg aes_decipher_mode;
 reg aes_key_exp_mode;
 reg aes_cipher_mode;
-reg aes_start;
+reg aes_alg_start;
 
 wire aes_op_in_progress;
 
@@ -132,6 +132,8 @@ wire aes256_mode;
 
 wire in_fifo_read_req;
 wire need_iv;
+
+wire store_out_blk;
 
 genvar i;
 
@@ -381,7 +383,7 @@ endgenerate
 aes_top aes_mod(
 	.clk(clk),
 	.reset(reset),
-	.en(aes_start),
+	.en(aes_alg_start),
 
 	.aes128_mode(aes128_mode),
 	.aes256_mode(aes256_mode),
@@ -406,10 +408,6 @@ assign get_iv = (fsm_iv_state && in_fifo_read_req);
 
 always @(posedge clk) begin
 	if (reset == 1'b1) begin
-		aes_decipher_mode <= 1'b0;
-		aes_key_exp_mode <= 1'b0;
-		aes_cipher_mode <= 1'b1;
-
 		aes_key <= {`KEY_S{1'b0}};
 		aes_cmd <= {`CMD_BITS{1'b0}};
 		state <= AES_GET_CMD;
@@ -417,7 +415,6 @@ always @(posedge clk) begin
 		last_blk <= 1'b0;
 	end
 	else begin
-		aes_start <= 1'b0;
 
 		case (state)
 			AES_GET_CMD:
@@ -430,24 +427,16 @@ always @(posedge clk) begin
 			end
 			AES_GET_KEY_128:
 			begin
-				aes_decipher_mode <= 1'b0;
-				aes_key_exp_mode <= 1'b0;
-				aes_cipher_mode <= 1'b0;
-
 				if (in_fifo_read_req) begin
 					state <= AES_START;
 
 					aes_key[`AES256_KEY_BITS-1 : `AES128_KEY_BITS] <= in_fifo_rdata;
-					aes_key_exp_mode <= 1'b1;
-					aes_start <= 1'b1;
 
 					if (need_iv)
 						state <= AES_GET_IV;
 
-					if (aes256_mode) begin
+					if (aes256_mode)
 						state <= AES_GET_KEY_256;
-						aes_start <= 1'b0;
-					end
 				end
 			end
 			AES_GET_KEY_256:
@@ -455,7 +444,6 @@ always @(posedge clk) begin
 				if (in_fifo_read_req) begin
 					aes_key[`AES128_KEY_BITS-1 : 0] <= in_fifo_rdata;
 					state <= AES_START;
-					aes_start <= 1'b1;
 
 					if (need_iv)
 						state <= AES_GET_IV;
@@ -472,13 +460,8 @@ always @(posedge clk) begin
 				state <= AES_START;
 
 				if (in_fifo_read_req) begin
-					aes_key_exp_mode <= 1'b0;
-					aes_cipher_mode <= encryption_op;
-					aes_decipher_mode <= decryption_op;
-
 					in_blk <= in_fifo_rdata[`BLK_S-1:0];
 					last_blk <= in_fifo_rdata[`BLK_S];
-					aes_start <= 1'b1;
 				end
 
 				if (op_done && last_blk) begin
@@ -497,12 +480,54 @@ assign in_fifo_read_tready =
 	fsm_key128_state   ||
 	fsm_key256_state   ||
 	fsm_iv_state       ||
-	(fsm_process_state && (out_fifo_write_tready && !aes_op_in_progress && !aes_start));
+	(fsm_process_state && (out_fifo_write_tready && !aes_op_in_progress && !aes_alg_start));
+
+/*
+   * Start an AES crypto operation (key expansion/encryption/decryption) if:
+   * - the 128-bit key is retrieved from the input FIFO
+   * - the 256-bit key is retrieved from the input FIFO
+   * - a data block is retrieved from the input FIFO
+ */
+assign expand_key128_start = (aes128_mode && in_fifo_read_req && fsm_key128_state);
+assign expand_key256_start = (aes256_mode && in_fifo_read_req && fsm_key256_state);
+assign encrypt_start = (encryption_op && in_fifo_read_req && fsm_process_state);
+assign decrypt_start = (decryption_op && in_fifo_read_req && fsm_process_state);
+
+always @(posedge clk) begin
+	if (reset == 1'b1) begin
+		aes_alg_start <= 1'b0;
+
+		aes_decipher_mode <= 1'b0;
+		aes_key_exp_mode <= 1'b0;
+		aes_cipher_mode <= 1'b0;
+	end else begin
+		if (expand_key128_start || expand_key256_start) begin
+			aes_cipher_mode <= 1'b0;
+			aes_decipher_mode <= 1'b0;
+			aes_key_exp_mode <= 1'b1;
+		end else if (encrypt_start) begin
+			aes_cipher_mode <= 1'b1;
+			aes_decipher_mode <= 1'b0;
+			aes_key_exp_mode <= 1'b0;
+		end else if (decrypt_start) begin
+			aes_cipher_mode <= 1'b0;
+			aes_decipher_mode <= 1'b1;
+			aes_key_exp_mode <= 1'b0;
+		end
+
+		/* Registered so the blocks can be retrieved from the FIFO */
+		aes_alg_start <=
+				encrypt_start       || decrypt_start ||
+				expand_key128_start || expand_key256_start;
+	end
+end
+
+assign store_out_blk = (aes_cipher_mode || aes_decipher_mode);
 
 always @(posedge clk) begin
 	if (get_iv)
 		iv <= in_fifo_rdata;
-	else if (op_done && (aes_cipher_mode || aes_decipher_mode))
+	else if (op_done && store_out_blk)
 		iv <= iv_next;
 end
 
@@ -510,7 +535,7 @@ always @(posedge clk) begin
 	if (reset)
 		out_fifo_write_tvalid <= 1'b0;
 	else begin
-		if (op_done && (aes_cipher_mode || aes_decipher_mode)) begin
+		if (op_done && store_out_blk) begin
 			out_fifo_write_tvalid <= 1'b1;
 			out_fifo_wdata <= {last_blk, out_blk_next};
 		end
@@ -546,6 +571,7 @@ aes_controller_output #(
 	.bus_tlast(out_bus_tlast)
 );
 
+//`define SIMULATION_VERBOSE_EXTREME
 `ifdef SIMULATION_VERBOSE_EXTREME
 integer s_in_blk_cnt = 0;
 integer s_in_cmd_cnt = 0;
@@ -590,7 +616,7 @@ always @(posedge clk) begin
 	end
 	endcase
 
-	if (aes_alg_done && (aes_cipher_mode || aes_decipher_mode)) begin
+	if (op_done && (aes_cipher_mode || aes_decipher_mode)) begin
 		$display("AES PROCESSING: computed aes block no %0d: %H", s_out_blk_cnt, {last_blk, out_blk_next});
 		s_out_blk_cnt = s_out_blk_cnt + 1;
 	end
