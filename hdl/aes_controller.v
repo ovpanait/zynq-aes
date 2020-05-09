@@ -59,8 +59,19 @@ wire                          in_fifo_empty;
 // ============================================================================
 // AES controller processing stage signals
 
+reg  [`BLK_S-1:0] aes_alg_in_blk;
+reg  [`KEY_S-1:0] aes_alg_key;
+wire [`BLK_S-1:0] aes_out_blk;
+wire aes_op_in_progress;
+reg  aes_decipher_mode;
+reg  aes_key_exp_mode;
+reg  aes_cipher_mode;
+reg  aes_alg_start;
+wire aes_alg_done;
+reg  aes128_mode;
+reg  aes256_mode;
+
 reg [2:0]         state;
-wire              aes_alg_done;
 wire              get_iv;
 
 reg fsm_cmd_state,
@@ -71,8 +82,8 @@ reg fsm_cmd_state,
 
 reg last_blk;
 
-reg [`KEY_S-1:0]  aes_key;
-reg [`WORD_S-1:0] aes_cmd;
+reg  [`KEY_S-1:0] aes_key;
+reg  [`WORD_S-1:0] aes_cmd;
 
 reg [`IV_BITS-1:0]  iv;
 wire [`IV_BITS-1:0] iv_next;
@@ -81,13 +92,6 @@ wire [`IV_BITS-1:0] ctr_iv;
 wire [`IV_BITS-1:0] cfb_iv;
 wire [`IV_BITS-1:0] ofb_iv;
 wire [`IV_BITS-1:0] pcbc_iv;
-
-reg aes_decipher_mode;
-reg aes_key_exp_mode;
-reg aes_cipher_mode;
-reg aes_alg_start;
-
-wire aes_op_in_progress;
 
 wire encryption_op;
 wire decryption_op;
@@ -119,16 +123,12 @@ wire [`BLK_S-1:0] ofb_in_blk;
 wire [`BLK_S-1:0] pcbc_in_blk;
 
 wire [`BLK_S-1:0] out_blk_next;
-wire [`BLK_S-1:0] aes_out_blk;
 wire [`BLK_S-1:0] cbc_out_blk;
 wire [`BLK_S-1:0] ecb_out_blk;
 wire [`BLK_S-1:0] ctr_out_blk;
 wire [`BLK_S-1:0] cfb_out_blk;
 wire [`BLK_S-1:0] ofb_out_blk;
 wire [`BLK_S-1:0] pcbc_out_blk;
-
-wire aes128_mode;
-wire aes256_mode;
 
 wire in_fifo_read_req;
 wire need_iv;
@@ -185,9 +185,6 @@ always @(*) begin
 	fsm_iv_state      = (state == AES_GET_IV);
 	fsm_process_state = (state == AES_START);
 end
-
-assign aes128_mode = is_128bit_key(aes_cmd);
-assign aes256_mode = is_256bit_key(aes_cmd);
 
 assign need_iv =
                  cbc_flag ||
@@ -379,6 +376,46 @@ end else begin
 end
 endgenerate
 
+/*
+   * AES algorithm control blocks.
+ */
+always @(posedge clk) begin
+	if (reset == 1'b1) begin
+		aes_alg_start <= 1'b0;
+
+		aes_decipher_mode <= 1'b0;
+		aes_key_exp_mode <= 1'b0;
+		aes_cipher_mode <= 1'b0;
+	end else begin
+		if (expand_key128_start || expand_key256_start) begin
+			aes_cipher_mode <= 1'b0;
+			aes_decipher_mode <= 1'b0;
+			aes_key_exp_mode <= 1'b1;
+		end else if (encrypt_start) begin
+			aes_cipher_mode <= 1'b1;
+			aes_decipher_mode <= 1'b0;
+			aes_key_exp_mode <= 1'b0;
+		end else if (decrypt_start) begin
+			aes_cipher_mode <= 1'b0;
+			aes_decipher_mode <= 1'b1;
+			aes_key_exp_mode <= 1'b0;
+		end
+
+		/* Registered so the blocks can be retrieved from the FIFO */
+		aes_alg_start <=
+				encrypt_start       || decrypt_start ||
+				expand_key128_start || expand_key256_start;
+	end
+end
+
+
+always @(*) begin
+	aes128_mode = is_128bit_key(aes_cmd);
+	aes256_mode = is_256bit_key(aes_cmd);
+	aes_alg_in_blk = in_blk_next;
+	aes_alg_key = aes_key;
+end
+
 // AES algorithm
 aes_top aes_mod(
 	.clk(clk),
@@ -394,8 +431,8 @@ aes_top aes_mod(
 
 	.aes_op_in_progress(aes_op_in_progress),
 
-	.aes_key(aes_key),
-	.aes_in_blk(in_blk_next),
+	.aes_key(aes_alg_key),
+	.aes_in_blk(aes_alg_in_blk),
 
 	.aes_out_blk(aes_out_blk),
 	.en_o(aes_alg_done)
@@ -492,35 +529,6 @@ assign expand_key128_start = (aes128_mode && in_fifo_read_req && fsm_key128_stat
 assign expand_key256_start = (aes256_mode && in_fifo_read_req && fsm_key256_state);
 assign encrypt_start = (encryption_op && in_fifo_read_req && fsm_process_state);
 assign decrypt_start = (decryption_op && in_fifo_read_req && fsm_process_state);
-
-always @(posedge clk) begin
-	if (reset == 1'b1) begin
-		aes_alg_start <= 1'b0;
-
-		aes_decipher_mode <= 1'b0;
-		aes_key_exp_mode <= 1'b0;
-		aes_cipher_mode <= 1'b0;
-	end else begin
-		if (expand_key128_start || expand_key256_start) begin
-			aes_cipher_mode <= 1'b0;
-			aes_decipher_mode <= 1'b0;
-			aes_key_exp_mode <= 1'b1;
-		end else if (encrypt_start) begin
-			aes_cipher_mode <= 1'b1;
-			aes_decipher_mode <= 1'b0;
-			aes_key_exp_mode <= 1'b0;
-		end else if (decrypt_start) begin
-			aes_cipher_mode <= 1'b0;
-			aes_decipher_mode <= 1'b1;
-			aes_key_exp_mode <= 1'b0;
-		end
-
-		/* Registered so the blocks can be retrieved from the FIFO */
-		aes_alg_start <=
-				encrypt_start       || decrypt_start ||
-				expand_key128_start || expand_key256_start;
-	end
-end
 
 assign store_out_blk = (aes_cipher_mode || aes_decipher_mode);
 
