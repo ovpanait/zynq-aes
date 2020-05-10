@@ -178,6 +178,22 @@ aes_controller_input #(
 // ============================================================================
 // AES controller processing stage
 
+/*
+   * The processing stage of the AES controller does the following:
+   * = Retrieve 32-bit command from the FIFO
+   *   The command conveys the following information:
+   *       - type of operation to be performed (encryption/decryption)
+   *       - key size (AES-128/AES-256)
+   *       - mode of operation (ECB,CBC, etc.)
+   * = Retrieve and assemble 128/256-bit key
+   * = Start key expansion
+   * = Retrieve the rest of the data (the payload) one block at a time and pass
+   *   it to module implementing the current mode of operation (ECB, CBC, etc.).
+   *   The payload can be anything, the controller does not have any knowledge of
+   *   the internal representation of the payload. It can be for instance IV +
+   *   DATA in the most common cases, or IV + AAD info + AAD + DATA in others.
+  */
+
 always @(*) begin
 	fsm_cmd_state     = (state == AES_GET_CMD);
 	fsm_key128_state  = (state == AES_GET_KEY_128);
