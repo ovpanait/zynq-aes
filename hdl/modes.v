@@ -359,7 +359,10 @@ always @(posedge clk) begin
 end
 
 always @(*) begin
-	gcm_ready = (state == GCM_CRYPTO) ? crypto_ready : aad_ready;
+	gcm_ready = (state == GCM_CRYPTO)        ? crypto_ready :
+	            (state == GCM_GET_AAD_SIZE)  ? aad_ready :
+		    (state == GCM_HASH_AAD)      ? aad_ready :
+		    1'b0;
 	gcm_en = gcm_ready && gcm_valid;
 end
 
