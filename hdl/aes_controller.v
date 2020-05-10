@@ -43,10 +43,10 @@ localparam OUT_FIFO_DATA_WIDTH = `BLK_S + 1; // {tlast bit, 1 x 128-bit AES bloc
 localparam OUT_FIFO_ADDR_WIDTH = clogb2(OUT_FIFO_DATA_WIDTH);
 
 localparam [2:0] AES_GET_CMD = 3'b000;
-localparam [2:0] AES_GET_KEY_128  = 3'b010;
-localparam [2:0] AES_GET_KEY_256  = 3'b001;
+localparam [2:0] AES_GET_KEY_128  = 3'b001;
+localparam [2:0] AES_GET_KEY_256  = 3'b010;
 localparam [2:0] AES_GET_IV = 3'b011;
-localparam [2:0] AES_START = 3'b101;
+localparam [2:0] AES_START = 3'b100;
 
 // ============================================================================
 // AES controller input stage signals
