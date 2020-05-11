@@ -122,10 +122,14 @@ assign aes_out_blk =
 assign en_o = en_o_cipher | en_o_decipher | en_o_round_key;
 
 always @(posedge clk) begin
-	if (en)
-		aes_op_in_progress <= 1'b1;
-	else if (en_o)
+	if (reset) begin
 		aes_op_in_progress <= 1'b0;
+	end else begin
+		if (en)
+			aes_op_in_progress <= 1'b1;
+		else if (en_o)
+			aes_op_in_progress <= 1'b0;
+	end
 end
 
 //`define AES_TOP_DEBUG
