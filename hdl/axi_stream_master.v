@@ -3,8 +3,8 @@
 // Generic AXI4-STREAM master inteface implemented as a skid buffer.
 //
 // Data is received from a fifo storage element and pushed on the axi bus.
-// Synchronization with the fifo is achieved through the fifo_tvalid/fifo_tready
-// pair.
+// Synchronization with the fifo is achieved through the
+// fifo_tvalid/fifo_tready pair.
 //
 // All outputs are registered.
 
