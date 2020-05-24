@@ -20,9 +20,12 @@ module axi_stream_slave_tb #(
 	input [(C_S_AXIS_TDATA_WIDTH/8)-1 : 0]  s00_axis_tstrb
 );
 
+localparam TREADY_DELAY = 16;
+
 // AXI related signals
 wire axis_data_available;
-wire axis_tready;
+reg  [31:0] tready_cnt;
+reg  axis_tready;
 
 // FIFO signals
 reg fifo_read_req;
@@ -55,7 +58,21 @@ always @(posedge s00_axis_aclk) begin
 end
 
 // AXI logic
-assign axis_tready = 1'b1;
+initial begin
+	tready_cnt = 32'b0;
+	axis_tready = 1'b0;
+end
+
+always @(posedge s00_axis_aclk) begin
+	tready_cnt <= tready_cnt + 1'b1;
+	axis_tready <= 1'b0;
+
+	if (tready_cnt == TREADY_DELAY - 1) begin
+		axis_tready <= 1'b1;
+		tready_cnt <= 1'b0;
+	end
+end
+
 assign axis_data_available = s00_axis_tvalid && axis_tready;
 assign fifo_wren = axis_data_available;
 assign s00_axis_tready = axis_tready;
