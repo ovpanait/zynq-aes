@@ -3,14 +3,13 @@
 module aes_top(
 	input                   clk,
 	input                   reset,
-	input                   en,
+
+	input                   en_cipher,
+	input                   en_decipher,
+	input                   en_key,
 
 	input                   aes128_mode,
 	input                   aes256_mode,
-
-	input                   cipher_mode,
-	input                   decipher_mode,
-	input                   key_exp_mode,
 
 	input [`KEY_S-1:0]      aes_key,
 	input [`BLK_S-1:0]      aes_in_blk,
@@ -20,16 +19,16 @@ module aes_top(
 	output                  en_o
 );
 
+reg  cipher_mode;
+reg  decipher_mode;
+reg  key_exp_mode;
+
 wire [`ROUND_KEY_BITS-1:0]    round_key_in;
 wire [`ROUND_KEY_BITS-1:0]    round_key_out;
 
 wire [`Nb-1:0] round_key_addr;
 wire [`Nb-1:0] encrypt_round_no;
 wire [`Nb-1:0] decrypt_round_no;
-
-wire en_cipher;
-wire en_decipher;
-wire en_key_exp;
 
 wire en_o_round_key;
 wire en_o_cipher;
@@ -46,14 +45,33 @@ wire [`Nb-1:0]  addr;
 
 assign rounds_total = aes128_mode ? `Nr_128 : `Nr_256;
 
-assign en_cipher = en && cipher_mode;
-assign en_decipher = en && decipher_mode;
-assign en_key_exp = en && key_exp_mode;
-
 assign addr =
 	key_exp_mode ? round_key_addr :
 	cipher_mode ? encrypt_round_no :
 	decipher_mode ? decrypt_round_no : {`Nb{1'b0}};
+
+always @(posedge clk) begin
+	if (reset) begin
+		cipher_mode <= 1'b0;
+		decipher_mode <= 1'b0;
+		key_exp_mode <= 1'b0;
+	end else begin
+		if (en_cipher)
+			cipher_mode <= 1'b1;
+
+		if (en_decipher)
+			decipher_mode <= 1'b1;
+
+		if (en_key)
+			key_exp_mode <= 1'b1;
+
+		if (en_o) begin
+			cipher_mode <= 1'b0;
+			decipher_mode <= 1'b0;
+			key_exp_mode <= 1'b0;
+		end
+	end
+end
 
 block_ram #(
         .ADDR_WIDTH(`Nb),
@@ -72,7 +90,7 @@ block_ram #(
 round_key round_key_gen(
         .clk(clk),
         .reset(reset),
-        .en(en_key_exp),
+        .en(en_key),
 
         .aes128_mode(aes128_mode),
         .aes256_mode(aes256_mode),
@@ -125,7 +143,7 @@ always @(posedge clk) begin
 	if (reset) begin
 		aes_op_in_progress <= 1'b0;
 	end else begin
-		if (en)
+		if (en_cipher || en_decipher || en_key)
 			aes_op_in_progress <= 1'b1;
 		else if (en_o)
 			aes_op_in_progress <= 1'b0;
@@ -135,28 +153,23 @@ end
 //`define AES_TOP_DEBUG
 `ifdef AES_TOP_DEBUG
 always @(posedge clk) begin
-	if (en) begin
-		if (cipher_mode)
-			$display("AES: Encrypting block %H", aes_in_blk);
+	if (en_cipher)
+		$display("AES: Encrypting block %H", aes_in_blk);
 
-		if (decipher_mode)
-			$display("AES: Decrypting block %H", aes_in_blk);
+	if (en_decipher)
+		$display("AES: Decrypting block %H", aes_in_blk);
 
-		if (key_exp_mode)
-			$display("AES: Expanding key %H", aes_key);
-	end
+	if (en_key)
+		$display("AES: Expanding key %H", aes_key);
 
-	if (en_o) begin
-		if (cipher_mode)
-			$display("AES: Encryption result: %H", aes_out_blk);
+	if (en_o_cipher)
+		$display("AES: Encryption result: %H", aes_out_blk);
 
-		if (decipher_mode)
-			$display("AES: Decryption result %H", aes_out_blk);
+	if (en_o_decipher)
+		$display("AES: Decryption result %H", aes_out_blk);
 
-		if (key_exp_mode)
-			$display("AES: Key expanded!");
-	end
-
+	if (en_o_round_key)
+		$display("AES: Key expanded!");
 end
 `endif
 
