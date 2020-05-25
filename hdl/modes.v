@@ -1,20 +1,83 @@
 // ---------- ECB ----------
 module ecb(
-	input [`BLK_S-1:0]           data_blk,
+	input                        clk,
+	input                        reset,
+
+	input                        encrypt_flag,
+	output                       decrypt_flag,
+
+	input                        controller_out_ready,
+	input                        last_blk,
+
+	input [`BLK_S-1:0]           ecb_in_blk,
+	input                        ecb_in_tvalid,
+	output reg                   ecb_in_tready,
+
+	output reg [`BLK_S-1:0]      aes_alg_in_blk,
+	output reg                   aes_alg_en_cipher,
+	output reg                   aes_alg_en_decipher,
 
 	input [`BLK_S-1:0]           aes_alg_out_blk,
 	input                        aes_alg_done,
-	output reg [`BLK_S-1:0]      aes_alg_in_blk,
+	input                        aes_alg_busy,
 
-	output reg [`BLK_S-1:0]      ecb_out_blk,
-	output reg                   ecb_op_done
+	output reg                   ecb_out_store_blk,
+	output reg [`BLK_S:0]        ecb_out_blk,
+
+	output reg                   ecb_done
 );
 
+reg  [`BLK_S-1:0] in_blk;
+
+reg  aes_alg_start;
+
+reg  out_transfer;
+reg  in_transfer;
+reg  fill;
+
 always @(*) begin
-	aes_alg_in_blk = data_blk;
-	ecb_out_blk = aes_alg_out_blk;
-	ecb_op_done = aes_alg_done;
+	ecb_in_tready = ~aes_alg_busy && controller_out_ready &&
+	                        ~aes_alg_start;
+
+	in_transfer = (ecb_in_tvalid && ecb_in_tready);
+
+	aes_alg_in_blk = in_blk;
+	aes_alg_en_cipher = encrypt_flag && aes_alg_start;
+	aes_alg_en_decipher = decrypt_flag && aes_alg_start;
+
+	ecb_out_blk = {last_blk, aes_alg_out_blk};
+	ecb_out_store_blk = aes_alg_done;
+	ecb_done = last_blk && ecb_out_store_blk;
 end
+
+always @(posedge clk) begin
+	if (in_transfer) begin
+		in_blk <= ecb_in_blk;
+	end
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		aes_alg_start <= 1'b0;
+	end else begin
+		aes_alg_start <= controller_out_ready && in_transfer;
+	end
+end
+
+//`define ECB_SIM_VERBOSE
+`ifdef ECB_SIM_VERBOSE
+always @(posedge clk) begin
+	if (in_transfer) begin
+		$display("ECB: input blk: %H", ecb_in_blk);
+	end
+
+	if (fill) begin
+		$display("ECB: output blk: %H", aes_alg_out_blk);
+	end
+end
+`endif
+
+
 endmodule
 
 // ---------- CBC ----------
