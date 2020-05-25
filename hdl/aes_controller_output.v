@@ -122,6 +122,7 @@ always @(posedge clk) begin
 	end
 end
 
+//`define SIMULATION_VERBOSE_EXTREME
 `ifdef SIMULATION_VERBOSE_EXTREME
 integer s_fifo_blk_cnt = 0;
 
