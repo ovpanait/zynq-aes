@@ -8,7 +8,8 @@ module aes_controller #
 	parameter OUT_BUS_DATA_WIDTH = 32,
 	parameter OUT_FIFO_DEPTH = 256,
 
-	parameter ECB_SUPPORT =  1
+	parameter ECB_SUPPORT =  1,
+	parameter CBC_SUPPORT =  1
 )
 (
 	input                                clk,
@@ -108,6 +109,22 @@ wire ecb_aes_alg_en_decipher;
 wire ecb_aes_alg_en_cipher;
 wire ecb_out_store_blk;
 reg  ecb_aes_alg_done;
+
+// CBC signals
+wire cbc_flag;
+
+reg  cbc_in_tvalid;
+wire cbc_in_tready;
+wire cbc_done;
+
+wire [`BLK_S:0 ] cbc_out_blk;
+reg  [`BLK_S-1:0 ] cbc_in_blk;
+wire [`BLK_S-1:0 ] cbc_aes_alg_in_blk;
+wire cbc_aes_alg_en_decipher;
+wire cbc_aes_alg_en_cipher;
+wire cbc_out_store_blk;
+reg  cbc_aes_alg_done;
+
 
 // ============================================================================
 // AES controller output stage signals
@@ -224,21 +241,72 @@ end
 endgenerate
 
 /*
+   * CBC_SUPPORT
+ */
+generate
+if (CBC_SUPPORT) begin
+
+assign cbc_flag = is_CBC_op(aes_cmd);
+
+always @(*) begin
+	cbc_in_blk = in_fifo_rdata;
+
+	cbc_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+
+	cbc_aes_alg_done = aes_alg_done && key_expanded;
+end
+
+cbc cbc_mod(
+	.clk(clk),
+	.reset(reset),
+
+	.encrypt_flag(encrypt_flag),
+	.decrypt_flag(decrypt_flag),
+
+	.controller_out_ready(out_fifo_write_tready),
+	.last_blk(last_blk),
+
+	.cbc_in_blk(cbc_in_blk),
+	.cbc_in_tvalid(cbc_in_tvalid),
+	.cbc_in_tready(cbc_in_tready),
+
+	.aes_alg_out_blk(aes_out_blk),
+	.aes_alg_in_blk(cbc_aes_alg_in_blk),
+	.aes_alg_en_cipher(cbc_aes_alg_en_cipher),
+	.aes_alg_en_decipher(cbc_aes_alg_en_decipher),
+	.aes_alg_done(cbc_aes_alg_done),
+	.aes_alg_busy(aes_op_in_progress),
+
+	.cbc_out_blk(cbc_out_blk),
+	.cbc_out_store_blk(cbc_out_store_blk),
+
+	.cbc_done(cbc_done)
+);
+end else begin
+	assign cbc_flag = 1'b0;
+end
+endgenerate
+
+/*
    * AES algorithm control blocks.
  */
 always @(*) begin
 	aes128_mode = is_128bit_key(aes_cmd);
 	aes256_mode = is_256bit_key(aes_cmd);
-	aes_alg_in_blk = ecb_flag ? ecb_aes_alg_in_blk : {`BLK_S{1'b0}};
+	aes_alg_in_blk = ecb_flag ? ecb_aes_alg_in_blk :
+	                 cbc_flag ? cbc_aes_alg_in_blk :
+	                 {`BLK_S{1'b0}};
 	aes_alg_key = aes_key;
 
 	aes_alg_en_cipher = fsm_process_state ?
 	                    (ecb_flag ? ecb_aes_alg_en_cipher :
+	                     cbc_flag ? cbc_aes_alg_en_cipher :
 	                      1'b0)
 	                    : 1'b0;
 
 	aes_alg_en_decipher = fsm_process_state ?
 	                     (ecb_flag ? ecb_aes_alg_en_decipher :
+	                      cbc_flag ? cbc_aes_alg_en_decipher :
 	                      1'b0)
 	                    : 1'b0;
 
@@ -371,11 +439,14 @@ assign in_fifo_read_tready =
 	fsm_key128_state   ||
 	fsm_key256_state   ||
 	(fsm_process_state &&
-	                     (ecb_flag ? ecb_in_tready : 1'b0));
+	                     (ecb_flag ? ecb_in_tready :
+	                      cbc_flag ? cbc_in_tready :
+			      1'b0));
 
 always @(*) begin
 	mode_done <=
 	             ecb_flag ? ecb_done :
+	             cbc_flag ? cbc_done :
 	             1'b0;
 end
 
@@ -385,10 +456,12 @@ end
 always @(*) begin
 	mode_out_blk =
 	                ecb_flag ? ecb_out_blk :
+	                cbc_flag ? cbc_out_blk :
 	                {`BLK_S+1{1'b0}};
 
 	store_out_blk =
 	                ecb_flag ? ecb_out_store_blk:
+	                cbc_flag ? cbc_out_store_blk:
 	                1'b0;
 end
 
@@ -473,7 +546,7 @@ always @(posedge clk) begin
 end
 `endif
 
-`define AES_CONTROLLER_BENCHMARK
+//`define AES_CONTROLLER_BENCHMARK
 `ifdef AES_CONTROLLER_BENCHMARK
 reg  s_process;
 time s_process_start_t;
