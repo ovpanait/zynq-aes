@@ -1,5 +1,3 @@
-`timescale 1ns/1ns
-
 `include "aes.vh"
 `include "controller_fc.vh"
 `include "queue_wrapper.vh"
@@ -43,6 +41,10 @@ wire [C_S_AXIS_TDATA_WIDTH - 1 : 0]      s00_axis_tdata;
 wire [(C_S_AXIS_TDATA_WIDTH / 8)-1 : 0]  s00_axis_tstrb;
 wire s00_axis_tlast;
 wire s00_axis_tready;
+
+initial begin
+	$timeformat(-9, 2, " us", 10);
+end
 
 // 125 MHz clk
 always #4 clk <= ~clk;
