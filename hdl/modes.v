@@ -642,9 +642,6 @@ module gcm #(
 	input                           clk,
 	input                           reset,
 
-	input [`IV_BITS-1:0]            iv,
-	input                           iv_en,
-
 	input                           key_expanded,
 
 	input [`BLK_S-1:0]              aes_alg_out_blk,
@@ -663,11 +660,12 @@ module gcm #(
 );
 
 localparam GCM_COMPUTE_SUBKEY = 3'b000;
-localparam GCM_GET_AAD_SIZE   = 3'b001;
-localparam GCM_HASH_AAD       = 3'b010;
-localparam GCM_CRYPTO         = 3'b011;
-localparam GCM_AAD_EXTRA      = 3'b100;
-localparam GCM_TAG            = 3'b101;
+localparam GCM_GET_IV         = 3'b001;
+localparam GCM_GET_AAD_SIZE   = 3'b010;
+localparam GCM_HASH_AAD       = 3'b011;
+localparam GCM_CRYPTO         = 3'b100;
+localparam GCM_AAD_EXTRA      = 3'b101;
+localparam GCM_TAG            = 3'b110;
 
 reg  gcm_en;
 
@@ -697,6 +695,7 @@ wire gctr_busy;
 reg  gctr_en;
 
 reg  compute_subkey;
+reg  get_iv;
 reg  get_aad_size;
 reg  hash_aad;
 reg  hash_aad_done;
@@ -756,6 +755,7 @@ gctr gctr_mod(
    * GCM_COMPUTE_SUBKEY - Wait for AES key to be expanded and start an AES
    *                      encryption operation on a full block of 0s to compute
    *                      the subkey H.
+   * GCM_GET_IV         - Wait until the IV is received.
    * GCM_GET_AAD_SIZE   - Wait until a block containing AAD & input data size
    *                      in bits is received.
    * GCM_HASH_AAD       - Hash all input AAD blocks. Stop when we have hashed
@@ -763,8 +763,8 @@ gctr gctr_mod(
    * GCM_CRYPTO         - Perform AES encryption on all input data blocks. Go
    *                      to the next steps when "data_size" bits were
    *                      encrypted. The result of each AES encryption is fed
-   *                      to the GHASH module for advancing with tag.
-   * computation.
+   *                      to the GHASH module in order to advance with tag
+   *                      computation.
    * GCM_AAD_EXTRA      - Start hashin the AAD "extra" block containing
    *                      {aad_size, data_size}, received in GCM_GET_AAD_SIZE
    *                      state.
@@ -773,6 +773,7 @@ gctr gctr_mod(
  */
 always @(*) begin
 	compute_subkey = (state == GCM_COMPUTE_SUBKEY) && key_expanded;
+	get_iv         = (state == GCM_GET_IV)         && gcm_en;
 	get_aad_size   = (state == GCM_GET_AAD_SIZE)   && gcm_en;
 	hash_aad       = (state == GCM_HASH_AAD)       && gcm_en;
 	hash_aad_done  = (state == GCM_HASH_AAD)       && (aad_counter == aad_size);
@@ -789,6 +790,10 @@ always @(*) begin
 	case (state)
 	GCM_COMPUTE_SUBKEY: begin
 		if (compute_subkey)
+			state_next = GCM_GET_IV;
+	end
+	GCM_GET_IV: begin
+		if (get_iv)
 			state_next = GCM_GET_AAD_SIZE;
 	end
 	GCM_GET_AAD_SIZE: begin
@@ -824,9 +829,11 @@ always @(posedge clk) begin
 end
 
 always @(*) begin
-	gcm_ready = (state == GCM_CRYPTO)        ? crypto_ready :
-	            (state == GCM_GET_AAD_SIZE)  ? aad_ready :
-		    (state == GCM_HASH_AAD)      ? aad_ready :
+	gcm_ready =
+	            (state == GCM_GET_IV)        ?    1'b1      :
+	            (state == GCM_CRYPTO)        ? crypto_ready :
+	            (state == GCM_GET_AAD_SIZE)  ? aad_ready    :
+		    (state == GCM_HASH_AAD)      ? aad_ready    :
 		    1'b0;
 	gcm_en = gcm_ready && gcm_valid;
 end
@@ -838,9 +845,9 @@ end
    * IV size limited to 96 bits for now.
  */
 always @(posedge clk) begin
-	if (iv_en) begin
-		j0 <= {iv[`IV_BITS-1:32], {31{1'b0}}, 1'b1};
-		icb <= {iv[`IV_BITS-1:32], {30{1'b0}}, 2'b10};
+	if (get_iv) begin
+		j0 <= {gcm_in_blk[`IV_BITS-1:32], {31{1'b0}}, 1'b1};
+		icb <= {gcm_in_blk[`IV_BITS-1:32], {30{1'b0}}, 2'b10};
 	end
 
 	if (gctr_done)
@@ -998,14 +1005,16 @@ end
 integer s_aad_blk_no = 0;
 
 always @(posedge clk) begin
-	if (iv_en) begin
-		$display("GCM: j0: %H", {iv[127:32], {31{1'b0}}, 1'b1});
-		$display("GCM: icb: %H", {iv[127:32], {30{1'b0}}, 2'b10});
-	end
-
 	if (gcm_en) begin
 		$display("GCM: Received block %0d: %H", s_aad_blk_no,  gcm_in_blk);
 		s_aad_blk_no = s_aad_blk_no + 1;
+	end
+
+	if (get_iv) begin
+		$display("GCM: j0: %H", {gcm_in_blk[127:32], {31{1'b0}}, 1'b1});
+		$display("GCM: icb: %H", {gcm_in_blk[127:32], {30{1'b0}}, 2'b10});
+
+		$display("GCM State change: GCM_GET_IV -> GCM_GET_AAD_SIZE");
 	end
 
 	if (aes_alg_done && subkey_busy) begin
@@ -1013,7 +1022,7 @@ always @(posedge clk) begin
 	end
 
 	if (compute_subkey) begin
-		$display("GCM: State change: GCM_COMPUTE_SUBKEY -> GCM_GET_AAD_SIZE");
+		$display("GCM: State change: GCM_COMPUTE_SUBKEY -> GCM_GET_IV");
 	end
 
 	if (get_aad_size) begin
@@ -1037,6 +1046,7 @@ always @(posedge clk) begin
 
 	if (tag_done) begin
 		$display("GCM: Tag: %H", gctr_out_blk);
+		$display("GCM State change: GCM_TAG -> GCM_COMPUTE_SUBKEY");
 	end
 end
 `endif

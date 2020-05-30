@@ -46,18 +46,16 @@ integer aad_cnt = 0;
 integer aes_in_cnt = 0;
 integer aes_out_cnt = 0;
 
-reg gcm_en;
-reg aad_send;
-reg aes_send;
+reg  gcm_en;
+reg  iv_send;
+reg  aad_send;
+reg  aes_send;
 
 reg [31:0] aes_wait;
 
 gcm DUT (
 	.clk(clk),
 	.reset(reset),
-
-	.iv(iv),
-	.iv_en(iv_en),
 
 	.key_expanded(key_expanded),
 
@@ -114,6 +112,12 @@ reg [AES_IV_BITS-1:0] iv_arr[] = {
 };
 
 // Simulation sequence
+
+initial begin
+	$dumpfile("gcm.vcd");
+	$dumpvars(1, DUT);
+end
+
 initial begin
 	clk <= 0;
 	forever #(`PERIOD) clk = ~clk;
@@ -141,40 +145,46 @@ initial begin
 end
 
 task aes_gcm();
-	@(negedge clk) begin
-		iv_en = 1'b1;
-		iv = iv_arr[iv_cnt];
-		iv_cnt++;
-	end
+	// Signal key expansion
+	@(negedge clk);
+	key_expanded = 1'b1;
 
-	@(negedge clk) begin
-		iv_en = 1'b0;
-	end
-
-	@(negedge clk) begin
-		key_expanded = 1'b1;
-	end
-
+	// Send IV
 	@(negedge clk);
 	key_expanded = 1'b0;
-	aad_send = 1'b1;
+	iv_send = 1'b1;
 
+	// Wait for IV to be retrieved
 	@(negedge clk);
 	wait (gcm_valid == 1'b0);
 
+	// Send AAD
+	@(negedge clk);
+	iv_send = 1'b0;
+	aad_send = 1'b1;
+
+	// Wait for AAD data to be retrieved
+	@(negedge clk);
+	wait (gcm_valid == 1'b0);
+
+	// Send AES blocks
 	@(negedge clk);
 	aad_send <= 1'b0;
 	aes_send <= 1'b1;
 
+	// Wait for AES blocks to be retrieved
 	@(negedge clk);
 	wait (gcm_valid == 1'b0);
 
 	@(negedge clk);
 	aes_send <= 1'b0;
 
+	// Wait for tag to be generated
 	@(negedge clk);
 	wait(gcm_tag_done);
 	$display("TAG: %H", gcm_tag);
+
+	@(negedge clk);
 endtask
 
 always @(posedge clk) begin
@@ -189,16 +199,23 @@ always @(*) begin
 end
 
 always @(posedge clk) begin
-	if (aad_send || aes_send)
+	if (aad_send || aes_send || iv_send)
 		gcm_valid <= 1'b1;
 
-	if (aad_send) begin
+	if (iv_send) begin
+		gcm_in_blk <= iv_arr[iv_cnt];
+	end else if (aad_send) begin
 		gcm_in_blk <= aad_arr[aad_cnt];
 	end else if (aes_send) begin
 		gcm_in_blk <= aes_in_data_arr[aes_in_cnt];
 	end
 
 	if (gcm_en) begin
+		if (iv_send) begin
+			iv_cnt++;
+			gcm_valid <= 1'b0;
+		end
+
 		if (aad_send) begin
 			if ((aad_cnt + 1) % 4 == 0) begin
 				gcm_valid <= 1'b0;
