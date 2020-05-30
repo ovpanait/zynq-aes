@@ -637,7 +637,6 @@ module gcm #(
 	parameter integer AAD_BLK_BITS = 128,
 	parameter integer AAD_LEN_BITS = 64,
 	parameter integer DATA_LEN_BITS = 64
-
 )(
 	input                           clk,
 	input                           reset,
@@ -653,10 +652,10 @@ module gcm #(
 	input                           gcm_valid,
 	output reg                      gcm_ready,
 
-	output reg [TAG_BITS-1:0]       gcm_tag,
 	output reg [GCM_BLK_BITS-1:0]   gcm_out_blk,
-	output reg                      gcm_op_done,
-	output reg                      gcm_tag_done
+	output reg                      gcm_out_store_blk,
+
+	output reg                      gcm_done
 );
 
 localparam GCM_COMPUTE_SUBKEY = 3'b000;
@@ -836,6 +835,16 @@ always @(*) begin
 		    (state == GCM_HASH_AAD)      ? aad_ready    :
 		    1'b0;
 	gcm_en = gcm_ready && gcm_valid;
+
+	/*
+	 * Do not store the GCM output data (tag, ciphertext, etc) to registers
+	 * because we do not have any later use for them. Instead, directly
+	 * pass the gctr module results on the output bus.
+	 */
+	gcm_out_blk = gctr_out_blk;
+	gcm_out_store_blk = (state == GCM_CRYPTO) && gctr_done ||
+	                    tag_done;
+	gcm_done = tag_done;
 end
 
 /*
@@ -910,16 +919,6 @@ always @(*) begin
 end
 
 /*
- * The final tag is not stored in the "tag" register because we have no later
- * use for it. Use the GCTR output and "done" strobe directly to save one clock
- * cycle.
- */
-always @(*) begin
-	gcm_tag_done = tag_done;
-	gcm_tag = gctr_out_blk;
-end
-
-/*
  * The first block before the actual AAD contains information about the AAD and input data lenghts.
  * If this block is available on the input (signaled through "get_aad_size"),
  * fill "aad_size" and "data_size" with this info and reset everything, as we
@@ -977,8 +976,6 @@ always @(*) begin
 	gctr_in_blk = (state == GCM_TAG) ? ghash_next : gcm_in_blk;
 	gctr_en = crypto_start || tag_start;
 
-	gcm_out_blk = gctr_out_blk;
-	gcm_op_done = (state == GCM_CRYPTO) && gctr_done;
 end
 
 /*

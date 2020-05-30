@@ -35,10 +35,8 @@ reg                    gcm_valid;
 wire                   gcm_ready;
 
 wire [GCM_BLK_BITS-1:0] gcm_out_blk;
-wire                    gcm_op_done;
-
-wire [TAG_BITS-1:0] gcm_tag;
-wire                gcm_tag_done;
+wire                    gcm_out_store_blk;
+wire                    gcm_done;
 
 // Simulation signals
 integer iv_cnt = 0;
@@ -69,9 +67,9 @@ gcm DUT (
 	.gcm_ready(gcm_ready),
 
 	.gcm_out_blk(gcm_out_blk),
-	.gcm_tag(gcm_tag),
-	.gcm_tag_done(gcm_tag_done),
-	.gcm_op_done(gcm_op_done)
+	.gcm_out_store_blk(gcm_out_store_blk),
+
+	.gcm_done(gcm_done)
 );
 
 // Simulation inputs/outputs
@@ -141,6 +139,10 @@ initial begin
 	aes_gcm();
 	aes_gcm();
 
+	// finish delay
+	repeat (10) begin
+		@(negedge clk);
+	end
 	$finish;
 end
 
@@ -179,17 +181,16 @@ task aes_gcm();
 	@(negedge clk);
 	aes_send <= 1'b0;
 
-	// Wait for tag to be generated
+	// Wait for GCM module to finish
 	@(negedge clk);
-	wait(gcm_tag_done);
-	$display("TAG: %H", gcm_tag);
+	wait(gcm_done);
 
 	@(negedge clk);
 endtask
 
 always @(posedge clk) begin
-	if (gcm_op_done) begin
-		$display("C: %H", gcm_out_blk);
+	if (gcm_out_store_blk) begin
+		$display("GCM OUTPUT: %H", gcm_out_blk);
 	end
 end
 
