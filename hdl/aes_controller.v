@@ -8,11 +8,12 @@ module aes_controller #
 	parameter OUT_BUS_DATA_WIDTH = 32,
 	parameter OUT_FIFO_DEPTH = 256,
 
-	parameter ECB_SUPPORT =  1,
-	parameter CBC_SUPPORT =  1,
-	parameter CTR_SUPPORT =  1,
-	parameter CFB_SUPPORT =  1,
-	parameter OFB_SUPPORT =  1
+	parameter ECB_SUPPORT  =  1,
+	parameter CBC_SUPPORT  =  1,
+	parameter CTR_SUPPORT  =  1,
+	parameter CFB_SUPPORT  =  1,
+	parameter OFB_SUPPORT  =  1,
+	parameter PCBC_SUPPORT =  1
 )
 (
 	input                                clk,
@@ -172,6 +173,21 @@ wire ofb_aes_alg_en_decipher;
 wire ofb_aes_alg_en_cipher;
 wire ofb_out_store_blk;
 reg  ofb_aes_alg_done;
+
+// PCBC signals
+wire pcbc_flag;
+
+reg  pcbc_in_tvalid;
+wire pcbc_in_tready;
+wire pcbc_done;
+
+wire [`BLK_S:0 ] pcbc_out_blk;
+reg  [`BLK_S-1:0 ] pcbc_in_blk;
+wire [`BLK_S-1:0 ] pcbc_aes_alg_in_blk;
+wire pcbc_aes_alg_en_decipher;
+wire pcbc_aes_alg_en_cipher;
+wire pcbc_out_store_blk;
+reg  pcbc_aes_alg_done;
 
 
 // ============================================================================
@@ -477,34 +493,84 @@ end
 endgenerate
 
 /*
+   * PCBC SUPPORT
+ */
+generate
+if (PCBC_SUPPORT) begin
+
+assign pcbc_flag = is_PCBC_op(aes_cmd);
+
+always @(*) begin
+	pcbc_in_blk = in_fifo_rdata;
+
+	pcbc_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+
+	pcbc_aes_alg_done = aes_alg_done && key_expanded;
+end
+
+pcbc pcbc_mod(
+	.clk(clk),
+	.reset(reset),
+
+	.encrypt_flag(encrypt_flag),
+	.decrypt_flag(decrypt_flag),
+
+	.controller_out_ready(out_fifo_write_tready),
+	.last_blk(last_blk),
+
+	.pcbc_in_blk(pcbc_in_blk),
+	.pcbc_in_tvalid(pcbc_in_tvalid),
+	.pcbc_in_tready(pcbc_in_tready),
+
+	.aes_alg_out_blk(aes_out_blk),
+	.aes_alg_in_blk(pcbc_aes_alg_in_blk),
+	.aes_alg_en_cipher(pcbc_aes_alg_en_cipher),
+	.aes_alg_en_decipher(pcbc_aes_alg_en_decipher),
+	.aes_alg_done(pcbc_aes_alg_done),
+	.aes_alg_busy(aes_op_in_progress),
+
+	.pcbc_out_blk(pcbc_out_blk),
+	.pcbc_out_store_blk(pcbc_out_store_blk),
+
+	.pcbc_done(pcbc_done)
+);
+end else begin
+	assign pcbc_flag = 1'b0;
+end
+endgenerate
+
+/*
    * AES algorithm control blocks.
  */
 always @(*) begin
 	aes128_mode = is_128bit_key(aes_cmd);
 	aes256_mode = is_256bit_key(aes_cmd);
-	aes_alg_in_blk = ecb_flag ? ecb_aes_alg_in_blk :
-	                 cbc_flag ? cbc_aes_alg_in_blk :
-	                 ctr_flag ? ctr_aes_alg_in_blk :
-	                 cfb_flag ? cfb_aes_alg_in_blk :
-	                 ofb_flag ? ofb_aes_alg_in_blk :
+	aes_alg_in_blk = ecb_flag  ? ecb_aes_alg_in_blk  :
+	                 cbc_flag  ? cbc_aes_alg_in_blk  :
+	                 ctr_flag  ? ctr_aes_alg_in_blk  :
+	                 cfb_flag  ? cfb_aes_alg_in_blk  :
+	                 ofb_flag  ? ofb_aes_alg_in_blk  :
+	                 pcbc_flag ? pcbc_aes_alg_in_blk :
 	                 {`BLK_S{1'b0}};
 	aes_alg_key = aes_key;
 
 	aes_alg_en_cipher = fsm_process_state ?
-	                    (ecb_flag ? ecb_aes_alg_en_cipher :
-	                     cbc_flag ? cbc_aes_alg_en_cipher :
-	                     ctr_flag ? ctr_aes_alg_en_cipher :
-	                     cfb_flag ? cfb_aes_alg_en_cipher :
-	                     ofb_flag ? ofb_aes_alg_en_cipher :
+	                    (ecb_flag  ? ecb_aes_alg_en_cipher  :
+	                     cbc_flag  ? cbc_aes_alg_en_cipher  :
+	                     ctr_flag  ? ctr_aes_alg_en_cipher  :
+	                     cfb_flag  ? cfb_aes_alg_en_cipher  :
+	                     ofb_flag  ? ofb_aes_alg_en_cipher  :
+	                     pcbc_flag ? pcbc_aes_alg_en_cipher :
 	                      1'b0)
 	                    : 1'b0;
 
 	aes_alg_en_decipher = fsm_process_state ?
-	                     (ecb_flag ? ecb_aes_alg_en_decipher :
-	                      cbc_flag ? cbc_aes_alg_en_decipher :
-	                      ctr_flag ? ctr_aes_alg_en_decipher :
-	                      cfb_flag ? cfb_aes_alg_en_decipher :
-	                      ofb_flag ? ofb_aes_alg_en_decipher :
+	                     (ecb_flag  ? ecb_aes_alg_en_decipher  :
+	                      cbc_flag  ? cbc_aes_alg_en_decipher  :
+	                      ctr_flag  ? ctr_aes_alg_en_decipher  :
+	                      cfb_flag  ? cfb_aes_alg_en_decipher  :
+	                      ofb_flag  ? ofb_aes_alg_en_decipher  :
+	                      pcbc_flag ? pcbc_aes_alg_en_decipher :
 	                      1'b0)
 	                    : 1'b0;
 
@@ -637,20 +703,22 @@ assign in_fifo_read_tready =
 	fsm_key128_state   ||
 	fsm_key256_state   ||
 	(fsm_process_state &&
-	                     (ecb_flag ? ecb_in_tready :
-	                      cbc_flag ? cbc_in_tready :
-	                      ctr_flag ? ctr_in_tready :
-	                      cfb_flag ? cfb_in_tready :
-	                      ofb_flag ? ofb_in_tready :
+	                     (ecb_flag  ? ecb_in_tready  :
+	                      cbc_flag  ? cbc_in_tready  :
+	                      ctr_flag  ? ctr_in_tready  :
+	                      cfb_flag  ? cfb_in_tready  :
+	                      ofb_flag  ? ofb_in_tready  :
+	                      pcbc_flag ? pcbc_in_tready :
 			      1'b0));
 
 always @(*) begin
 	mode_done <=
-	             ecb_flag ? ecb_done :
-	             cbc_flag ? cbc_done :
-	             ctr_flag ? ctr_done :
-	             cfb_flag ? cfb_done :
-	             ofb_flag ? ofb_done :
+	             ecb_flag  ? ecb_done  :
+	             cbc_flag  ? cbc_done  :
+	             ctr_flag  ? ctr_done  :
+	             cfb_flag  ? cfb_done  :
+	             ofb_flag  ? ofb_done  :
+	             pcbc_flag ? pcbc_done :
 	             1'b0;
 end
 
@@ -659,19 +727,21 @@ end
  */
 always @(*) begin
 	mode_out_blk =
-	                ecb_flag ? ecb_out_blk :
-	                cbc_flag ? cbc_out_blk :
-	                ctr_flag ? ctr_out_blk :
-	                cfb_flag ? cfb_out_blk :
-	                ofb_flag ? ofb_out_blk :
+	                ecb_flag  ? ecb_out_blk  :
+	                cbc_flag  ? cbc_out_blk  :
+	                ctr_flag  ? ctr_out_blk  :
+	                cfb_flag  ? cfb_out_blk  :
+	                ofb_flag  ? ofb_out_blk  :
+	                pcbc_flag ? pcbc_out_blk :
 	                {`BLK_S+1{1'b0}};
 
 	store_out_blk =
-	                ecb_flag ? ecb_out_store_blk:
-	                cbc_flag ? cbc_out_store_blk:
-	                ctr_flag ? ctr_out_store_blk:
-	                cfb_flag ? cfb_out_store_blk:
-	                ofb_flag ? ofb_out_store_blk:
+	                ecb_flag  ? ecb_out_store_blk  :
+	                cbc_flag  ? cbc_out_store_blk  :
+	                ctr_flag  ? ctr_out_store_blk  :
+	                cfb_flag  ? cfb_out_store_blk  :
+	                ofb_flag  ? ofb_out_store_blk  :
+	                pcbc_flag ? pcbc_out_store_blk :
 	                1'b0;
 end
 
