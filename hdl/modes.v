@@ -409,26 +409,108 @@ endmodule
 
 // ---------- OFB ----------
 module ofb(
-	input [`BLK_S-1:0]           data_blk,
+	input                        clk,
+	input                        reset,
 
-	input [`IV_BITS-1:0]         iv,
-	output reg [`IV_BITS-1:0]    iv_next,
+	input                        encrypt_flag,
+	output                       decrypt_flag,
+
+	input                        controller_out_ready,
+	input                        last_blk,
+
+	input [`BLK_S-1:0]           ofb_in_blk,
+	input                        ofb_in_tvalid,
+	output reg                   ofb_in_tready,
+
+	output reg [`BLK_S-1:0]      aes_alg_in_blk,
+	output reg                   aes_alg_en_cipher,
+	output reg                   aes_alg_en_decipher,
 
 	input [`BLK_S-1:0]           aes_alg_out_blk,
-	output reg [`BLK_S-1:0]      aes_alg_in_blk,
 	input                        aes_alg_done,
+	input                        aes_alg_busy,
 
-	output reg                   ofb_op_done,
-	output reg [`BLK_S-1:0]      ofb_out_blk
+	output reg                   ofb_out_store_blk,
+	output reg [`BLK_S:0]        ofb_out_blk,
+
+	output reg                   ofb_done
 );
 
-always @(*) begin
-	aes_alg_in_blk = iv;
-	ofb_out_blk = aes_alg_out_blk ^ data_blk;
-	iv_next = aes_alg_out_blk;
+reg  [`IV_BITS-1:0] iv;
+reg  iv_ready;
 
-	ofb_op_done = aes_alg_done;
+reg  [`BLK_S-1:0] in_blk;
+
+reg  aes_alg_start;
+
+reg  out_transfer;
+reg  in_transfer;
+reg  fill;
+
+always @(*) begin
+	ofb_in_tready = ~aes_alg_busy && controller_out_ready &&
+	                        ~aes_alg_start;
+
+	in_transfer = (ofb_in_tvalid && ofb_in_tready);
+
+	aes_alg_in_blk = iv;
+	aes_alg_en_cipher = (encrypt_flag || decrypt_flag) && aes_alg_start;
+	aes_alg_en_decipher = 1'b0;
+
+	ofb_out_blk = {last_blk, in_blk ^ aes_alg_out_blk};
+	ofb_out_store_blk = aes_alg_done;
+	ofb_done = last_blk && ofb_out_store_blk;
 end
+
+always @(posedge clk) begin
+	if (reset) begin
+		iv_ready <= 1'b0;
+		iv <= {`IV_BITS{1'b0}};
+	end else begin
+		if (in_transfer && !iv_ready) begin
+			iv_ready <= 1'b1;
+			iv <= ofb_in_blk;
+		end
+
+		if (aes_alg_done)
+			iv <= aes_alg_out_blk;
+
+		if (ofb_done)
+			iv_ready <= 1'b0;
+	end
+end
+
+always @(posedge clk) begin
+	if (in_transfer) begin
+		in_blk <= ofb_in_blk;
+	end
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		aes_alg_start <= 1'b0;
+	end else begin
+		aes_alg_start <= controller_out_ready && in_transfer
+		                           && iv_ready;
+	end
+end
+
+//`define OFB_SIM_VERBOSE
+`ifdef OFB_SIM_VERBOSE
+always @(posedge clk) begin
+	if (in_transfer) begin
+		$display("OFB: input blk: %H", ofb_in_blk);
+	end
+
+	if (in_transfer && !iv_ready) begin
+		$display("OFB: iv: %H", ofb_in_blk);
+	end
+
+	if (ofb_out_store_blk) begin
+		$display("OFB: output blk: %H", aes_alg_out_blk);
+	end
+end
+`endif
 endmodule
 
 // ---------- PCBC ----------
