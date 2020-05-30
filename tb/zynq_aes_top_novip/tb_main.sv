@@ -12,7 +12,7 @@ localparam AXI_SLAVE_FIFO_SIZE = TESTCASE_BLOCKS_NO * 4;
 localparam C_M_AXIS_TDATA_WIDTH = 32;
 localparam C_S_AXIS_TDATA_WIDTH = 32;
 
-localparam DATA_FIFO_SIZE = 16;
+localparam DATA_FIFO_SIZE = 4;
 
 localparam ECB_SUPPORT  = 1;
 localparam CBC_SUPPORT  = 1;
