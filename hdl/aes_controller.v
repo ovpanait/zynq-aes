@@ -9,7 +9,8 @@ module aes_controller #
 	parameter OUT_FIFO_DEPTH = 256,
 
 	parameter ECB_SUPPORT =  1,
-	parameter CBC_SUPPORT =  1
+	parameter CBC_SUPPORT =  1,
+	parameter CTR_SUPPORT =  1
 )
 (
 	input                                clk,
@@ -124,6 +125,21 @@ wire cbc_aes_alg_en_decipher;
 wire cbc_aes_alg_en_cipher;
 wire cbc_out_store_blk;
 reg  cbc_aes_alg_done;
+
+// CTR signals
+wire ctr_flag;
+
+reg  ctr_in_tvalid;
+wire ctr_in_tready;
+wire ctr_done;
+
+wire [`BLK_S:0 ] ctr_out_blk;
+reg  [`BLK_S-1:0 ] ctr_in_blk;
+wire [`BLK_S-1:0 ] ctr_aes_alg_in_blk;
+wire ctr_aes_alg_en_decipher;
+wire ctr_aes_alg_en_cipher;
+wire ctr_out_store_blk;
+reg  ctr_aes_alg_done;
 
 
 // ============================================================================
@@ -288,6 +304,53 @@ end
 endgenerate
 
 /*
+   * CTR SUPPORT
+ */
+generate
+if (CTR_SUPPORT) begin
+
+assign ctr_flag = is_CTR_op(aes_cmd);
+
+always @(*) begin
+	ctr_in_blk = in_fifo_rdata;
+
+	ctr_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+
+	ctr_aes_alg_done = aes_alg_done && key_expanded;
+end
+
+ctr ctr_mod(
+	.clk(clk),
+	.reset(reset),
+
+	.encrypt_flag(encrypt_flag),
+	.decrypt_flag(decrypt_flag),
+
+	.controller_out_ready(out_fifo_write_tready),
+	.last_blk(last_blk),
+
+	.ctr_in_blk(ctr_in_blk),
+	.ctr_in_tvalid(ctr_in_tvalid),
+	.ctr_in_tready(ctr_in_tready),
+
+	.aes_alg_out_blk(aes_out_blk),
+	.aes_alg_in_blk(ctr_aes_alg_in_blk),
+	.aes_alg_en_cipher(ctr_aes_alg_en_cipher),
+	.aes_alg_en_decipher(ctr_aes_alg_en_decipher),
+	.aes_alg_done(ctr_aes_alg_done),
+	.aes_alg_busy(aes_op_in_progress),
+
+	.ctr_out_blk(ctr_out_blk),
+	.ctr_out_store_blk(ctr_out_store_blk),
+
+	.ctr_done(ctr_done)
+);
+end else begin
+	assign ctr_flag = 1'b0;
+end
+endgenerate
+
+/*
    * AES algorithm control blocks.
  */
 always @(*) begin
@@ -295,18 +358,21 @@ always @(*) begin
 	aes256_mode = is_256bit_key(aes_cmd);
 	aes_alg_in_blk = ecb_flag ? ecb_aes_alg_in_blk :
 	                 cbc_flag ? cbc_aes_alg_in_blk :
+	                 ctr_flag ? ctr_aes_alg_in_blk :
 	                 {`BLK_S{1'b0}};
 	aes_alg_key = aes_key;
 
 	aes_alg_en_cipher = fsm_process_state ?
 	                    (ecb_flag ? ecb_aes_alg_en_cipher :
 	                     cbc_flag ? cbc_aes_alg_en_cipher :
+	                     ctr_flag ? ctr_aes_alg_en_cipher :
 	                      1'b0)
 	                    : 1'b0;
 
 	aes_alg_en_decipher = fsm_process_state ?
 	                     (ecb_flag ? ecb_aes_alg_en_decipher :
 	                      cbc_flag ? cbc_aes_alg_en_decipher :
+	                      ctr_flag ? ctr_aes_alg_en_decipher :
 	                      1'b0)
 	                    : 1'b0;
 
@@ -441,12 +507,14 @@ assign in_fifo_read_tready =
 	(fsm_process_state &&
 	                     (ecb_flag ? ecb_in_tready :
 	                      cbc_flag ? cbc_in_tready :
+	                      ctr_flag ? ctr_in_tready :
 			      1'b0));
 
 always @(*) begin
 	mode_done <=
 	             ecb_flag ? ecb_done :
 	             cbc_flag ? cbc_done :
+	             ctr_flag ? ctr_done :
 	             1'b0;
 end
 
@@ -457,11 +525,13 @@ always @(*) begin
 	mode_out_blk =
 	                ecb_flag ? ecb_out_blk :
 	                cbc_flag ? cbc_out_blk :
+	                ctr_flag ? ctr_out_blk :
 	                {`BLK_S+1{1'b0}};
 
 	store_out_blk =
 	                ecb_flag ? ecb_out_store_blk:
 	                cbc_flag ? cbc_out_store_blk:
+	                ctr_flag ? ctr_out_store_blk:
 	                1'b0;
 end
 
