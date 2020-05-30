@@ -76,40 +76,119 @@ always @(posedge clk) begin
 	end
 end
 `endif
-
-
 endmodule
 
 // ---------- CBC ----------
 module cbc(
-	input                        encryption,
+	input                        clk,
+	input                        reset,
 
-	input [`BLK_S-1:0]           data_blk,
+	input                        encrypt_flag,
+	output                       decrypt_flag,
 
-	input [`IV_BITS-1:0]         iv,
-	output reg [`IV_BITS-1:0]    iv_next,
+	input                        controller_out_ready,
+	input                        last_blk,
+
+	input [`BLK_S-1:0]           cbc_in_blk,
+	input                        cbc_in_tvalid,
+	output reg                   cbc_in_tready,
+
+	output reg [`BLK_S-1:0]      aes_alg_in_blk,
+	output reg                   aes_alg_en_cipher,
+	output reg                   aes_alg_en_decipher,
 
 	input [`BLK_S-1:0]           aes_alg_out_blk,
 	input                        aes_alg_done,
-	output reg [`BLK_S-1:0]      aes_alg_in_blk,
+	input                        aes_alg_busy,
 
-	output reg [`BLK_S-1:0]      cbc_out_blk,
-	output reg                   cbc_op_done
+	output reg                   cbc_out_store_blk,
+	output reg [`BLK_S:0]        cbc_out_blk,
+
+	output reg                   cbc_done
 );
 
+reg  [`IV_BITS-1:0] iv;
+reg  iv_ready;
+
+reg  [`BLK_S-1:0] in_blk;
+
+reg  aes_alg_start;
+
+reg  out_transfer;
+reg  in_transfer;
+reg  fill;
+
 always @(*) begin
-	if (encryption) begin
-		aes_alg_in_blk = data_blk ^ iv;
-		cbc_out_blk = aes_alg_out_blk;
-		iv_next = aes_alg_out_blk;
+	cbc_in_tready = ~aes_alg_busy && controller_out_ready &&
+	                        ~aes_alg_start;
+
+	in_transfer = (cbc_in_tvalid && cbc_in_tready);
+
+	aes_alg_in_blk = encrypt_flag ? in_blk ^ iv : in_blk;
+	aes_alg_en_cipher = encrypt_flag && aes_alg_start;
+	aes_alg_en_decipher = decrypt_flag && aes_alg_start;
+
+	cbc_out_blk = encrypt_flag ?
+	              {last_blk, aes_alg_out_blk} :
+	              {last_blk, iv ^ aes_alg_out_blk};
+	cbc_out_store_blk = aes_alg_done;
+	cbc_done = last_blk && cbc_out_store_blk;
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		iv_ready <= 1'b0;
+		iv <= {`IV_BITS{1'b0}};
 	end else begin
-		aes_alg_in_blk = data_blk;
-		cbc_out_blk = iv ^ aes_alg_out_blk;
-		iv_next = data_blk;
+		if (in_transfer && !iv_ready) begin
+			iv_ready <= 1'b1;
+			iv <= cbc_in_blk;
+		end
+
+		// At the end of an AES operation, update IV depending on
+		// encryption/decryption flag
+		if (encrypt_flag && aes_alg_done)
+			iv <= aes_alg_out_blk;
+
+		if (decrypt_flag && aes_alg_done)
+			iv <= in_blk;
+
+		if (cbc_done)
+			iv_ready <= 1'b0;
+	end
+end
+
+always @(posedge clk) begin
+	if (in_transfer) begin
+		in_blk <= cbc_in_blk;
+	end
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		aes_alg_start <= 1'b0;
+	end else begin
+		aes_alg_start <= controller_out_ready && in_transfer
+		                           && iv_ready;
+	end
+end
+
+//`define CBC_SIM_VERBOSE
+`ifdef CBC_SIM_VERBOSE
+always @(posedge clk) begin
+	if (in_transfer) begin
+		$display("CBC: input blk: %H", cbc_in_blk);
 	end
 
-	cbc_op_done = aes_alg_done;
+	if (in_transfer && !iv_ready) begin
+		$display("CBC: iv: %H", cbc_in_blk);
+	end
+
+	if (cbc_out_store_blk) begin
+		$display("CBC: output blk: %H", aes_alg_out_blk);
+	end
 end
+`endif
 endmodule
 
 // ---------- CTR ----------
