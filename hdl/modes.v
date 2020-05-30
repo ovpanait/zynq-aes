@@ -515,34 +515,115 @@ endmodule
 
 // ---------- PCBC ----------
 module pcbc(
-	input                        encryption,
+	input                        clk,
+	input                        reset,
 
-	input [`BLK_S-1:0]           data_blk,
+	input                        encrypt_flag,
+	output                       decrypt_flag,
 
-	input [`IV_BITS-1:0]         iv,
-	output reg [`IV_BITS-1:0]    iv_next,
+	input                        controller_out_ready,
+	input                        last_blk,
+
+	input [`BLK_S-1:0]           pcbc_in_blk,
+	input                        pcbc_in_tvalid,
+	output reg                   pcbc_in_tready,
 
 	output reg [`BLK_S-1:0]      aes_alg_in_blk,
+	output reg                   aes_alg_en_cipher,
+	output reg                   aes_alg_en_decipher,
+
 	input [`BLK_S-1:0]           aes_alg_out_blk,
 	input                        aes_alg_done,
+	input                        aes_alg_busy,
 
-	output reg                   pcbc_op_done,
-	output reg [`BLK_S-1:0]      pcbc_out_blk
+	output reg                   pcbc_out_store_blk,
+	output reg [`BLK_S:0]        pcbc_out_blk,
+
+	output reg                   pcbc_done
 );
 
+reg  [`IV_BITS-1:0] iv;
+reg  iv_ready;
+
+reg  [`BLK_S-1:0] in_blk;
+
+reg  aes_alg_start;
+
+reg  out_transfer;
+reg  in_transfer;
+reg  fill;
+
 always @(*) begin
-	if (encryption) begin
-		aes_alg_in_blk = data_blk ^ iv;
-		pcbc_out_blk = aes_alg_out_blk;
-		iv_next = data_blk ^ aes_alg_out_blk;
+	pcbc_in_tready = ~aes_alg_busy && controller_out_ready &&
+	                        ~aes_alg_start;
+
+	in_transfer = (pcbc_in_tvalid && pcbc_in_tready);
+
+	aes_alg_in_blk = encrypt_flag ? iv ^ in_blk :
+	                 decrypt_flag ? in_blk      :
+	                 {`BLK_S{1'b0}};
+	aes_alg_en_cipher = encrypt_flag && aes_alg_start;
+	aes_alg_en_decipher = decrypt_flag && aes_alg_start;
+
+	pcbc_out_blk = encrypt_flag ? {last_blk, aes_alg_out_blk} :
+	               decrypt_flag ? {last_blk, iv ^ aes_alg_out_blk} :
+	               {`BLK_S{1'b0}};
+	pcbc_out_store_blk = aes_alg_done;
+	pcbc_done = last_blk && pcbc_out_store_blk;
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		iv_ready <= 1'b0;
+		iv <= {`IV_BITS{1'b0}};
 	end else begin
-		aes_alg_in_blk = data_blk;
-		pcbc_out_blk = iv ^ aes_alg_out_blk;
-		iv_next = data_blk ^ pcbc_out_blk;
+		if (in_transfer && !iv_ready) begin
+			iv_ready <= 1'b1;
+			iv <= pcbc_in_blk;
+		end
+
+		if (encrypt_flag && aes_alg_done)
+			iv <= in_blk ^ aes_alg_out_blk;
+
+		if (decrypt_flag && aes_alg_done)
+			iv <= in_blk ^ pcbc_out_blk;
+
+		if (pcbc_done)
+			iv_ready <= 1'b0;
+	end
+end
+
+always @(posedge clk) begin
+	if (in_transfer) begin
+		in_blk <= pcbc_in_blk;
+	end
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		aes_alg_start <= 1'b0;
+	end else begin
+		aes_alg_start <= controller_out_ready && in_transfer
+		                           && iv_ready;
+	end
+end
+
+//`define PCBC_SIM_VERBOSE
+`ifdef PCBC_SIM_VERBOSE
+always @(posedge clk) begin
+	if (in_transfer) begin
+		$display("PCBC: input blk: %H", pcbc_in_blk);
 	end
 
-	pcbc_op_done = aes_alg_done;
+	if (in_transfer && !iv_ready) begin
+		$display("PCBC: iv: %H", pcbc_in_blk);
+	end
+
+	if (pcbc_out_store_blk) begin
+		$display("PCBC: output blk: %H", aes_alg_out_blk);
+	end
 end
+`endif
 endmodule
 
 // ---------- GCM ----------
