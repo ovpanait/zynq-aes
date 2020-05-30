@@ -643,6 +643,9 @@ module gcm #(
 
 	input                           key_expanded,
 
+	input                           encrypt_flag,
+	input                           decrypt_flag,
+
 	input [`BLK_S-1:0]              aes_alg_out_blk,
 	output reg [`BLK_S-1:0]         aes_alg_in_blk,
 	input                           aes_alg_done,
