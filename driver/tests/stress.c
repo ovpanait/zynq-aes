@@ -29,7 +29,6 @@
 struct crypto_op {
 	int tfmfd;
 	int opfd;
-	uint8_t *cbuf;
 	struct msghdr msg;
 	struct iovec iov;
 };
@@ -211,7 +210,6 @@ static void crypto_op_finish(struct crypto_op *cop)
 	close(cop->opfd);
 	close(cop->tfmfd);
 
-	free(cop->cbuf);
 	free(cop);
 }
 
