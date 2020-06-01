@@ -31,6 +31,8 @@ struct crypto_op {
 	int opfd;
 	struct msghdr msg;
 	struct iovec iov;
+
+	size_t iv_size;
 };
 
 /*
@@ -186,6 +188,7 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size)
 		exit(EXIT_FAILURE);
 	}
 
+	cop->iv_size = iv_size;
 	cop->msg.msg_control = cbuf;
 	cop->msg.msg_controllen = cbuf_size;
 
@@ -213,10 +216,13 @@ static void crypto_op_finish(struct crypto_op *cop)
 	free(cop);
 }
 
-static int set_random_iv(struct crypto_op *cop, size_t iv_size)
+static int set_random_iv(struct crypto_op *cop)
 {
 	struct af_alg_iv *iv;
 	struct cmsghdr *cmsg;
+	size_t iv_size;
+
+	iv_size = cop->iv_size;
 
 	cmsg = CMSG_FIRSTHDR(&cop->msg);
 	cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
@@ -330,7 +336,7 @@ static int stress(char *alg, unsigned int keysize, int iv_size)
 
 	crypto_op_init(cop, iv_size);
 	if (iv_size)
-		set_random_iv(cop, AES_IV_SIZE);
+		set_random_iv(cop);
 
 	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
 	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
