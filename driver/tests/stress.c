@@ -144,19 +144,26 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
         }
 }
 
-static int set_randomized_key(int tfmfd, uint8_t *key, unsigned int keysize)
+static int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
 {
 	int ret;
 
-	get_urandom_bytes(key, keysize);
-	dump_buffer(stdout, "key: ", key, keysize);
-	printf("\n");
-
-	ret = setsockopt(tfmfd, SOL_ALG, ALG_SET_KEY, key, keysize);
+	ret = setsockopt(cop->tfmfd, SOL_ALG, ALG_SET_KEY, key, key_size);
 	if (ret == -1) {
 		perror("setsockopt ALG_SET_KEY");
 		exit(EXIT_FAILURE);
 	}
+
+	return 0;
+}
+
+static int set_randomized_key(struct crypto_op *cop, uint8_t *key, unsigned int keysize)
+{
+	get_urandom_bytes(key, keysize);
+	dump_buffer(stdout, "key: ", key, keysize);
+	printf("\n");
+
+	af_alg_set_key(cop, key, keysize);
 
 	return 0;
 }
@@ -352,7 +359,7 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 	printf("---- Running testcase for %s, %s, %u bytes key ----\n\n",
 				(char *)sa.salg_type, (char *)sa.salg_name, keysize);
 
-	set_randomized_key(cop->tfmfd, key, keysize);
+	set_randomized_key(cop, key, keysize);
 
 	cop->opfd = accept(cop->tfmfd, NULL, 0);
 	if (cop->opfd == -1) {
