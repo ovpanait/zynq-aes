@@ -188,6 +188,16 @@ static int af_alg_set_encryption(struct crypto_op *cop, void *data, size_t size)
 	return 0;
 }
 
+static int af_alg_set_decryption(struct crypto_op *cop, void *data, size_t size)
+{
+	af_alg_set_crypto_op(cop, ALG_OP_DECRYPT);
+
+	cop->iov.iov_base = data;
+	cop->iov.iov_len = size;
+
+	return 0;
+}
+
 static struct crypto_op *crypto_op_create(void)
 {
 	struct crypto_op *cop;
@@ -315,16 +325,13 @@ static int encrypt(struct crypto_op *cop, uint8_t *plaintext,
 
 	return 0;
 }
+
 static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 			uint8_t *ciphertext, size_t size)
 {
 	int ret;
-	struct cmsghdr *cmsg;
 
-	cmsg = CMSG_FIRSTHDR(&cop->msg);
-
-	*(__u32 *)CMSG_DATA(cmsg) = ALG_OP_DECRYPT;
-	cop->iov.iov_base = ciphertext;
+	af_alg_set_decryption(cop, ciphertext, size);
 
 	ret = sendmsg(cop->opfd, &cop->msg, 0);
 	if (ret == -1) {
@@ -332,8 +339,8 @@ static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 		exit(EXIT_FAILURE);
 	}
 
-	memset(plaintext, 0, cop->iov.iov_len);
-	ret = read(cop->opfd, plaintext, cop->iov.iov_len);
+	memset(plaintext, 0, size);
+	ret = read(cop->opfd, plaintext, size);
 	if (ret == -1) {
 		perror("read");
 		exit(EXIT_FAILURE);
