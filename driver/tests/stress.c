@@ -33,6 +33,7 @@ struct crypto_op {
 	struct iovec iov;
 
 	size_t iv_size;
+	size_t aad_size;
 };
 
 /*
@@ -173,7 +174,8 @@ static struct crypto_op *crypto_op_create(void)
 	return cop;
 }
 
-static void crypto_op_init(struct crypto_op *cop, size_t iv_size)
+static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
+					size_t aad_size)
 {
 	size_t cbuf_size;
 	uint8_t *cbuf;
@@ -189,6 +191,7 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size)
 	}
 
 	cop->iv_size = iv_size;
+	cop->aad_size = aad_size;
 	cop->msg.msg_control = cbuf;
 	cop->msg.msg_controllen = cbuf_size;
 
@@ -289,8 +292,8 @@ static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 	return 0;
 }
 
-
-static int stress(char *alg, unsigned int keysize, int iv_size)
+static int stress(char *alg, unsigned int keysize, int iv_size,
+				size_t aad_size)
 {
 	int ret;
 
@@ -334,7 +337,7 @@ static int stress(char *alg, unsigned int keysize, int iv_size)
 		exit(EXIT_FAILURE);
 	}
 
-	crypto_op_init(cop, iv_size);
+	crypto_op_init(cop, iv_size, aad_size);
 	if (iv_size)
 		set_random_iv(cop);
 
@@ -362,23 +365,23 @@ static int stress(char *alg, unsigned int keysize, int iv_size)
 
 int main(void)
 {
-	stress("ecb(aes)", AES_KEY128_SIZE, 0);
-	stress("ecb(aes)", AES_KEY256_SIZE, 0);
+	stress("ecb(aes)", AES_KEY128_SIZE, 0, 0);
+	stress("ecb(aes)", AES_KEY256_SIZE, 0, 0);
 
-	stress("cbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
-	stress("cbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+	stress("cbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
+	stress("cbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
 
-	stress("ctr(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
-	stress("ctr(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+	stress("ctr(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
+	stress("ctr(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
 
-	stress("pcbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
-	stress("pcbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+	stress("pcbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
+	stress("pcbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
 
-	stress("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
-	stress("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+	stress("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
+	stress("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
 
-	stress("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
-	stress("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+	stress("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
+	stress("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
 
 	return 0;
 }
