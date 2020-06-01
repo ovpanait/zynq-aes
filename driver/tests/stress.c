@@ -249,21 +249,25 @@ static void crypto_op_finish(struct crypto_op *cop)
 	free(cop);
 }
 
-static int set_random_iv(struct crypto_op *cop)
+static void *af_alg_get_iv_ptr(struct crypto_op *cop)
 {
-	struct af_alg_iv *iv;
 	struct cmsghdr *cmsg;
-	size_t iv_size;
-
-	iv_size = cop->iv_size;
 
 	cmsg = CMSG_FIRSTHDR(&cop->msg);
 	cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
-	iv = (void *)CMSG_DATA(cmsg);
-	iv->ivlen = iv_size;
 
-	get_urandom_bytes(iv->iv, iv_size);
-	dump_buffer(stdout, "iv:", iv->iv, iv_size);
+	return (void *)CMSG_DATA(cmsg);
+}
+
+static int set_random_iv(struct crypto_op *cop)
+{
+	struct af_alg_iv *iv;
+
+	iv = af_alg_get_iv_ptr(cop);
+	get_urandom_bytes(iv->iv, cop->iv_size);
+	iv->ivlen = cop->iv_size;
+
+	dump_buffer(stdout, "iv:", iv->iv, cop->iv_size);
 	printf("\n");
 
 	return 0;
