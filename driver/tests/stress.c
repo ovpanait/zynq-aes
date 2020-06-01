@@ -181,9 +181,32 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 	uint8_t *cbuf;
 	struct cmsghdr *cmsg;
 
-	cbuf_size = CMSG_SPACE(4);
+	// sizeof(u32) is needed here because ALG_OP_ENCRYPT/DECRYPT are
+	// represented in the kernel as u32 in struct af_alg_control->op
+	// (actually it is an int, but the data sent from userspace is casted
+	// to u32 everywhere):
+	// https://elixir.bootlin.com/linux/latest/source/include/crypto/if_alg.h#L41
+	//
+	// This CMSG header stores the type of crypto operation to be performed
+	// (encryption or decryption) to CMSG_DATA()
+	cbuf_size = CMSG_SPACE(sizeof(uint32_t));
+
+	// sizeof(struct af_alg_iv) + iv_size is used here to allocate enough
+	// space to hold the iv_len and the actual iv data.
+	//
+	// struct af_alg_iv {
+	//	__u32	ivlen;
+	//	__u8	iv[0];
+	// };
+	//
+	// struct af_alg_iv is the one actually passed from userspace to
+	// kernel. The reason we have to allocate space for [sizeof(struct
+	// af_alg_iv) + iv_size] is because it contains a flexible array at the
+	// end. See gcc docs on zero length arrays in structs:
+	// https://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html
 	if (iv_size)
-		cbuf_size += CMSG_SPACE(4 + iv_size);
+		cbuf_size += CMSG_SPACE(sizeof(struct af_alg_iv) + iv_size);
+
 	cbuf = calloc(1, cbuf_size);
 	if (!cbuf) {
 		perror("Cannot allocate space for cbuf!");
@@ -198,13 +221,13 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 	cmsg = CMSG_FIRSTHDR(&cop->msg);
 	cmsg->cmsg_level = SOL_ALG;
 	cmsg->cmsg_type = ALG_SET_OP;
-	cmsg->cmsg_len = CMSG_LEN(4);
+	cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
 
 	if (iv_size) {
 		cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
 		cmsg->cmsg_level = SOL_ALG;
 		cmsg->cmsg_type = ALG_SET_IV;
-		cmsg->cmsg_len = CMSG_LEN(4 + iv_size);
+		cmsg->cmsg_len = CMSG_LEN(sizeof(struct af_alg_iv) + iv_size);
 	}
 
 	cop->msg.msg_iov = &cop->iov;
