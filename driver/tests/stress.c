@@ -157,15 +157,14 @@ static int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
 	return 0;
 }
 
-static int set_randomized_key(struct crypto_op *cop, uint8_t *key, unsigned int keysize)
+static void *af_alg_get_iv_ptr(struct crypto_op *cop)
 {
-	get_urandom_bytes(key, keysize);
-	dump_buffer(stdout, "key: ", key, keysize);
-	printf("\n");
+	struct cmsghdr *cmsg;
 
-	af_alg_set_key(cop, key, keysize);
+	cmsg = CMSG_FIRSTHDR(&cop->msg);
+	cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
 
-	return 0;
+	return (void *)CMSG_DATA(cmsg);
 }
 
 static struct crypto_op *crypto_op_create(void)
@@ -249,14 +248,15 @@ static void crypto_op_finish(struct crypto_op *cop)
 	free(cop);
 }
 
-static void *af_alg_get_iv_ptr(struct crypto_op *cop)
+static int set_randomized_key(struct crypto_op *cop, uint8_t *key, unsigned int keysize)
 {
-	struct cmsghdr *cmsg;
+	get_urandom_bytes(key, keysize);
+	dump_buffer(stdout, "key: ", key, keysize);
+	printf("\n");
 
-	cmsg = CMSG_FIRSTHDR(&cop->msg);
-	cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
+	af_alg_set_key(cop, key, keysize);
 
-	return (void *)CMSG_DATA(cmsg);
+	return 0;
 }
 
 static int set_random_iv(struct crypto_op *cop)
