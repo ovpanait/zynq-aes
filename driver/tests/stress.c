@@ -22,6 +22,10 @@
 #define AES_KEY128_SIZE 16
 #define AES_KEY256_SIZE 32
 
+#define GCM_IV_SIZE  12
+#define GCM_AAD_SIZE 16
+#define GCM_TAGLEN   16
+
 #define ITER_NO            1
 #define PAYLOAD_AES_BLOCKS 1000
 #define PAYLOAD_SIZE       (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
@@ -34,6 +38,7 @@ struct crypto_op {
 
 	size_t iv_size;
 	size_t aad_size;
+	size_t taglen;
 };
 
 /*
@@ -161,6 +166,19 @@ static int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
 	return 0;
 }
 
+static int af_alg_set_taglen(struct crypto_op *cop)
+{
+	int ret;
+
+	ret = setsockopt(cop->tfmfd, SOL_ALG, ALG_SET_AEAD_AUTHSIZE, NULL, cop->taglen);
+	if (ret == -1) {
+		perror("setsockopt ALG_SET_AEAD_AUTHSIZE");
+		exit(EXIT_FAILURE);
+	}
+
+	return 0;
+}
+
 static void *af_alg_get_iv_ptr(struct crypto_op *cop)
 {
 	struct cmsghdr *cmsg;
@@ -180,7 +198,6 @@ static int af_alg_set_crypto_op(struct crypto_op *cop, uint32_t op)
 
 	return 0;
 }
-
 
 static int af_alg_set_encryption(struct crypto_op *cop, void *data, size_t size)
 {
@@ -202,6 +219,28 @@ static int af_alg_set_decryption(struct crypto_op *cop, void *data, size_t size)
 	return 0;
 }
 
+static int af_alg_set_aadlen(struct crypto_op *cop)
+{
+	struct cmsghdr *cmsg;
+	uint32_t *aad_ptr;
+	uint32_t aad_size;
+
+	aad_size = cop->aad_size;
+
+	// Skip encryption/decryption header
+	cmsg = CMSG_FIRSTHDR(&cop->msg);
+	// Skip IV header
+	if (cop->iv_size)
+		cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
+	// Get AAD header
+	cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
+
+	aad_ptr = (void *)CMSG_DATA(cmsg);
+	*aad_ptr = aad_size;
+
+	return 0;
+}
+
 static struct crypto_op *crypto_op_create(void)
 {
 	struct crypto_op *cop;
@@ -216,13 +255,13 @@ static struct crypto_op *crypto_op_create(void)
 }
 
 static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
-					size_t aad_size)
+				uint8_t *aad, size_t aad_size, size_t taglen)
 {
 	size_t cbuf_size;
 	uint8_t *cbuf;
 	struct cmsghdr *cmsg;
 
-	// sizeof(u32) is needed here because ALG_OP_ENCRYPT/DECRYPT are
+	// sizeof(u32) is used here because ALG_OP_ENCRYPT/DECRYPT are
 	// represented in the kernel as u32 in struct af_alg_control->op
 	// (actually it is an int, but the data sent from userspace is casted
 	// to u32 everywhere):
@@ -248,6 +287,16 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 	if (iv_size)
 		cbuf_size += CMSG_SPACE(sizeof(struct af_alg_iv) + iv_size);
 
+	// sizeof(u32) is used here because the AAD size is
+	// represented in the kernel as u32 in struct af_alg_control->aead_assoclen
+	// (actually it is an unsigned int, but the data sent from userspace is
+	// casted to u32 everywhere):
+	// https://elixir.bootlin.com/linux/latest/source/include/crypto/if_alg.h#L41
+	//
+	// This CMSG header stores AAD length to CMSG_DATA()
+	if (aad_size)
+		cbuf_size += CMSG_SPACE(sizeof(uint32_t));
+
 	cbuf = calloc(1, cbuf_size);
 	if (!cbuf) {
 		perror("Cannot allocate space for cbuf!");
@@ -256,6 +305,7 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 
 	cop->iv_size = iv_size;
 	cop->aad_size = aad_size;
+	cop->taglen = taglen;
 	cop->msg.msg_control = cbuf;
 	cop->msg.msg_controllen = cbuf_size;
 
@@ -269,6 +319,13 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 		cmsg->cmsg_level = SOL_ALG;
 		cmsg->cmsg_type = ALG_SET_IV;
 		cmsg->cmsg_len = CMSG_LEN(sizeof(struct af_alg_iv) + iv_size);
+	}
+
+	if (aad_size) {
+		cmsg = CMSG_NXTHDR(&cop->msg, cmsg);
+		cmsg->cmsg_level = SOL_ALG;
+		cmsg->cmsg_type = ALG_SET_AEAD_ASSOCLEN;
+		cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
 	}
 
 	cop->msg.msg_iov = &cop->iov;
@@ -308,12 +365,21 @@ static int set_random_iv(struct crypto_op *cop)
 	return 0;
 }
 
-static int encrypt(struct crypto_op *cop, uint8_t *plaintext,
-			uint8_t *ciphertext, size_t size)
+static int set_random_aad(struct crypto_op *cop, uint8_t *aad)
+{
+	af_alg_set_aadlen(cop);
+
+	get_urandom_bytes(aad, cop->aad_size);
+
+	return 0;
+}
+
+static int encrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
+			uint8_t *data_out, size_t data_out_len)
 {
 	int ret;
 
-	af_alg_set_encryption(cop, plaintext, size);
+	af_alg_set_encryption(cop, data_in, data_in_len);
 
 	ret = sendmsg(cop->opfd, &cop->msg, 0);
 	if (ret == -1) {
@@ -321,7 +387,7 @@ static int encrypt(struct crypto_op *cop, uint8_t *plaintext,
 		exit(EXIT_FAILURE);
 	}
 
-	ret = read(cop->opfd, ciphertext, size);
+	ret = read(cop->opfd, data_out, data_out_len);
 	if (ret == -1) {
 		perror("read");
 		exit(EXIT_FAILURE);
@@ -330,12 +396,12 @@ static int encrypt(struct crypto_op *cop, uint8_t *plaintext,
 	return 0;
 }
 
-static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
-			uint8_t *ciphertext, size_t size)
+static int decrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
+			uint8_t *data_out, size_t data_out_len)
 {
 	int ret;
 
-	af_alg_set_decryption(cop, ciphertext, size);
+	af_alg_set_decryption(cop, data_in, data_in_len);
 
 	ret = sendmsg(cop->opfd, &cop->msg, 0);
 	if (ret == -1) {
@@ -343,8 +409,7 @@ static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 		exit(EXIT_FAILURE);
 	}
 
-	memset(plaintext, 0, size);
-	ret = read(cop->opfd, plaintext, size);
+	ret = read(cop->opfd, data_out, data_out_len);
 	if (ret == -1) {
 		perror("read");
 		exit(EXIT_FAILURE);
@@ -354,32 +419,74 @@ static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 }
 
 static int stress(char *alg, char *alg_type, unsigned int keysize,
-			int iv_size, size_t aad_size)
+			int iv_size, size_t aad_size, size_t taglen)
 {
 	int ret;
 
 	struct sockaddr_alg sa;
 	struct crypto_op *cop;
 
-	uint8_t *plaintext_in;
-	uint8_t *plaintext_out;
-	uint8_t *ciphertext;
+	uint8_t *data_in;
+	uint8_t *data_in_bkp;
+	uint8_t *data_out;
 	uint8_t *key;
+	uint8_t *aad;
+	uint8_t *plaintext_in, *plaintext_out;
+	uint8_t *ciphertext_in, *ciphertext_out;
+	uint8_t *tag_in, *tag_out;
+
+	size_t data_in_len;
+	size_t data_out_len;
+
+	printf("---- Running testcase for %s, %s, %u bytes key ----\n\n",
+				alg_type, alg, keysize);
 
 	memset(&sa, 0, sizeof(struct sockaddr_alg));
 	sa.salg_family = AF_ALG;
 	strncpy((char *)sa.salg_type, alg_type, 14);
 	strncpy((char *)sa.salg_name, alg, 60);
 
+	// For encryption maximum input data length:
+	//     AAD || plaintext
+	// For decryption maximum input data length:
+	//     AAD || ciphertext || authentication tag
+	data_in_len = aad_size + PAYLOAD_SIZE + taglen;
+
+	// For encryption maximum output data length:
+	//     ciphertext || authentication tag
+	// For decryption maximum output data length:
+	//     AAD || plaintext (kernel documentation issue?)
+	data_out_len = aad_size + PAYLOAD_SIZE + taglen;
+
 	// Allocate buffers
-	alloc_buffer(&plaintext_in, PAYLOAD_SIZE);
-	alloc_buffer(&plaintext_out, PAYLOAD_SIZE);
-	alloc_buffer(&ciphertext, PAYLOAD_SIZE);
+	alloc_buffer(&data_in, data_in_len);
+	alloc_buffer(&data_in_bkp, data_in_len);
+	alloc_buffer(&data_out, data_out_len );
 	alloc_buffer(&key, keysize);
 
-	cop = crypto_op_create();
-	crypto_op_init(cop, iv_size, aad_size);
+	// Setup AAD/plaintext/ciphertext/tag buffers for encryption/decryption
+	// (they point to various offsets inside data_in/data_out blocks)
+	//
+	// TODO - do the same as libkcapi and have a function that is provided
+	// a buffer of size [aad_size + payload_size + tag_size] and returns
+	// pointers to various offsets inside the initial buffer marking the
+	// aad/plaintext/ciphertext/tag.
+	aad = data_in;
 
+	plaintext_in = data_in + aad_size;
+	plaintext_out = data_out + aad_size;
+
+	ciphertext_in = data_in + aad_size;
+	ciphertext_out = data_out + aad_size;
+
+	tag_in = data_in + aad_size + PAYLOAD_SIZE;
+	tag_out = data_out + aad_size + PAYLOAD_SIZE;
+
+	// Allocate and initialize struct crypto_op
+	cop = crypto_op_create();
+	crypto_op_init(cop, iv_size, aad, aad_size, taglen);
+
+	// Open socket, run bind() and accept()
 	ret = af_alg_sock_setup(cop, &sa);
 	if (ret) {
 		fprintf(stderr, "Failed to run testcase for "
@@ -389,29 +496,71 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 		return -1;
 	}
 
-	printf("---- Running testcase for %s, %s, %u bytes key ----\n\n",
-				(char *)sa.salg_type, (char *)sa.salg_name, keysize);
-
-	// Set random key and IV
+	// Set a random key.
+	//
+	// We cannot run setsockopt on a tfmfd multiple times (after the first
+	// run, it return -EBUSY). Therefore keep this call outside of the
+	// stress loop.
 	set_randomized_key(cop, key, keysize);
-	if (iv_size)
-		set_random_iv(cop);
 
-	// Send random blocks
-	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
-	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
+	// Set taglen
+	if (taglen)
+		af_alg_set_taglen(cop);
 
 	for (int i = 0; i < ITER_NO; ++i) {
 		printf("---- Loop no %d ----\n\n", i);
 
-		encrypt(cop, plaintext_in, ciphertext, PAYLOAD_SIZE);
-		dump_aes_buffer(stdout, "ciphertext:", ciphertext, PAYLOAD_AES_BLOCKS);
+		// Set random IV and AAD
+		if (iv_size)
+			set_random_iv(cop);
+		if (aad_size)
+			set_random_aad(cop, aad);
 
-		decrypt(cop, plaintext_out, ciphertext, PAYLOAD_SIZE);
-		dump_aes_buffer(stdout, "plaintext_out:", plaintext_out, PAYLOAD_AES_BLOCKS);
+		// Send random blocks
+		get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
+		dump_aes_buffer(stdout, "plaintext_in:", plaintext_in,
+						PAYLOAD_AES_BLOCKS);
 
-		check_aes_buffers(plaintext_in, plaintext_out, PAYLOAD_AES_BLOCKS);
+		// Make a copy of the {aad, plaintext} block so we can compare
+		// it with the decryption results
+		memcpy(data_in_bkp, data_in, data_in_len);
 
+		// Encrypt
+		// Make sure that the right input data length is provided for
+		// encryption. Input data blocks look like this:
+		// AAD || plaintext
+		//
+		// Otherwise -EINVAL will be returned.
+		encrypt(cop, data_in, aad_size + PAYLOAD_SIZE, data_out,
+						data_out_len);
+		dump_aes_buffer(stdout, "ciphertext:", ciphertext_out,
+						PAYLOAD_AES_BLOCKS);
+
+		if (taglen)
+			dump_buffer(stdout, "tag: ", tag_out, taglen);
+
+		// Decrypt
+		memcpy(ciphertext_in, ciphertext_out, PAYLOAD_SIZE);
+		if (taglen)
+			memcpy(tag_in, tag_out, taglen);
+
+		// Make sure that the right input/output data lengths are provided for
+		// decryption:
+		// Input data blocks look like this:
+		// AAD || ciphertext || authentication tag
+		// Output data blocks look like this:
+		// AAD || plaintext - in the official kernel documentation
+		//                    there is no specification that the output
+		//                    block contians the AAD as well (?)
+		//
+		// Otherwise -EINVAL will be returned.
+		decrypt(cop, data_in, aad_size + PAYLOAD_SIZE + taglen,
+					data_out, aad_size + PAYLOAD_SIZE);
+		dump_aes_buffer(stdout, "plaintext_out:", plaintext_out,
+						PAYLOAD_AES_BLOCKS);
+
+		check_aes_buffers(data_in_bkp + aad_size, plaintext_out,
+						PAYLOAD_AES_BLOCKS);
 	}
 	printf("PASS!\n\n");
 
@@ -424,10 +573,25 @@ static int stress_skcipher(char *alg, unsigned int keysize, size_t iv_size)
 {
 	int ret;
 
-	ret = stress(alg, "skcipher", keysize, iv_size, 0);
+	ret = stress(alg, "skcipher", keysize, iv_size, 0, 0);
 	if (ret) {
 		fprintf(stderr, "FAIL: testcase "
 			"%s, %s, %u bytes key\n\n", "skcipher",
+			alg, keysize);
+	}
+
+	return ret;
+}
+
+static int stress_aead(char *alg, unsigned int keysize, size_t iv_size,
+				size_t aad_size, size_t taglen)
+{
+	int ret;
+
+	ret = stress(alg, "aead", keysize, iv_size, aad_size, taglen);
+	if (ret) {
+		fprintf(stderr, "FAIL: testcase "
+			"%s, %s, %u bytes key\n\n", "aead",
 			alg, keysize);
 	}
 
@@ -453,6 +617,8 @@ int main(void)
 
 	stress_skcipher("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
 	stress_skcipher("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
+
+	stress_aead("gcm(aes)", AES_KEY128_SIZE, GCM_IV_SIZE, GCM_AAD_SIZE, GCM_TAGLEN);
 
 	return 0;
 }
