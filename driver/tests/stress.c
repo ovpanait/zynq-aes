@@ -315,8 +315,8 @@ static int decrypt(struct crypto_op *cop, uint8_t *plaintext,
 	return 0;
 }
 
-static int stress(char *alg, unsigned int keysize, int iv_size,
-				size_t aad_size)
+static int stress(char *alg, char *alg_type, unsigned int keysize,
+			int iv_size, size_t aad_size)
 {
 	int ret;
 
@@ -330,7 +330,7 @@ static int stress(char *alg, unsigned int keysize, int iv_size,
 
 	memset(&sa, 0, sizeof(struct sockaddr_alg));
 	sa.salg_family = AF_ALG;
-	strncpy((char *)sa.salg_type, "skcipher", 14);
+	strncpy((char *)sa.salg_type, alg_type, 14);
 	strncpy((char *)sa.salg_name, alg, 60);
 
 	// Allocate buffers
@@ -386,25 +386,39 @@ static int stress(char *alg, unsigned int keysize, int iv_size,
 	return 0;
 }
 
+static int stress_skcipher(char *alg, unsigned int keysize, size_t iv_size)
+{
+	int ret;
+
+	ret = stress(alg, "skcipher", keysize, iv_size, 0);
+	if (ret) {
+		fprintf(stderr, "FAIL: testcase "
+			"%s, %s, %u bytes key\n\n", "skcipher",
+			alg, keysize);
+	}
+
+	return ret;
+}
+
 int main(void)
 {
-	stress("ecb(aes)", AES_KEY128_SIZE, 0, 0);
-	stress("ecb(aes)", AES_KEY256_SIZE, 0, 0);
+	stress_skcipher("ecb(aes)", AES_KEY128_SIZE, 0);
+	stress_skcipher("ecb(aes)", AES_KEY256_SIZE, 0);
 
-	stress("cbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
-	stress("cbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
+	stress_skcipher("cbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("cbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
-	stress("ctr(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
-	stress("ctr(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
+	stress_skcipher("ctr(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("ctr(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
-	stress("pcbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
-	stress("pcbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
+	stress_skcipher("pcbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("pcbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
-	stress("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
-	stress("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
+	stress_skcipher("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
-	stress("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE, 0);
-	stress("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE, 0);
+	stress_skcipher("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	return 0;
 }
