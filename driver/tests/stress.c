@@ -378,6 +378,8 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 	alloc_buffer(&key, keysize);
 
 	cop = crypto_op_create();
+	crypto_op_init(cop, iv_size, aad_size);
+
 	ret = af_alg_sock_setup(cop, &sa);
 	if (ret) {
 		fprintf(stderr, "Failed to run testcase for "
@@ -390,12 +392,12 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 	printf("---- Running testcase for %s, %s, %u bytes key ----\n\n",
 				(char *)sa.salg_type, (char *)sa.salg_name, keysize);
 
+	// Set random key and IV
 	set_randomized_key(cop, key, keysize);
-
-	crypto_op_init(cop, iv_size, aad_size);
 	if (iv_size)
 		set_random_iv(cop);
 
+	// Send random blocks
 	get_urandom_bytes(plaintext_in, PAYLOAD_SIZE);
 	dump_aes_buffer(stdout, "plaintext_in:", plaintext_in, PAYLOAD_AES_BLOCKS);
 
