@@ -124,22 +124,26 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
 
 static int af_alg_sock_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
 {
-	int tfmfd, ret;
+	int ret;
 
 	// Setup AF_ALG socket
-	tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
-	if (tfmfd == -1) {
+	cop->tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
+	if (cop->tfmfd == -1) {
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
 
-	ret = bind(tfmfd, (struct sockaddr *)sa, sizeof(*sa));
+	ret = bind(cop->tfmfd, (struct sockaddr *)sa, sizeof(*sa));
 	if (ret == -1) {
 		perror("bind");
 		return -1;
 	}
 
-	cop->tfmfd = tfmfd;
+	cop->opfd = accept(cop->tfmfd, NULL, 0);
+	if (cop->opfd == -1) {
+		perror("accept");
+		return -1;
+	}
 
 	return 0;
 }
@@ -387,12 +391,6 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 				(char *)sa.salg_type, (char *)sa.salg_name, keysize);
 
 	set_randomized_key(cop, key, keysize);
-
-	cop->opfd = accept(cop->tfmfd, NULL, 0);
-	if (cop->opfd == -1) {
-		perror("accept");
-		exit(EXIT_FAILURE);
-	}
 
 	crypto_op_init(cop, iv_size, aad_size);
 	if (iv_size)
