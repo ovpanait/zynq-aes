@@ -66,28 +66,6 @@ static int get_urandom_bytes(void *buf, size_t n)
 	return 0;
 }
 
-static int af_alg_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
-{
-	int tfmfd, ret;
-
-	// Setup AF_ALG socket
-	tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
-	if (tfmfd == -1) {
-		perror("socket");
-		exit(EXIT_FAILURE);
-	}
-
-	ret = bind(tfmfd, (struct sockaddr *)sa, sizeof(*sa));
-	if (ret == -1) {
-		perror("bind");
-		return -1;
-	}
-
-	cop->tfmfd = tfmfd;
-
-	return 0;
-}
-
 static int alloc_buffer(uint8_t **buf, unsigned int size)
 {
 	uint8_t *buf_ptr;
@@ -142,6 +120,28 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
                         exit(EXIT_FAILURE);
                 }
         }
+}
+
+static int af_alg_sock_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
+{
+	int tfmfd, ret;
+
+	// Setup AF_ALG socket
+	tfmfd = socket(AF_ALG, SOCK_SEQPACKET, 0);
+	if (tfmfd == -1) {
+		perror("socket");
+		exit(EXIT_FAILURE);
+	}
+
+	ret = bind(tfmfd, (struct sockaddr *)sa, sizeof(*sa));
+	if (ret == -1) {
+		perror("bind");
+		return -1;
+	}
+
+	cop->tfmfd = tfmfd;
+
+	return 0;
 }
 
 static int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
@@ -351,7 +351,7 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 	alloc_buffer(&key, keysize);
 
 	cop = crypto_op_create();
-	ret = af_alg_setup(cop, &sa);
+	ret = af_alg_sock_setup(cop, &sa);
 	if (ret) {
 		fprintf(stderr, "Failed to run testcase for "
 			"%s, %s, %u bytes key\n\n", (char *)sa.salg_type,
