@@ -153,7 +153,6 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 	struct dma_async_tx_descriptor *rx_chan_desc;
 	unsigned int tx_sg_len;
 	unsigned int rx_sg_len;
-	enum dma_ctrl_flags flags = DMA_CTRL_ACK;
 	int ret;
 
 	/* Tx Channel */
@@ -165,7 +164,8 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 	}
 
 	tx_chan_desc = dmaengine_prep_slave_sg(dd->tx_chan, dma_ctx->tx_sg,
-					tx_sg_len, DMA_MEM_TO_DEV, flags);
+					tx_sg_len, DMA_MEM_TO_DEV,
+					DMA_CTRL_ACK);
 	if (!tx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_sg error\n", __func__, __LINE__);
 		ret = -ECOMM;
@@ -182,8 +182,6 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 	dma_async_issue_pending(dd->tx_chan);
 
 	/* Rx Channel */
-	flags |= DMA_PREP_INTERRUPT;
-
 	rx_sg_len = dma_map_sg(dd->dev, dma_ctx->rx_sg, dma_ctx->rx_nents, DMA_FROM_DEVICE);
 	if (rx_sg_len == 0) {
 		dev_err(dd->dev, "[%s:%d] dma_map_sg: rx error\n", __func__, __LINE__);
@@ -192,7 +190,8 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 	}
 
 	rx_chan_desc = dmaengine_prep_slave_sg(dd->rx_chan, dma_ctx->rx_sg,
-				rx_sg_len, DMA_DEV_TO_MEM, flags);
+					rx_sg_len, DMA_DEV_TO_MEM,
+					DMA_CTRL_ACK | DMA_PREP_INTERRUPT);
 	if (!rx_chan_desc) {
 		dev_err(dd->dev, "[%s:%d] dmaengine_prep_slave_sg error\n", __func__, __LINE__);
 		ret = -ECOMM;
