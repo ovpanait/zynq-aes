@@ -18,6 +18,8 @@
 
 #define ZYNQAES_CMD_LEN 4
 
+#define ZYNQAES_IVSIZE_MAX AES_BLOCK_SIZE
+
 #define ZYNQAES_KEY_EXPANSION_OP_BIT 0
 #define ZYNQAES_ENCRYPTION_OP_BIT    1
 #define ZYNQAES_DECRYPTION_OP_BIT    2
@@ -65,7 +67,8 @@ struct zynqaes_dev {
 
 struct zynqaes_reqctx {
 	u32 cmd;
-	u8 iv[AES_BLOCK_SIZE];
+	u8 iv[ZYNQAES_IVSIZE_MAX];
+	unsigned int ivsize;
 
 	struct ablkcipher_request *areq;
 	unsigned int nbytes;
@@ -111,12 +114,6 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 	default:
 		break;
 	}
-}
-
-static int is_iv_op(u32 cmd) {
-	return cmd & (ZYNQAES_CBC_FLAG  | ZYNQAES_CTR_FLAG |
-		      ZYNQAES_PCBC_FLAG | ZYNQAES_CFB_FLAG |
-		      ZYNQAES_OFB_FLAG);
 }
 
 static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
@@ -240,12 +237,12 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 		goto out_err;
 	}
 
-	nsg = is_iv_op(rctx->cmd) ? 4 : 3;
+	nsg = rctx->ivsize ? 4 : 3;
 
 	sg_init_table(dma_ctx->tx_sg, nsg);
 	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->cmd, sizeof(rctx->cmd));
 	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, ctx->key_len);
-	if (is_iv_op(rctx->cmd)) {
+	if (rctx->ivsize) {
 		sg_set_buf(&dma_ctx->tx_sg[2], rctx->iv, AES_BLOCK_SIZE);
 	}
 	sg_chain(dma_ctx->tx_sg, nsg, areq->src);
@@ -301,14 +298,15 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	rctx->ctx = ctx;
 	rctx->areq = areq;
 	rctx->nbytes = areq->nbytes;
+	rctx->ivsize = crypto_ablkcipher_ivsize(cipher);
 
 	zynqaes_set_key_bit(ctx->key_len, rctx);
 
 	dev_dbg(dd->dev, "[%s:%d] rctx->nbytes: %u\n", __func__, __LINE__, rctx->nbytes);
 	dev_dbg(dd->dev, "[%s:%d] rctx->cmd: %x\n", __func__, __LINE__, rctx->cmd);
 
-	if (is_iv_op(rctx->cmd)) {
-		memcpy(rctx->iv, areq->info, AES_BLOCK_SIZE);
+	if (rctx->ivsize) {
+		memcpy(rctx->iv, areq->info, rctx->ivsize);
 	}
 
 	ret = zynqaes_enqueue_next_dma_op(rctx);
