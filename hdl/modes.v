@@ -4,7 +4,7 @@ module ecb(
 	input                        reset,
 
 	input                        encrypt_flag,
-	output                       decrypt_flag,
+	input                        decrypt_flag,
 
 	input                        controller_out_ready,
 	input                        last_blk,
@@ -84,7 +84,7 @@ module cbc(
 	input                        reset,
 
 	input                        encrypt_flag,
-	output                       decrypt_flag,
+	input                        decrypt_flag,
 
 	input                        controller_out_ready,
 	input                        last_blk,
@@ -197,7 +197,7 @@ module ctr(
 	input                        reset,
 
 	input                        encrypt_flag,
-	output                       decrypt_flag,
+	input                        decrypt_flag,
 
 	input                        controller_out_ready,
 	input                        last_blk,
@@ -302,7 +302,7 @@ module cfb(
 	input                        reset,
 
 	input                        encrypt_flag,
-	output                       decrypt_flag,
+	input                        decrypt_flag,
 
 	input                        controller_out_ready,
 	input                        last_blk,
@@ -413,7 +413,7 @@ module ofb(
 	input                        reset,
 
 	input                        encrypt_flag,
-	output                       decrypt_flag,
+	input                        decrypt_flag,
 
 	input                        controller_out_ready,
 	input                        last_blk,
@@ -519,7 +519,7 @@ module pcbc(
 	input                        reset,
 
 	input                        encrypt_flag,
-	output                       decrypt_flag,
+	input                        decrypt_flag,
 
 	input                        controller_out_ready,
 	input                        last_blk,
