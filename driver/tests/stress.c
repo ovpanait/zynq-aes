@@ -255,7 +255,7 @@ static struct crypto_op *crypto_op_create(void)
 }
 
 static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
-				uint8_t *aad, size_t aad_size, size_t taglen)
+				size_t aad_size, size_t taglen)
 {
 	size_t cbuf_size;
 	uint8_t *cbuf;
@@ -484,7 +484,7 @@ static int stress(char *alg, char *alg_type, unsigned int keysize,
 
 	// Allocate and initialize struct crypto_op
 	cop = crypto_op_create();
-	crypto_op_init(cop, iv_size, aad, aad_size, taglen);
+	crypto_op_init(cop, iv_size, aad_size, taglen);
 
 	// Open socket, run bind() and accept()
 	ret = af_alg_sock_setup(cop, &sa);
