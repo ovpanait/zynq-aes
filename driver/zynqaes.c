@@ -441,7 +441,7 @@ static int zynqaes_cra_init(struct crypto_tfm *tfm)
 static struct crypto_alg zynqaes_ecb_alg = {
 	.cra_name		=	"ecb(aes)",
 	.cra_driver_name	=	"zynqaes-ecb",
-	.cra_priority		=	100,
+	.cra_priority		=	200,
 	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
 					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
@@ -463,7 +463,7 @@ static struct crypto_alg zynqaes_ecb_alg = {
 static struct crypto_alg zynqaes_cbc_alg = {
 	.cra_name		=	"cbc(aes)",
 	.cra_driver_name	=	"zynqaes-cbc",
-	.cra_priority		=	100,
+	.cra_priority		=	200,
 	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
 					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
@@ -486,7 +486,7 @@ static struct crypto_alg zynqaes_cbc_alg = {
 static struct crypto_alg zynqaes_pcbc_alg = {
 	.cra_name		=	"pcbc(aes)",
 	.cra_driver_name	=	"zynqaes-pcbc",
-	.cra_priority		=	100,
+	.cra_priority		=	200,
 	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
 					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
@@ -509,7 +509,7 @@ static struct crypto_alg zynqaes_pcbc_alg = {
 static struct crypto_alg zynqaes_ctr_alg = {
 	.cra_name		=	"ctr(aes)",
 	.cra_driver_name	=	"zynqaes-ctr",
-	.cra_priority		=	100,
+	.cra_priority		=	200,
 	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
 					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
@@ -532,7 +532,7 @@ static struct crypto_alg zynqaes_ctr_alg = {
 static struct crypto_alg zynqaes_cfb_alg = {
 	.cra_name		=	"cfb(aes)",
 	.cra_driver_name	=	"zynqaes-cfb",
-	.cra_priority		=	100,
+	.cra_priority		=	200,
 	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
 					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
@@ -555,7 +555,7 @@ static struct crypto_alg zynqaes_cfb_alg = {
 static struct crypto_alg zynqaes_ofb_alg = {
 	.cra_name		=	"ofb(aes)",
 	.cra_driver_name	=	"zynqaes-ofb",
-	.cra_priority		=	100,
+	.cra_priority		=	200,
 	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
 					CRYPTO_ALG_ASYNC,
 	.cra_blocksize		=	AES_BLOCK_SIZE,
