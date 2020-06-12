@@ -21,7 +21,43 @@ Run regression tests (XSIM):
 make test
 ```
 
-## Quick Start for Arty Z7-20 board using Yocto
+## Openssl Benchmarks
+#### ECB
+```sh
+
+Software-only:
+root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-128-ecb      20565.61k    23967.59k    25016.06k    25291.09k    25331.03k    25340.59k    25329.66k    25285.97k    24958.29k    24226.47k
+
+HW acceleration:
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-128-ecb        212.22k      843.43k     3546.28k    13027.67k    23939.68k    35828.36k    47195.78k    56138.49k    62379.75k    65688.92k
+
+root@arty-zynq7:~# openssl speed -evp aes-256-ecb -elapsed
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-256-ecb        234.04k      928.11k     3666.94k    14110.72k    22911.66k    32818.52k    41937.58k    49327.35k    53974.05k    56615.21
+```
+
+#### CTR
+```sh
+Software-only:
+root@arty-zynq7:~# openssl speed -elapsed aes-256-ctr            
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-256 cbc      16144.04k    16890.18k    17274.45k    17376.94k    17436.67k    17417.56k    17479.00k    17569.11k    17651.03k    17629.18k
+
+HW acceleration:
+root@arty-zynq7:~# openssl speed  -evp aes-256-cbc -elapsed
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
+aes-256-ctr        423.87k      893.80k     3534.08k    13635.93k    22278.14k    32269.65k    41446.06k    48873.47k    53630.29k    56527.54k
+```
+
+## Block design and AXI DMA config
+
+![](https://github.com/ovpanait/zynq-aes/blob/master/block_design.png)
+![](https://github.com/ovpanait/zynq-aes/blob/master/axi_dma.png)
+
+## Quick Start for Arty Z7-20 board using Yocto (untested recently)
 
 ### Prerequisites - Build Host Packages
 ```sh
@@ -65,7 +101,6 @@ bitbake core-image-minimal
 ```sh
 sudo dd if=tmp/deploy/images/arty-zynq7/core-image-minimal-arty-zynq7.wic of=/dev/mmcblkX bs=4M iflag=fullblock oflag=direct conv=fsync status=progress
 ```
-
 ### Run benchmarks
 ```sh
 root@arty-zynq7:~# mkdir -p /sys/kernel/config/device-tree/overlays/zynqaes
@@ -76,38 +111,3 @@ root@arty-zynq7:~# modprobe crypto-engine
 root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
 root@arty-zynq7:~# openssl speed -evp aes-128-cbc -elapsed
 ```
-
-## Benchmarks
-#### ECB
-```sh
-
-Software-only:
-root@arty-zynq7:~# openssl speed -evp aes-128-ecb -elapsed
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-ecb      20565.61k    23967.59k    25016.06k    25291.09k    25331.03k    25340.59k    25329.66k    25285.97k    24958.29k    24226.47k
-
-HW acceleration:
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-ecb        212.22k      843.43k     3546.28k    13027.67k    23939.68k    35828.36k    47195.78k    56138.49k    62379.75k    65688.92k
-
-root@arty-zynq7:~# openssl speed -evp aes-256-ecb -elapsed
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-256-ecb        234.04k      928.11k     3666.94k    14110.72k    22911.66k    32818.52k    41937.58k    49327.35k    53974.05k    56615.21
-```
-
-#### CTR
-```sh
-Software-only:
-root@arty-zynq7:~# openssl speed -elapsed aes-256-ctr            
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-256 cbc      16144.04k    16890.18k    17274.45k    17376.94k    17436.67k    17417.56k    17479.00k    17569.11k    17651.03k    17629.18k
-
-HW acceleration:
-root@arty-zynq7:~# openssl speed  -evp aes-256-cbc -elapsed
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-256-ctr        423.87k      893.80k     3534.08k    13635.93k    22278.14k    32269.65k    41446.06k    48873.47k    53630.29k    56527.54k
-```
-## Block design and AXI DMA config
-
-![](https://github.com/ovpanait/zynq-aes/blob/master/block_design.png)
-![](https://github.com/ovpanait/zynq-aes/blob/master/axi_dma.png)
