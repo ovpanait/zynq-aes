@@ -5,7 +5,6 @@ module aes_controller_output #
 	// Width of master side bus
 	parameter integer BUS_TDATA_WIDTH = 32,
 
-	parameter integer FIFO_SIZE = 16,
 	parameter integer FIFO_ADDR_WIDTH = 4,
 	parameter integer FIFO_DATA_WIDTH = 128
 )
@@ -16,10 +15,6 @@ module aes_controller_output #
 	output                                    fifo_write_tready,
 	input                                     fifo_write_tvalid,
 	input  [FIFO_DATA_WIDTH-1:0]              fifo_wdata,
-
-	output                                    fifo_almost_full,
-	output                                    fifo_empty,
-	output                                    fifo_full,
 
 	output                                    bus_tvalid,
 	input                                     bus_tready,
@@ -55,8 +50,7 @@ wire bus_last_word;
 
 fifo #(
 	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
-	.DATA_WIDTH(FIFO_DATA_WIDTH),
-	.DEPTH(FIFO_SIZE)
+	.DATA_WIDTH(FIFO_DATA_WIDTH)
 ) master_fifo (
 	.clk(clk),
 	.reset(!resetn),
@@ -67,11 +61,7 @@ fifo #(
 
 	.fifo_read_tvalid(fifo_read_tvalid),
 	.fifo_read_tready(fifo_read_tready),
-	.fifo_rdata(fifo_rdata),
-
-	.fifo_almost_full(fifo_almost_full),
-	.fifo_full(fifo_full),
-	.fifo_empty(fifo_empty)
+	.fifo_rdata(fifo_rdata)
 );
 
 assign fifo_read_req = fifo_read_tready && fifo_read_tvalid;

@@ -53,7 +53,6 @@ localparam [2:0] AES_PAYLOAD = 3'b100;
 wire                          in_fifo_read_tvalid;
 wire                          in_fifo_read_tready;
 wire [IN_FIFO_DATA_WIDTH-1:0] in_fifo_rdata;
-wire                          in_fifo_empty;
 
 // ============================================================================
 // AES controller processing stage signals
@@ -197,10 +196,6 @@ reg [OUT_FIFO_DATA_WIDTH-1:0] out_fifo_wdata;
 reg out_fifo_write_tvalid;
 wire out_fifo_write_tready;
 
-wire out_fifo_almost_full;
-wire out_fifo_full;
-wire out_fifo_empty;
-
 wire out_fifo_write_req;
 
 // ============================================================================
@@ -210,8 +205,7 @@ aes_controller_input #(
 	.BUS_DATA_WIDTH(IN_BUS_DATA_WIDTH),
 
 	.FIFO_ADDR_WIDTH(IN_FIFO_ADDR_WIDTH),
-	.FIFO_DATA_WIDTH(IN_FIFO_DATA_WIDTH),
-	.FIFO_SIZE(IN_FIFO_DEPTH)
+	.FIFO_DATA_WIDTH(IN_FIFO_DATA_WIDTH)
 ) controller_input_block (
 	.clk(clk),
 	.reset(reset),
@@ -223,7 +217,6 @@ aes_controller_input #(
 	.in_fifo_read_tvalid(in_fifo_read_tvalid),
 	.in_fifo_read_tready(in_fifo_read_tready),
 	.in_fifo_rdata(in_fifo_rdata),
-	.in_fifo_empty(in_fifo_empty),
 
 	.controller_in_busy(controller_in_busy)
 );
@@ -765,7 +758,7 @@ end
 
 aes_controller_output #(
 	.BUS_TDATA_WIDTH(OUT_BUS_DATA_WIDTH),
-	.FIFO_SIZE(OUT_FIFO_DEPTH),
+
 	.FIFO_ADDR_WIDTH(OUT_FIFO_ADDR_WIDTH),
 	.FIFO_DATA_WIDTH(OUT_FIFO_DATA_WIDTH)
 ) controller_output_block (
@@ -775,10 +768,6 @@ aes_controller_output #(
 	.fifo_write_tready(out_fifo_write_tready),
 	.fifo_write_tvalid(out_fifo_write_tvalid),
 	.fifo_wdata(out_fifo_wdata),
-
-	.fifo_almost_full(out_fifo_almost_full),
-	.fifo_full(out_fifo_full),
-	.fifo_empty(out_fifo_empty),
 
 	.bus_tvalid(out_bus_tvalid),
 	.bus_tready(out_bus_tready),

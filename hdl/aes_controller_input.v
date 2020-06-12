@@ -13,7 +13,6 @@ module aes_controller_input #(
 	// Width of slave side bus
 	parameter integer BUS_DATA_WIDTH = 32,
 
-	parameter integer FIFO_SIZE = 16,
 	parameter integer FIFO_ADDR_WIDTH = 4,
 	parameter integer FIFO_DATA_WIDTH = 128
 )(
@@ -27,7 +26,6 @@ module aes_controller_input #(
 	output                                  in_fifo_read_tvalid,
 	input                                   in_fifo_read_tready,
 	output [FIFO_DATA_WIDTH-1:0]            in_fifo_rdata,
-	output                                  in_fifo_empty,
 
 	output                                  controller_in_busy
 );
@@ -60,14 +58,6 @@ wire fifo_read_tvalid;
 reg [FIFO_DATA_WIDTH-1:0] fifo_wdata;
 wire [FIFO_DATA_WIDTH-1:0] fifo_rdata;
 
-wire fifo_almost_full;
-wire fifo_full;
-wire fifo_empty;
-
-wire in_fifo_almost_full;
-wire in_fifo_busy;
-wire in_fifo_full;
-
 // Initial assignments
 initial fifo_wdata = {FIFO_DATA_WIDTH{1'b0}};
 initial fifo_write_tvalid = 1'b0;
@@ -77,8 +67,7 @@ initial fsm_state = GET_CMD;
 // FIFO logic
 fifo #(
 	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
-	.DATA_WIDTH(FIFO_DATA_WIDTH),
-	.DEPTH(FIFO_SIZE)
+	.DATA_WIDTH(FIFO_DATA_WIDTH)
 ) slave_fifo (
 	.clk(clk),
 	.reset(reset),
@@ -89,25 +78,18 @@ fifo #(
 
 	.fifo_read_tready(fifo_read_tready),
 	.fifo_read_tvalid(fifo_read_tvalid),
-	.fifo_rdata(fifo_rdata),
-
-	.fifo_almost_full(fifo_almost_full),
-	.fifo_empty(fifo_empty),
-	.fifo_full(fifo_full)
+	.fifo_rdata(fifo_rdata)
 );
 
 assign fifo_write_transaction = fifo_write_tvalid && fifo_write_tready;
 assign fifo_read_tready = in_fifo_read_tready;
 
 assign in_fifo_read_tvalid = fifo_read_tvalid;
-assign in_fifo_almost_full = fifo_almost_full;
 assign in_fifo_rdata = fifo_rdata;
-assign in_fifo_empty = fifo_empty;
-assign in_fifo_full = fifo_full;
 
 // Controller input logic
 assign bus_transaction = bus_data_wren && !controller_in_busy;
-assign controller_in_busy = in_fifo_full || fifo_write_tvalid;
+assign controller_in_busy = fifo_write_tvalid;
 
 assign aes_block_available = bus_transaction && (bus_word_cnt == `Nb - 1'b1);
 assign aes_cmd_available = bus_transaction && (fsm_state == GET_CMD);

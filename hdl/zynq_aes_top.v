@@ -56,11 +56,8 @@ module zynq_aes_top #
 
 `include "common.vh"
 
-/*
- * 32kB AES block + 2 x 128-bit slots for key and iv.
- */
-localparam OUT_BRAM_DEPTH = DATA_FIFO_SIZE + 2;
-localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE + 2;
+localparam OUT_BRAM_DEPTH = DATA_FIFO_SIZE;
+localparam IN_BRAM_DEPTH = DATA_FIFO_SIZE;
 
 /// =====================================================================
 // Input interface signals
