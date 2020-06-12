@@ -7,14 +7,13 @@ module tb_main();
 
 reg clk;
 reg reset;
-reg en;
+
+reg en_cipher;
+reg en_decipher;
+reg en_key;
 
 reg aes128_mode;
 reg aes256_mode;
-
-reg decipher_mode;
-reg cipher_mode;
-reg key_exp_mode;
 
 reg [`KEY_S-1:0]  aes_key;
 reg [`BLK_S-1:0]  aes_in_blk;
@@ -25,17 +24,16 @@ wire              en_o;
 aes_top DUT (
         .clk(clk),
         .reset(reset),
-        .en(en),
+
+	.en_cipher(en_cipher),
+	.en_decipher(en_decipher),
+	.en_key(en_key),
 
         .aes128_mode(aes128_mode),
         .aes256_mode(aes256_mode),
 
         .aes_key(aes_key),
         .aes_in_blk(aes_in_blk),
-
-        .cipher_mode(cipher_mode),
-        .decipher_mode(decipher_mode),
-        .key_exp_mode(key_exp_mode),
 
         .aes_out_blk(aes_out_blk),
         .en_o(en_o)
@@ -96,15 +94,15 @@ task test_aes(
                 aes128_mode = aes128;
                 aes256_mode = aes256;
 
-                cipher_mode = 1'b0;
-                decipher_mode = 1'b0;
-                key_exp_mode = 1'b1;
-                en = 1'b1;
+		en_cipher = 1'b0;
+		en_decipher = 1'b0;
+		en_key = 1'b1;
+
                 aes_key = key;
         end
 
         @(negedge clk) begin
-                en = 0;
+		en_key = 0;
         end
 
         @(posedge en_o);
@@ -116,17 +114,16 @@ task test_aes(
 
         // Encrypt
         @(negedge clk) begin
-                cipher_mode = 1'b1;
-                decipher_mode = 1'b0;
-                key_exp_mode = 1'b0;
+		en_cipher = 1'b1;
+		en_decipher = 1'b0;
+		en_key = 1'b0;
 
-                en = 1'b1;
                 aes_key = {`KEY_S{1'b0}};
                 aes_in_blk = plaintext;
         end;
 
         @(negedge clk);
-        en = 1'b0;
+		en_cipher = 1'b0;
 
         // Test ciphertext output
         @(posedge en_o);
@@ -140,16 +137,15 @@ task test_aes(
 
         // Decrypt
         @(negedge clk) begin
-                cipher_mode = 1'b0;
-                decipher_mode = 1'b1;
-                key_exp_mode = 1'b0;
+		en_cipher = 1'b0;
+		en_decipher = 1'b1;
+		en_key = 1'b0;
 
-                en = 1'b1;
                 aes_in_blk = ciphertext;
         end
 
         @(negedge clk) begin
-                en = 1'b0;
+		en_decipher = 1'b0;
         end
 
         @(posedge en_o);

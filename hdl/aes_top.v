@@ -23,8 +23,8 @@ reg  cipher_mode;
 reg  decipher_mode;
 reg  key_exp_mode;
 
-wire [`ROUND_KEY_BITS-1:0]    round_key_in;
-wire [`ROUND_KEY_BITS-1:0]    round_key_out;
+wire [`ROUND_KEY_BITS-1:0] round_key_in;
+reg  [`ROUND_KEY_BITS-1:0] round_key_out;
 
 wire [`Nb-1:0] round_key_addr;
 wire [`Nb-1:0] encrypt_round_no;
@@ -39,16 +39,26 @@ wire [`BLK_S-1:0] __aes_out_blk_decrypt;
 
 wire [`Nb-1:0] rounds_total;
 
-// SRAM signals
-wire            w_e;
-wire [`Nb-1:0]  addr;
+// BRAM signals
+reg  [`ROUND_KEY_BITS-1:0] bram_w_data;
+reg  [`Nb-1:0] bram_w_addr;
+wire bram_w_e;
+
+wire [`ROUND_KEY_BITS-1:0] bram_r_data;
+reg  [`Nb-1:0] bram_r_addr;
+
+always @(*) begin
+	bram_r_addr = key_exp_mode ? round_key_addr    :
+	              cipher_mode ? encrypt_round_no   :
+	              decipher_mode ? decrypt_round_no :
+	              {`Nb{1'b0}};
+	bram_w_addr = bram_r_addr;
+
+	round_key_out = bram_r_data;
+	bram_w_data = round_key_in;
+end
 
 assign rounds_total = aes128_mode ? `Nr_128 : `Nr_256;
-
-assign addr =
-	key_exp_mode ? round_key_addr :
-	cipher_mode ? encrypt_round_no :
-	decipher_mode ? decrypt_round_no : {`Nb{1'b0}};
 
 always @(posedge clk) begin
 	if (reset) begin
@@ -75,16 +85,16 @@ end
 
 block_ram #(
         .ADDR_WIDTH(`Nb),
-        .DATA_WIDTH(`ROUND_KEY_BITS),
-        .DEPTH(`Nr_256 + 1)
-) key_sram(
-        .clk(clk),
+        .DATA_WIDTH(`ROUND_KEY_BITS)
+) key_mem(
+	.clk(clk),
 
-        .addr(addr),
-        .i_data(round_key_in),
-        .w_e(w_e),
+	.r_addr(bram_r_addr),
+	.r_data(bram_r_data),
 
-        .o_data(round_key_out)
+	.w_e(bram_w_e),
+	.w_addr(bram_w_addr),
+	.w_data(bram_w_data)
 );
 
 round_key round_key_gen(
@@ -100,7 +110,7 @@ round_key round_key_gen(
 
         .round_key(round_key_in),
         .round_key_addr(round_key_addr),
-        .w_e(w_e),
+        .w_e(bram_w_e),
 
         .en_o(en_o_round_key)
 );
