@@ -1,24 +1,30 @@
 module block_ram #(
 	parameter integer ADDR_WIDTH = 9,
-	parameter integer DATA_WIDTH = 128,
-	parameter integer DEPTH = 512          // 8192 bytes
+	parameter integer DATA_WIDTH = 128
 )(
 	input                       clk,
 
-	input [DATA_WIDTH-1:0]      i_data,
-	input [ADDR_WIDTH-1:0]      addr,
-	input                       w_e,
+	// Read port
+	input [ADDR_WIDTH-1:0]      r_addr,
+	output reg [DATA_WIDTH-1:0] r_data,
 
-	output reg [DATA_WIDTH-1:0] o_data
+	// Write port
+	input                       w_e,
+	input [ADDR_WIDTH-1:0]      w_addr,
+	input [DATA_WIDTH-1:0]      w_data
 );
 
-reg [DATA_WIDTH-1:0] sram [0:DEPTH-1];
+localparam integer DEPTH = (1'b1 << ADDR_WIDTH);
+
+reg [DATA_WIDTH-1:0] mem[0:DEPTH-1];
 
 always @ (posedge clk) begin
-	o_data <= sram[addr];
+	r_data <= mem[r_addr];
+end
 
+always @(posedge clk) begin
 	if (w_e)
-		sram[addr] <= i_data;
+		mem[w_addr] <= w_data;
 end
 
 `ifdef FORMAL
@@ -32,13 +38,13 @@ end
 integer f_i;
 reg f_past_valid;
 
-initial o_data = {DATA_WIDTH{1'b0}};
+initial r_data = {DATA_WIDTH{1'b0}};
 initial f_past_valid = 1'b0;
 initial f_i = 0;
 
 initial begin
 	for (f_i = 0; f_i < DEPTH; f_i++)
-		sram[f_i] = {DATA_WIDTH{1'b0}};
+		mem[f_i] = {DATA_WIDTH{1'b0}};
 end
 
 always @(posedge clk)
@@ -46,10 +52,10 @@ always @(posedge clk)
 
 always @(posedge clk) begin
 	if (f_past_valid) begin
-		assert(o_data == $past(sram[addr]));
+		assert(r_data == $past(mem[r_addr]));
 
 		if ($past(w_e)) begin
-			assert(sram[$past(addr)] == $past(i_data));
+			assert(mem[$past(w_addr)] == $past(w_data));
 		end
 	end
 end

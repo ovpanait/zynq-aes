@@ -6,9 +6,8 @@ module tb_main();
 `include "test_fc.vh"
 `include "queue_wrapper.vh"
 
-localparam ADDR_WIDTH = 9;
+localparam ADDR_WIDTH = 2;
 localparam DATA_WIDTH = 128;
-localparam DEPTH = 11;
 
 integer errors;
 
@@ -21,8 +20,6 @@ wire fifo_read_tready;
 reg [DATA_WIDTH-1:0] fifo_wdata;
 wire [DATA_WIDTH-1:0] fifo_rdata;
 
-wire fifo_full;
-wire fifo_empty;
 wire fifo_write_tready;
 wire fifo_read_tvalid;
 
@@ -38,8 +35,7 @@ queue_wrapper#(DATA_WIDTH) fifo_data;
 
 fifo #(
 	.ADDR_WIDTH(ADDR_WIDTH),
-	.DATA_WIDTH(DATA_WIDTH),
-	.DEPTH(DEPTH)
+	.DATA_WIDTH(DATA_WIDTH)
 ) DUT (
 	.clk(clk),
 	.reset(reset),
@@ -50,23 +46,22 @@ fifo #(
 
 	.fifo_read_tready(fifo_read_tready),
 	.fifo_read_tvalid(fifo_read_tvalid),
-	.fifo_rdata(fifo_rdata),
-
-	.fifo_full(fifo_full),
-	.fifo_empty(fifo_empty)
+	.fifo_rdata(fifo_rdata)
 );
 
 initial begin
-	fifo_data = new();
+	$dumpfile("fifo.vcd");
+	$dumpvars(1, DUT);
+end
 
-	fifo_write_tvalid = 1'b0;
+initial begin
+	fifo_data = new();
 
 	clk <= 0;
 	forever #(`PERIOD) clk = ~clk;
 end
 
 initial begin
-	reset <= 0;
 	@(posedge clk); //may need several cycles for reset
 	@(negedge clk) reset = 1;
 
@@ -87,14 +82,18 @@ task read_data(input queue_wrapper#(DATA_WIDTH) fifo_data);
 endtask
 
 always @(posedge clk) begin
-	if (!fifo_write_tvalid && words_no) begin
-		fifo_write_tvalid <= 1'b1;
-		write_data(fifo_data);
-	end
-
-	if (fifo_write_tvalid && fifo_write_tready) begin
-		words_remaining <= words_remaining + 1;
+	if (reset) begin
 		fifo_write_tvalid <= 1'b0;
+	end else begin
+		if (!fifo_write_tvalid && words_no) begin
+			fifo_write_tvalid <= 1'b1;
+			write_data(fifo_data);
+		end
+
+		if (fifo_write_tvalid && fifo_write_tready) begin
+			words_remaining <= words_remaining + 1;
+			fifo_write_tvalid <= 1'b0;
+		end
 	end
 end
 
@@ -111,6 +110,7 @@ always @(posedge clk) begin
 	std::randomize(read_allowed);
 
 	if (words_read == words_no) begin
+		$display("PASS!");
 		$finish;
 	end
 end
