@@ -19,7 +19,7 @@
  */
 
 module fifo #(
-	parameter ADDR_WIDTH = 4,
+	parameter ADDR_WIDTH = 2,
 	parameter DATA_WIDTH = 128
 )(
 	input                          clk,
@@ -51,6 +51,9 @@ reg  [ADDR_WIDTH-1:0] bram_r_addr;
 reg  fifo_full;
 reg  fifo_empty;
 
+reg r_wait;
+reg [DATA_WIDTH-1:0] r_skidbuf;
+
 block_ram #(
 	.ADDR_WIDTH(ADDR_WIDTH),
 	.DATA_WIDTH(DATA_WIDTH)
@@ -67,7 +70,9 @@ block_ram #(
 
 initial write_ptr = {ADDR_WIDTH+1{1'b0}};
 initial read_ptr = {ADDR_WIDTH+1{1'b0}};
+initial r_skidbuf = {DATA_WIDTH{1'b0}};
 initial fifo_read_tvalid = 1'b0;
+initial r_wait = 1'b0;
 
 always @(*) begin
 	bram_w_e = fifo_write_transaction;
@@ -81,25 +86,13 @@ assign fifo_write_transaction = fifo_write_tvalid && fifo_write_tready;
 assign fifo_read_transaction = fifo_read_tvalid && fifo_read_tready;
 
 always @(*) begin
-	fifo_rdata = bram_r_data;
-
 	fifo_empty = (read_ptr == write_ptr);
 	fifo_full  = (write_ptr[ADDR_WIDTH] != read_ptr[ADDR_WIDTH]) &&
 		     (write_ptr[ADDR_WIDTH-1:0] == read_ptr[ADDR_WIDTH-1:0]);
 
 	fifo_write_tready = !fifo_full;
-end
 
-always @(posedge clk) begin
-	if (reset) begin
-		fifo_read_tvalid <= 1'b0;
-	end else begin
-		if (!fifo_empty)
-			fifo_read_tvalid <= 1'b1;
-
-		if (fifo_read_transaction)
-			fifo_read_tvalid <= 1'b0;
-	end
+	fifo_rdata = r_wait ? r_skidbuf : bram_r_data;
 end
 
 always @(posedge clk) begin
@@ -112,11 +105,35 @@ always @(posedge clk) begin
 	end
 end
 
+// Read side logic
+always @(posedge clk) begin
+	if (reset) begin
+		r_skidbuf <= {DATA_WIDTH{1'b0}};
+		fifo_read_tvalid <= 1'b0;
+		r_wait <= 1'b0;
+	end else begin
+		if (!fifo_empty) begin
+			fifo_read_tvalid <= 1'b1;
+		end
+
+		if (~r_wait && fifo_read_tvalid && ~fifo_read_tready) begin
+				r_skidbuf <= bram_r_data;
+				r_wait <= 1'b1;
+		end
+
+		if (fifo_read_transaction) begin
+			if (fifo_empty)
+				fifo_read_tvalid <= 1'b0;
+			r_wait <= 1'b0;
+		end
+	end
+end
+
 always @(posedge clk) begin
 	if (reset) begin
 		read_ptr <= {ADDR_WIDTH+1{1'b0}};
 	end else begin
-		if (fifo_read_transaction)
+		if (~fifo_empty && (fifo_read_transaction || ~fifo_read_tvalid))
 			read_ptr <= read_ptr + 1'b1;
 	end
 end
@@ -130,9 +147,7 @@ always @(posedge clk) begin
 	end
 
 	if (fifo_read_transaction) begin
-		$display("Reading %H from address %H",
-				bram.mem[read_ptr[ADDR_WIDTH-1:0]],
-				read_ptr[ADDR_WIDTH-1:0]);
+		$display("Reading %H", fifo_rdata);
 	end
 end
 `endif
@@ -178,16 +193,11 @@ always @(*) begin
 	// Make sure read/write pointers are within range
 	assert(f_fill <= {1'b1, {ADDR_WIDTH{1'b0}}});
 
-	if (fifo_read_transaction)
-		assert(!fifo_empty);
-
 	if (fifo_write_transaction)
 		assert(!fifo_full);
 
-	// read TVALID should not be enabled when the fifo is empty
 	if (fifo_empty) begin
 		assert(!fifo_full);
-		assert(!fifo_read_tvalid);
 		assert(read_ptr == write_ptr);
 		assert(f_fill == 0);
 	end
@@ -209,19 +219,23 @@ always @(posedge clk) begin
 			assert($past(fifo_read_tready || reset));
 		end
 
-		// This block is equivalent to the one below (?)
+		// fifo_rdata must be stable if no transfer occurs
 		if ($past(fifo_read_tvalid && !fifo_read_tready)) begin
 			assert($stable(fifo_rdata));
 		end
-
-		// fifo_rdata must be stable while fifo_read_tvalid is active
-		if (fifo_read_tvalid && $stable(fifo_read_tvalid))
-			assert($stable(fifo_rdata));
 
 		if (fifo_write_transaction) begin
 			assert(bram_w_e);
 			assert(bram_w_data == fifo_wdata);
 			assert(bram_w_addr == write_ptr[ADDR_WIDTH-1:0]);
+		end
+
+		// Internal signals assertions
+		if ($rose(r_wait)) begin
+			assert($stable(fifo_read_tvalid));
+			assert(fifo_read_tvalid);
+
+			assert($stable(fifo_rdata));
 		end
 	end
 end
