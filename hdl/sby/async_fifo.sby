@@ -1,0 +1,31 @@
+[tasks]
+proof
+cover
+
+[options]
+proof: mode prove
+proof: depth 20
+
+cover: mode cover
+cover: depth 66
+
+multiclock on
+
+[engines]
+smtbmc yices
+# smtbmc boolector
+# abc pdr
+# aiger avy
+# aiger suprove
+
+[script]
+read_verilog -formal async_fifo.v
+read_verilog -formal synchronizer.v
+read_verilog -formal block_ram.v
+
+prep -top async_fifo
+
+[files]
+../async_fifo.v
+../synchronizer.v
+../block_ram.v
