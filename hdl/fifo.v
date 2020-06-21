@@ -58,7 +58,8 @@ block_ram #(
 	.ADDR_WIDTH(ADDR_WIDTH),
 	.DATA_WIDTH(DATA_WIDTH)
 ) bram (
-	.clk(clk),
+	.r_clk(clk),
+	.w_clk(clk),
 
 	.r_data(bram_r_data),
 	.r_addr(bram_r_addr),

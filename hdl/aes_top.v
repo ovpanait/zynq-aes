@@ -87,7 +87,8 @@ block_ram #(
         .ADDR_WIDTH(`Nb),
         .DATA_WIDTH(`ROUND_KEY_BITS)
 ) key_mem(
-	.clk(clk),
+	.w_clk(clk),
+	.r_clk(clk),
 
 	.r_addr(bram_r_addr),
 	.r_data(bram_r_data),
