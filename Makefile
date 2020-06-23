@@ -68,6 +68,8 @@ $(SYNTH_DIR): $(IP_REPO_DIR)
 	-nolog -nojour \
 	-tclargs $(BD_DIR) $(IP_REPO_DIR) $(SYNTH_DIR) $(REPORTS_DIR)
 
+ip: $(IP_REPO_DIR)
+
 bitstream: $(SYNTH_DIR)
 
 clean_sim:
