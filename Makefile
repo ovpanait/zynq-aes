@@ -13,7 +13,8 @@ BD_DIR = $(shell readlink -f bd)
 SYNTH_DIR = $(shell readlink -f synthesis)
 REPORTS_DIR = $(SYNTH_DIR)/reports
 
-HDL_SOURCES := $(shell find $(HDL_DIR))   
+BD_SOURCES := $(shell find $(BD_DIR))
+HDL_SOURCES := $(shell find $(HDL_DIR))
 
 IP_NAME = zynq_aes
 IP_VERSION = 1.0
@@ -60,7 +61,7 @@ sim_vip: $(SIM_PROJ)
 
 test: sim_novip
 
-$(SYNTH_DIR): $(IP_REPO_DIR)
+$(SYNTH_DIR): $(IP_REPO_DIR) $(BD_SOURCES)
 	rm -rf $@
 	mkdir -p $@
 	TOOLS_DIR=$(TOOLS_DIR) PART=$(PART) vivado -mode tcl \
