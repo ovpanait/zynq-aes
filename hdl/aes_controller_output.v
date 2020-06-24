@@ -9,8 +9,11 @@ module aes_controller_output #
 	parameter integer FIFO_DATA_WIDTH = 128
 )
 (
-	input                                     clk,
-	input                                     resetn,
+	input wire                                bus_clk,
+	input wire                                bus_reset,
+
+	input wire                                aes_clk,
+	input wire                                aes_reset,
 
 	output                                    fifo_write_tready,
 	input                                     fifo_write_tvalid,
@@ -48,20 +51,25 @@ wire bus_last_word;
 
 // FIFO logic
 
-fifo #(
+async_fifo #(
 	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
 	.DATA_WIDTH(FIFO_DATA_WIDTH)
 ) master_fifo (
-	.clk(clk),
-	.reset(!resetn),
+	// Write side operates in "Controller" clock domain
+	.w_clk(aes_clk),
+	.w_reset(aes_reset),
 
-	.fifo_write_tvalid(fifo_write_tvalid),
-	.fifo_write_tready(fifo_write_tready),
-	.fifo_wdata(fifo_wdata),
+	.write_tvalid(fifo_write_tvalid),
+	.write_tready(fifo_write_tready),
+	.write_data(fifo_wdata),
 
-	.fifo_read_tvalid(fifo_read_tvalid),
-	.fifo_read_tready(fifo_read_tready),
-	.fifo_rdata(fifo_rdata)
+	// Read side operates in "Bus" clock domain
+	.r_clk(bus_clk),
+	.r_reset(bus_reset),
+
+	.read_tvalid(fifo_read_tvalid),
+	.read_tready(fifo_read_tready),
+	.read_data(fifo_rdata)
 );
 
 assign fifo_read_req = fifo_read_tready && fifo_read_tvalid;
@@ -78,8 +86,8 @@ assign bus_tvalid = data_loaded;
 
 assign bus_transaction = bus_tready && bus_tvalid;
 
-always @(posedge clk) begin
-	if(!resetn) begin
+always @(posedge bus_clk) begin
+	if(bus_reset) begin
 		fifo_data <= {BUS_TDATA_WIDTH{1'b0}};
 		fifo_data_last <= 1'b0;
 		data_loaded <= 1'b0;
@@ -98,8 +106,8 @@ always @(posedge clk) begin
 	end
 end
 
-always @(posedge clk) begin
-	if(!resetn) begin
+always @(posedge bus_clk) begin
+	if(bus_reset) begin
 		bus_word_cnt <= 1'b0;
 	end else begin
 		if (bus_transaction) begin
@@ -116,7 +124,7 @@ end
 `ifdef SIMULATION_VERBOSE_EXTREME
 integer s_fifo_blk_cnt = 0;
 
-always @(posedge clk) begin
+always @(posedge bus_clk) begin
 	if (fifo_read_req) begin
 		$display("AES OUTPUT: FIFO blk no: %0d: %H", s_fifo_blk_cnt, fifo_rdata[`BLK_S-1:0]);
 		s_fifo_blk_cnt = s_fifo_blk_cnt + 1;

@@ -16,8 +16,14 @@ module aes_controller #
 	parameter PCBC_SUPPORT =  1
 )
 (
-	input                                clk,
-	input                                reset,
+	input wire                           in_bus_clk,
+	input wire                           in_bus_reset,
+
+	input wire                           out_bus_clk,
+	input wire                           out_bus_reset,
+
+	input wire                           aes_clk,
+	input wire                           aes_reset,
 
 	// input stage
 	input                                in_bus_data_wren,
@@ -207,8 +213,11 @@ aes_controller_input #(
 	.FIFO_ADDR_WIDTH(IN_FIFO_ADDR_WIDTH),
 	.FIFO_DATA_WIDTH(IN_FIFO_DATA_WIDTH)
 ) controller_input_block (
-	.clk(clk),
-	.reset(reset),
+	.bus_clk(in_bus_clk),
+	.bus_reset(in_bus_reset),
+
+	.aes_clk(aes_clk),
+	.aes_reset(aes_reset),
 
 	.bus_data_wren(in_bus_data_wren),
 	.bus_tlast(in_bus_tlast),
@@ -267,8 +276,8 @@ always @(*) begin
 end
 
 ecb ecb_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.encrypt_flag(encrypt_flag),
 	.decrypt_flag(decrypt_flag),
@@ -314,8 +323,8 @@ always @(*) begin
 end
 
 cbc cbc_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.encrypt_flag(encrypt_flag),
 	.decrypt_flag(decrypt_flag),
@@ -361,8 +370,8 @@ always @(*) begin
 end
 
 ctr ctr_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.encrypt_flag(encrypt_flag),
 	.decrypt_flag(decrypt_flag),
@@ -408,8 +417,8 @@ always @(*) begin
 end
 
 cfb cfb_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.encrypt_flag(encrypt_flag),
 	.decrypt_flag(decrypt_flag),
@@ -455,8 +464,8 @@ always @(*) begin
 end
 
 ofb ofb_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.encrypt_flag(encrypt_flag),
 	.decrypt_flag(decrypt_flag),
@@ -502,8 +511,8 @@ always @(*) begin
 end
 
 pcbc pcbc_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.encrypt_flag(encrypt_flag),
 	.decrypt_flag(decrypt_flag),
@@ -569,7 +578,7 @@ always @(*) begin
 
 end
 
-always @(posedge clk) begin
+always @(posedge aes_clk) begin
 /*
   * Registered so that data is retrieved from the FIFO.
   *
@@ -577,7 +586,7 @@ always @(posedge clk) begin
   * For encryption/decryption, the modules implementing the modes of operations
   * decide when they should take place.
  */
-	if (reset) begin
+	if (aes_reset) begin
 		aes_alg_en_key <= 1'b0;
 	end else begin
 		aes_alg_en_key <= key128_start || key256_start;
@@ -586,8 +595,8 @@ end
 
 // AES algorithm
 aes_top aes_mod(
-	.clk(clk),
-	.reset(reset),
+	.clk(aes_clk),
+	.reset(aes_reset),
 
 	.en_cipher(aes_alg_en_cipher),
 	.en_decipher(aes_alg_en_decipher),
@@ -611,8 +620,8 @@ aes_top aes_mod(
 assign out_fifo_write_req = out_fifo_write_tready && out_fifo_write_tvalid;
 assign in_fifo_read_req = in_fifo_read_tready && in_fifo_read_tvalid;
 
-always @(posedge clk) begin
-	if (reset == 1'b1) begin
+always @(posedge aes_clk) begin
+	if (aes_reset == 1'b1) begin
 		aes_key <= {`KEY_S{1'b0}};
 		aes_cmd <= {`CMD_BITS{1'b0}};
 		state <= AES_GET_CMD;
@@ -672,8 +681,8 @@ always @(*) begin
 	key256_start = (aes256_mode && in_fifo_read_req && fsm_key256_state);
 end
 
-always @(posedge clk) begin
-	if (reset) begin
+always @(posedge aes_clk) begin
+	if (aes_reset) begin
 		key_expanded <= 1'b0;
 		key_exp_in_progress <= 1'b0;
 	end else begin
@@ -738,8 +747,8 @@ always @(*) begin
 	                1'b0;
 end
 
-always @(posedge clk) begin
-	if (reset) begin
+always @(posedge aes_clk) begin
+	if (aes_reset) begin
 		out_fifo_write_tvalid <= 1'b0;
 		out_fifo_wdata <= {`BLK_S{1'b0}};
 	end else begin
@@ -762,12 +771,15 @@ aes_controller_output #(
 	.FIFO_ADDR_WIDTH(OUT_FIFO_ADDR_WIDTH),
 	.FIFO_DATA_WIDTH(OUT_FIFO_DATA_WIDTH)
 ) controller_output_block (
-	.clk(clk),
-	.resetn(!reset),
+	.aes_clk(aes_clk),
+	.aes_reset(aes_reset),
 
 	.fifo_write_tready(out_fifo_write_tready),
 	.fifo_write_tvalid(out_fifo_write_tvalid),
 	.fifo_wdata(out_fifo_wdata),
+
+	.bus_clk(out_bus_clk),
+	.bus_reset(out_bus_reset),
 
 	.bus_tvalid(out_bus_tvalid),
 	.bus_tready(out_bus_tready),
@@ -781,7 +793,7 @@ integer s_in_blk_cnt = 0;
 integer s_in_cmd_cnt = 0;
 integer s_out_blk_cnt = 0;
 
-always @(posedge clk) begin
+always @(posedge aes_clk) begin
 	case (state)
 	AES_GET_CMD:
 	begin
@@ -821,7 +833,7 @@ reg  s_process;
 time s_process_start_t;
 integer s_process_in_blks = 0;
 
-always @(posedge clk) begin
+always @(posedge aes_clk) begin
 	if (state == AES_GET_CMD && in_fifo_read_req) begin
 		s_process <= 1'b1;
 		s_process_in_blks <= 1;

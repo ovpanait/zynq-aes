@@ -29,6 +29,9 @@ module zynq_aes_top #
 	parameter OFB_SUPPORT =  1,
 	parameter PCBC_SUPPORT = 1
 )(
+	input wire                                   aes_clk,
+	input wire                                   aes_reset,
+
         /*
         * Master side ports
         */
@@ -93,6 +96,7 @@ axi_stream_slave #(
 ) axis_slave_controller (
 	.clk(s00_axis_aclk),
 	.resetn(s00_axis_aresetn),
+
 	.tready(s00_axis_tready),
 	.tvalid(s00_axis_tvalid),
 	.tlast(s00_axis_tlast),
@@ -123,15 +127,20 @@ aes_controller #(
 	.OFB_SUPPORT(OFB_SUPPORT),
 	.PCBC_SUPPORT(PCBC_SUPPORT)
 ) controller(
-	.clk(s00_axis_aclk),
-	.reset(!s00_axis_aresetn),
+	.aes_clk(aes_clk),
+	.aes_reset(aes_reset),
 
+	// Input bus signals
+	.in_bus_clk(s00_axis_aclk),
+	.in_bus_reset(!s00_axis_aresetn),
 	.in_bus_data_wren(in_bus_data_wren),
 	.in_bus_data(in_bus_data),
 	.in_bus_tlast(in_bus_tlast),
-
 	.controller_in_busy(controller_in_busy),
 
+	// Output bus signals
+	.out_bus_clk(m00_axis_aclk),
+	.out_bus_reset(!m00_axis_aresetn),
 	.out_bus_tvalid(out_bus_tvalid),
 	.out_bus_tready(out_bus_tready),
 	.out_bus_tdata(out_bus_tdata),

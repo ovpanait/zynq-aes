@@ -16,9 +16,11 @@ module aes_controller_input #(
 	parameter integer FIFO_ADDR_WIDTH = 4,
 	parameter integer FIFO_DATA_WIDTH = 128
 )(
-	input                                   clk,
-	input                                   reset,
+	input wire                              aes_clk,
+	input wire                              aes_reset,
 
+	input wire                              bus_clk,
+	input wire                              bus_reset,
 	input                                   bus_data_wren,
 	input                                   bus_tlast,
 	input [BUS_DATA_WIDTH-1:0]              bus_data,
@@ -65,20 +67,25 @@ initial bus_word_cnt = {2{1'b0}};
 initial fsm_state = GET_CMD;
 
 // FIFO logic
-fifo #(
+async_fifo #(
 	.ADDR_WIDTH(FIFO_ADDR_WIDTH),
 	.DATA_WIDTH(FIFO_DATA_WIDTH)
 ) slave_fifo (
-	.clk(clk),
-	.reset(reset),
+	// Write side operates in "Bus" clock domain
+	.w_clk(bus_clk),
+	.w_reset(bus_reset),
 
-	.fifo_write_tvalid(fifo_write_tvalid),
-	.fifo_write_tready(fifo_write_tready),
-	.fifo_wdata(fifo_wdata),
+	.write_tvalid(fifo_write_tvalid),
+	.write_tready(fifo_write_tready),
+	.write_data(fifo_wdata),
 
-	.fifo_read_tready(fifo_read_tready),
-	.fifo_read_tvalid(fifo_read_tvalid),
-	.fifo_rdata(fifo_rdata)
+	// Read side operates in "Controller" clock domain
+	.r_clk(aes_clk),
+	.r_reset(aes_reset),
+
+	.read_tready(fifo_read_tready),
+	.read_tvalid(fifo_read_tvalid),
+	.read_data(fifo_rdata)
 );
 
 assign fifo_write_transaction = fifo_write_tvalid && fifo_write_tready;
@@ -99,8 +106,8 @@ assign aes_blk_shift = (aes_blk >> `WORD_S);
 assign aes_blk_next = {bus_data, aes_blk_shift[`BLK_S-1-`WORD_S:0]};
 assign aes_blk_next_rev = blk_rev8(aes_blk_next);
 
-always @(posedge clk) begin
-	if(reset) begin
+always @(posedge bus_clk) begin
+	if(bus_reset) begin
 		fifo_wdata <= {FIFO_DATA_WIDTH{1'b0}};
 		fsm_state <= GET_CMD;
 		bus_word_cnt <= 2'b0;
@@ -134,8 +141,8 @@ always @(posedge clk) begin
 	end
 end
 
-always @(posedge clk) begin
-	if (reset) begin
+always @(posedge bus_clk) begin
+	if (bus_reset) begin
 		fifo_write_tvalid <= 1'b0;
 	end else begin
 		if (aes_block_available || aes_cmd_available) begin
@@ -152,7 +159,7 @@ end
 integer s_blk_cnt = 0;
 integer s_cmd_cnt = 0;
 
-always @(posedge clk) begin
+always @(posedge bus_clk) begin
 	if (aes_block_available) begin
 		$display("AES INPUT: input block no %0d: %H", s_blk_cnt, {bus_tlast, aes_blk_next_rev});
 		s_blk_cnt = s_blk_cnt + 1;
@@ -177,7 +184,7 @@ reg f_past_valid = 1'b0;
 
 initial f_past_valid = 1'b0;
 
-always @(posedge clk)
+always @(posedge bus_clk)
 	f_past_valid <= 1'b1;
 
 always @(*) begin

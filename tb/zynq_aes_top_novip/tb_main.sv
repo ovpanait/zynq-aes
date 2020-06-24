@@ -21,8 +21,14 @@ localparam CFB_SUPPORT  = 1;
 localparam OFB_SUPPORT  = 1;
 localparam PCBC_SUPPORT = 1;
 
-bit clk;
-bit reset;
+bit maxis_clk;
+bit maxis_reset;
+
+bit saxis_clk;
+bit saxis_reset;
+
+bit aes_clk;
+bit aes_reset;
 
 semaphore bus_sem = new(1);
 
@@ -46,26 +52,47 @@ initial begin
 	$timeformat(-9, 2, " us", 10);
 end
 
-// 125 MHz clk
-always #4 clk <= ~clk;
+
+always #4 maxis_clk <= ~maxis_clk;  // 125 MHz clk
+always #4 saxis_clk <= ~saxis_clk;  // 125 MHz clk
+always #2.5 aes_clk <= ~aes_clk; // 200 MHz clk
 
 initial begin
 	master_packet_end = 1'b0;
 
 	$dumpfile("zynqaes.vcd");
 	$dumpvars(1, DUT);
+end
 
-	reset <= 0;
-	@(posedge clk);
-	@(negedge clk) reset <= 1;
+initial begin
+	fork
+	begin
+		aes_reset <= 1;
+		@(posedge aes_clk);
+		@(negedge aes_clk)
+			aes_reset <= 0;
+	end
+	begin
+		maxis_reset <= 1;
+		@(posedge maxis_clk);
+		@(negedge maxis_clk)
+			maxis_reset <= 0;
+	end
+	begin
+		saxis_reset <= 1;
+		@(posedge saxis_clk);
+		@(negedge saxis_clk)
+			saxis_reset <= 0;
+	end
+	join
 end
 
 axi_stream_master_tb #(
 	.C_M_AXIS_TDATA_WIDTH(C_M_AXIS_TDATA_WIDTH),
 	.FIFO_SIZE(AXI_MASTER_FIFO_SIZE)
 ) axi_master (
-	.m00_axis_aclk(clk),
-	.m00_axis_aresetn(reset),
+	.m00_axis_aclk(maxis_clk),
+	.m00_axis_aresetn(!maxis_reset),
 	.m00_axis_tvalid(m00_axis_tvalid),
 	.m00_axis_tdata(m00_axis_tdata),
 	.m00_axis_tstrb(m00_axis_tstrb),
@@ -85,16 +112,19 @@ zynq_aes_top #(
 	.OFB_SUPPORT(OFB_SUPPORT),
 	.PCBC_SUPPORT(PCBC_SUPPORT)
 ) DUT (
-	.m00_axis_aclk(clk),
-	.m00_axis_aresetn(reset),
+	.aes_clk(aes_clk),
+	.aes_reset(aes_reset),
+
+	.m00_axis_aclk(maxis_clk),
+	.m00_axis_aresetn(!maxis_reset),
 	.m00_axis_tvalid(s00_axis_tvalid),
 	.m00_axis_tdata(s00_axis_tdata),
 	.m00_axis_tstrb(s00_axis_tstrb),
 	.m00_axis_tlast(s00_axis_tlast),
 	.m00_axis_tready(s00_axis_tready),
 
-	.s00_axis_aclk(clk),
-	.s00_axis_aresetn(reset),
+	.s00_axis_aclk(saxis_clk),
+	.s00_axis_aresetn(!saxis_reset),
 	.s00_axis_tready(m00_axis_tready),
 	.s00_axis_tdata(m00_axis_tdata),
 	.s00_axis_tstrb(m00_axis_tstrb),
@@ -106,8 +136,8 @@ axi_stream_slave_tb #(
 	.C_S_AXIS_TDATA_WIDTH(C_S_AXIS_TDATA_WIDTH),
 	.FIFO_SIZE(AXI_SLAVE_FIFO_SIZE)
 ) axi_slave (
-	.s00_axis_aclk(clk),
-	.s00_axis_aresetn(reset),
+	.s00_axis_aclk(saxis_clk),
+	.s00_axis_aresetn(!saxis_reset),
 	.s00_axis_tvalid(s00_axis_tvalid),
 	.s00_axis_tdata(s00_axis_tdata),
 	.s00_axis_tstrb(s00_axis_tstrb),
@@ -200,18 +230,18 @@ endtask
 
 task wait_for_transfer();
 	wait(master_packet_end);
-	@(posedge clk);
-	@(negedge clk);
+	@(posedge maxis_clk);
+	@(negedge maxis_clk);
 endtask
 
 initial begin
 forever begin
-	@(posedge clk);
+	@(posedge maxis_clk);
 	if (m00_axis_tlast && m00_axis_tvalid && m00_axis_tready) begin
 		master_packet_end = 1'b1;
 	end
 
-	@(negedge clk);
+	@(negedge maxis_clk);
 	if (master_packet_end) begin
 		master_packet_end = 1'b0;
 	end
@@ -219,16 +249,16 @@ end
 end
 
 initial begin
-	wait (reset);
+	wait (!maxis_reset);
 
 	fork
 		forever begin
-			@(negedge clk);
+			@(negedge maxis_clk);
 			test_128bit_key();
 		end
 
 		forever begin
-			@(negedge clk);
+			@(negedge maxis_clk);
 			test_256bit_key();
 		end
 	join
