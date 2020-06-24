@@ -152,17 +152,17 @@ always @(posedge clk) begin
 		cipher_round_en <= 1'b0;
 	end else begin
 		cipher_round_en <= round_key_r_e;
-		round_key_r_e <= 1'b0;
 
-		// ?!
-		if (en || (round_key_no && !is_last_key))
+		if (en)
 			round_key_r_e <= 1'b1;
 
 		if (round_key_r_e)
 			round_key_no <= round_key_no + 1'b1;
 
-		if (is_last_key)
+		if (is_last_key) begin
+			round_key_r_e <= 1'b0;
 			round_key_no <= {`Nb{1'b0}};
+		end
 	end
 end
 
