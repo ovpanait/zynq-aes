@@ -31,12 +31,12 @@ type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   
 aes-128-ecb      20565.61k    23967.59k    25016.06k    25291.09k    25331.03k    25340.59k    25329.66k    25285.97k    24958.29k    24226.47k
 
 HW acceleration:
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-128-ecb        212.22k      843.43k     3546.28k    13027.67k    23939.68k    35828.36k    47195.78k    56138.49k    62379.75k    65688.92k
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes  
+aes-128-ecb        230.55k      917.57k     3622.83k    13791.23k    25606.14k    39537.32k    54231.04k    67174.40k    76425.90k    81679.70k
 
 root@arty-zynq7:~# openssl speed -evp aes-256-ecb -elapsed
-type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-256-ecb        234.04k      928.11k     3666.94k    14110.72k    22911.66k    32818.52k    41937.58k    49327.35k    53974.05k    56615.21
+type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes  
+aes-256-ecb        228.53k      913.05k     3604.82k    13665.62k    23773.87k    36563.63k    49206.61k    60129.28k    67130.71k    71477.93k
 ```
 
 #### CTR
@@ -47,9 +47,9 @@ type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   
 aes-256 cbc      16144.04k    16890.18k    17274.45k    17376.94k    17436.67k    17417.56k    17479.00k    17569.11k    17651.03k    17629.18k
 
 HW acceleration:
-root@arty-zynq7:~# openssl speed  -evp aes-256-cbc -elapsed
+root@arty-zynq7:~# openssl speed  -evp aes-256-ctr -elapsed
 type             16 bytes     64 bytes    256 bytes   1024 bytes   2048 bytes   4096 bytes   8192 bytes  16384 bytes  32768 bytes  65536 bytes
-aes-256-ctr        423.87k      893.80k     3534.08k    13635.93k    22278.14k    32269.65k    41446.06k    48873.47k    53630.29k    56527.54k
+aes-256-ctr        387.54k      786.60k     3347.20k    13185.02k    23277.57k    36147.20k    49083.73k    59452.07k    67010.56k    71412.39k
 ```
 
 ## Block design and AXI DMA config
