@@ -24,7 +24,7 @@ reg  decipher_mode;
 reg  key_exp_mode;
 
 wire [`ROUND_KEY_BITS-1:0] round_key_in;
-reg  [`ROUND_KEY_BITS-1:0] round_key_out;
+wire [`ROUND_KEY_BITS-1:0] round_key_out;
 
 wire [`Nb-1:0] round_key_addr;
 wire [`Nb-1:0] encrypt_round_no;
@@ -37,26 +37,22 @@ wire en_o_decipher;
 wire [`BLK_S-1:0] __aes_out_blk_encrypt;
 wire [`BLK_S-1:0] __aes_out_blk_decrypt;
 
+wire key_req;
+wire key_valid;
+wire key_req_cipher;
+wire key_req_decipher;
 wire [`Nb-1:0] rounds_total;
 
-// BRAM signals
-reg  [`ROUND_KEY_BITS-1:0] bram_w_data;
-reg  [`Nb-1:0] bram_w_addr;
+reg  bram_r_data_valid_tmp, bram_r_data_valid;
+reg  [`BLK_S-1:0] bram_r_data_reg;
+
+// Key memory signals
+wire [`ROUND_KEY_BITS-1:0] bram_w_data;
+wire [`Nb-1:0] bram_w_addr;
 wire bram_w_e;
 
 wire [`ROUND_KEY_BITS-1:0] bram_r_data;
-reg  [`Nb-1:0] bram_r_addr;
-
-always @(*) begin
-	bram_r_addr = key_exp_mode ? round_key_addr    :
-	              cipher_mode ? encrypt_round_no   :
-	              decipher_mode ? decrypt_round_no :
-	              {`Nb{1'b0}};
-	bram_w_addr = bram_r_addr;
-
-	round_key_out = bram_r_data;
-	bram_w_data = round_key_in;
-end
+wire [`Nb-1:0] bram_r_addr;
 
 assign rounds_total = aes128_mode ? `Nr_128 : `Nr_256;
 
@@ -83,6 +79,14 @@ always @(posedge clk) begin
 	end
 end
 
+// Key memory logic
+assign bram_r_addr = key_exp_mode ? round_key_addr    :
+	              cipher_mode ? encrypt_round_no   :
+	              decipher_mode ? decrypt_round_no :
+	              {`Nb{1'b0}};
+assign bram_w_addr = bram_r_addr;
+assign bram_w_data = round_key_in;
+
 block_ram #(
         .ADDR_WIDTH(`Nb),
         .DATA_WIDTH(`ROUND_KEY_BITS)
@@ -97,6 +101,30 @@ block_ram #(
 	.w_addr(bram_w_addr),
 	.w_data(bram_w_data)
 );
+
+/*
+  * Block RAM clock to out delay is pretty high, so register it.
+  *
+  * Also, introduce bram_r_data_valid to signal downstream modules when to
+  * sample the round key.
+ */
+always @(posedge clk) begin
+	if (reset) begin
+		bram_r_data_valid <= 1'b0;
+		bram_r_data_valid_tmp <= 1'b0;
+		bram_r_data_reg <= {`BLK_S{1'b0}};
+	end else begin
+		bram_r_data_reg <= bram_r_data;
+
+		bram_r_data_valid_tmp <= key_req;
+		bram_r_data_valid <= bram_r_data_valid_tmp;
+	end
+end
+
+// Key expansion/cipher/decipher logic
+assign round_key_out = bram_r_data_reg;
+assign key_req = key_req_cipher || key_req_decipher;
+assign key_valid = bram_r_data_valid;
 
 round_key round_key_gen(
         .clk(clk),
@@ -121,10 +149,13 @@ cipher encrypt_blk(
 	.reset(reset),
 	.en(en_cipher),
 
-	.rounds_total(rounds_total),
 	.plaintext(aes_in_blk),
-	.key(round_key_out),
+	.rounds_total(rounds_total),
+
 	.round_key_no(encrypt_round_no),
+	.key_req(key_req_cipher),
+	.key(round_key_out),
+	.key_valid(key_valid),
 
 	.ciphertext(__aes_out_blk_encrypt),
 	.en_o(en_o_cipher)
@@ -135,13 +166,16 @@ decipher decrypt_blk(
         .reset(reset),
         .en(en_decipher),
 
-        .rounds_total(rounds_total),
-        .ciphertext(aes_in_blk),
-        .round_key(round_key_out),
-        .round_key_no(decrypt_round_no),
+	.ciphertext(aes_in_blk),
+	.rounds_total(rounds_total),
 
-        .plaintext(__aes_out_blk_decrypt),
-        .en_o(en_o_decipher)
+	.round_key_no(decrypt_round_no),
+	.key_req(key_req_decipher),
+	.key(round_key_out),
+	.key_valid(key_valid),
+
+	.plaintext(__aes_out_blk_decrypt),
+	.en_o(en_o_decipher)
 );
 
 assign aes_out_blk =

@@ -1,16 +1,20 @@
 `include "aes.vh"
 
 module decipher (
-	input                      clk,
-	input                      reset,
-	input                      en,
+	input                       clk,
+	input                       reset,
+	input                       en,
 
-	input [`ROUND_KEY_BITS-1:0] round_key,
 	input [`BLK_S-1:0]          ciphertext,
 	input [`Nb-1:0]             rounds_total,
 
-	output reg [`BLK_S-1:0]     plaintext,
+	input [`ROUND_KEY_BITS-1:0] key,
+	input                       key_valid,
+
+	output reg                  key_req,
 	output reg [`Nb-1:0]        round_key_no,
+
+	output reg [`BLK_S-1:0]     plaintext,
 	output reg                  en_o
 );
 
@@ -174,34 +178,28 @@ wire is_last_key;
 wire decipher_first_round;
 wire decipher_last_round;
 
-reg decipher_round_en;
-
-reg round_key_r_e;
-
 always @(*) begin
           decrypt_inv_shift_rows = inv_shift_rows(plaintext);
           decrypt_inv_sub_bytes = inv_sub_bytes(decrypt_inv_shift_rows);
-          decrypt_add_round_key = decrypt_inv_sub_bytes ^ round_key;
+          decrypt_add_round_key = decrypt_inv_sub_bytes ^ key;
           decrypt_inv_mix_columns = inv_mix_cols(decrypt_add_round_key);
 end
 
 always @(posedge clk) begin
 	if (reset) begin
-		decipher_round_en <= 1'b0;
-		round_key_r_e <= 1'b0;
+		key_req <= 1'b0;
 		round_key_no <= {`Nb{1'b0}};
 	end else begin
-		decipher_round_en <= round_key_r_e;
-		round_key_r_e <= 1'b0;
+		key_req <= 1'b0;
 
 		if (en) begin
-			round_key_r_e <= 1'b1;
+			key_req <= 1'b1;
 			round_key_no <= rounds_total;
 		end
 
 		if (round_key_no) begin
 			round_key_no <= round_key_no - 1'b1;
-			round_key_r_e <= 1'b1;
+			key_req <= 1'b1;
 		end
 	end
 end
@@ -210,9 +208,9 @@ assign decipher_first_round = (round_no == {`Nb{1'b0}});
 assign decipher_last_round = (round_no == rounds_total);
 
 always @(posedge clk) begin
-	if (decipher_round_en) begin
+	if (key_valid) begin
 		if (decipher_first_round)
-			plaintext <= ciphertext ^ round_key;
+			plaintext <= ciphertext ^ key;
 		else if (decipher_last_round)
 			plaintext <= decrypt_add_round_key;
 		else
@@ -227,7 +225,7 @@ always @(posedge clk) begin
 	end else begin
 		en_o <= 1'b0;
 
-		if (decipher_round_en) begin
+		if (key_valid) begin
 			round_no <= round_no + 1'b1;
 
 			if (decipher_last_round) begin

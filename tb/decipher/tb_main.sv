@@ -11,7 +11,12 @@ reg clk;
 reg reset;
 reg en;
 
-reg [`ROUND_KEY_BITS-1:0] round_key;
+reg  [`ROUND_KEY_BITS-1:0] key;
+reg  [`ROUND_KEY_BITS-1:0] key_reg;
+wire key_req;
+reg  key_valid_tmp;
+reg  key_valid;
+
 reg [`BLK_S-1:0]          ciphertext;
 reg [`Nb-1:0]             rounds_total;
 
@@ -24,9 +29,12 @@ decipher DUT (
 	.reset(reset),
 	.en(en),
 
-	.rounds_total(rounds_total),
 	.ciphertext(ciphertext),
-	.round_key(round_key),
+	.rounds_total(rounds_total),
+
+	.key(key_reg),
+	.key_valid(key_valid),
+	.key_req(key_req),
 
 	.plaintext(plaintext),
 	.round_key_no(round_key_no),
@@ -135,9 +143,16 @@ end
 // simulate key sram behavior
 always @(posedge clk) begin
 	if (rounds_total == `Nr_128)
-		round_key <= keys_128[round_key_no];
+		key <= keys_128[round_key_no];
 	else
-		round_key <= keys_256[round_key_no];
+		key <= keys_256[round_key_no];
+end
+// key memory read output is registered because BRAM clock to out delay is high
+always @(posedge clk) begin
+	key_reg <= key;
+
+	key_valid_tmp <= key_req;
+	key_valid <= key_valid_tmp;
 end
 
 endmodule
