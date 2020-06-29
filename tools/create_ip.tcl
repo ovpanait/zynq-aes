@@ -60,6 +60,13 @@ file delete {*}[glob "${ip_hdl_dir}/*.v"]
 file copy {*}[add_files ./hdl] ${ip_hdl_dir}
 set_property top ${ip_name} [current_fileset]
 
+# Add xdc constraints
+set local_xdc_files [glob -nocomplain ./xdc/*.xdc]
+set ip_xdc_dir ${ip_path}/${ip_name}_1.0/xdc
+file mkdir ${ip_xdc_dir}
+file copy ${local_xdc_files} ${ip_xdc_dir}
+read_xdc [glob -nocomplain ${ip_xdc_dir}/*.xdc] -quiet -unmanaged
+
 # Add testbench sources
 # TODO
 

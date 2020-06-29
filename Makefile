@@ -6,6 +6,7 @@ HDL_INCLUDE = $(HDL_DIR)/include
 TB_TOP = $(shell readlink -f tb)
 TB_INCLUDE = $(TB_TOP)/include
 
+XDC_DIR = $(shell readlink -f xdc)
 TOOLS_DIR = $(shell readlink -f tools)
 SIM_DIR = $(shell readlink -f simulation)
 XSIM_DIR = $(SIM_DIR)/export_sim/xsim
@@ -13,6 +14,7 @@ BD_DIR = $(shell readlink -f bd)
 SYNTH_DIR = $(shell readlink -f synthesis)
 REPORTS_DIR = $(SYNTH_DIR)/reports
 
+XDC_FILES := $(shell find $(XDC_DIR))
 BD_SOURCES := $(shell find $(BD_DIR))
 HDL_SOURCES := $(shell find $(HDL_DIR))
 
@@ -61,7 +63,7 @@ sim_vip: $(SIM_PROJ)
 
 test: sim_novip
 
-$(SYNTH_DIR): $(IP_REPO_DIR) $(BD_SOURCES)
+$(SYNTH_DIR): $(IP_REPO_DIR) $(BD_SOURCES) $(XDC_FILES)
 	rm -rf $@
 	mkdir -p $@
 	TOOLS_DIR=$(TOOLS_DIR) PART=$(PART) vivado -mode tcl \
