@@ -1,6 +1,6 @@
 `include "aes.vh"
 `include "controller_fc.vh"
-`include "queue_wrapper.vh"
+`include "queue.vh"
 
 module tb_main();
 
@@ -205,7 +205,7 @@ task aes_send_request(
 	input reg [`WORD_S-1:0]      keylen,
 	input reg [`IV_BITS-1:0]     iv,
 	input bit                    send_iv,
-	input queue_wrapper#(`BLK_S) payload_queue,
+	input queue#(`BLK_S) payload_queue,
 	input integer                blks_no
 );
 	integer i;

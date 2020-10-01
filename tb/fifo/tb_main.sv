@@ -4,7 +4,7 @@
 module tb_main();
 
 `include "test_fc.vh"
-`include "queue_wrapper.vh"
+`include "queue.vh"
 
 localparam ADDR_WIDTH = 2;
 localparam DATA_WIDTH = 128;
@@ -31,7 +31,7 @@ integer words_read = 0;
 bit read_pending;
 bit read_allowed;
 
-queue_wrapper#(DATA_WIDTH) fifo_data;
+queue#(DATA_WIDTH) fifo_data;
 
 fifo #(
 	.ADDR_WIDTH(ADDR_WIDTH),
@@ -69,12 +69,12 @@ initial begin
 	@(negedge clk) reset = 0;
 end
 
-task write_data(input queue_wrapper#(DATA_WIDTH) fifo_data);
+task write_data(input queue#(DATA_WIDTH) fifo_data);
 		std::randomize(fifo_wdata);
 		fifo_data.push_back(fifo_wdata);
 endtask
 
-task read_data(input queue_wrapper#(DATA_WIDTH) fifo_data);
+task read_data(input queue#(DATA_WIDTH) fifo_data);
 	reg [DATA_WIDTH-1:0] data;
 
 	data = fifo_data.pop_front();

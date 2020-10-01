@@ -44,7 +44,7 @@ bit                                     clock;
 // Reset signal
 bit                                     reset;
 
-queue_wrapper #(`WORD_S) results;
+queue #(`WORD_S) results;
 tester #(
 	.WIDTH(`BLK_S),
 	.QUEUE_DATA_WIDTH(`WORD_S)

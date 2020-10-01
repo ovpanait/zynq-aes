@@ -1,7 +1,7 @@
 // AXI master implementation
 
 `include "aes.vh"
-`include "queue_wrapper.vh"
+`include "queue.vh"
 
 module axi_stream_master_tb #
 (

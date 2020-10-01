@@ -31,8 +31,8 @@ task test_256bit_key_cbc_enc();
 	reg [`AES256_KEY_BITS-1:0] key;
 	reg [`IV_BITS-1:0]         iv;
 
-	queue_wrapper#(`BLK_S) plaintext_queue;
-	queue_wrapper#(`BLK_S) ciphertext_queue;
+	queue#(`BLK_S) plaintext_queue;
+	queue#(`BLK_S) ciphertext_queue;
 
 	cmd = {`WORD_S{1'b0}};
 
@@ -86,8 +86,8 @@ task test_256bit_key_cbc_dec();
 	reg [`KEY_S-1:0]   key;
 	reg [`IV_BITS-1:0] iv;
 
-	queue_wrapper#(`BLK_S) plaintext_queue;
-	queue_wrapper#(`BLK_S) ciphertext_queue;
+	queue#(`BLK_S) plaintext_queue;
+	queue#(`BLK_S) ciphertext_queue;
 
 	cmd = {`WORD_S{1'b0}};
 
@@ -140,8 +140,8 @@ task test_256bit_key_ecb_enc();
 	reg [`KEY_S-1:0]   key;
 	reg [`IV_BITS-1:0] iv;
 
-	queue_wrapper#(`BLK_S) plaintext_queue;
-	queue_wrapper#(`BLK_S) ciphertext_queue;
+	queue#(`BLK_S) plaintext_queue;
+	queue#(`BLK_S) ciphertext_queue;
 
 	cmd = {`WORD_S{1'b0}};
 
@@ -193,8 +193,8 @@ task test_256bit_key_ecb_dec();
 	reg [`KEY_S-1:0]   key;
 	reg [`IV_BITS-1:0] iv;
 
-	queue_wrapper#(`BLK_S) plaintext_queue;
-	queue_wrapper#(`BLK_S) ciphertext_queue;
+	queue#(`BLK_S) plaintext_queue;
+	queue#(`BLK_S) ciphertext_queue;
 
 	cmd = {`WORD_S{1'b0}};
 

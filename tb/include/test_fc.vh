@@ -1,7 +1,7 @@
 `ifndef TEST_FC_VH
 `define TEST_FC_VH
 
-`include "queue_wrapper.vh"
+`include "queue.vh"
 
 `define PRINT_DBG(var) $display("DEBUG: var: %H", var)
 `define VERIFY(sim_val, exp_val) \
@@ -40,7 +40,7 @@ class tester #(
 		end
 	endfunction
 
-	task q_push_back32_rev(input [WIDTH-1:0] data, input queue_wrapper#(QUEUE_DATA_WIDTH) queue);
+	task q_push_back32_rev(input [WIDTH-1:0] data, input queue#(QUEUE_DATA_WIDTH) queue);
 		if (QUEUE_DATA_WIDTH != 32) begin
 			$display("ERROR: %s %l: QUEUE_DATA_WIDTH must be 32!", `__FILE__, `__LINE__);
 			$finish;

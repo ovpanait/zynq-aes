@@ -21,7 +21,7 @@ class aes_test #(
 	endtask
 
 	task gen_transaction(
-		input queue_wrapper#(8) data,
+		input queue#(8) data,
 		input last
 	);
 		for (int i = 0; i < data.size(); i = i + 4) begin
@@ -45,9 +45,9 @@ class aes_test #(
 		input reg [`WORD_S-1:0]  cmd,
 		input reg [KEY_SIZE-1:0] key,
 		input reg [`IV_BITS-1:0] iv,
-		input queue_wrapper#(`BLK_S) payload_queue,
+		input queue#(`BLK_S) payload_queue,
 		input integer blks_no,
-		input queue_wrapper#(`WORD_S) req_queue,
+		input queue#(`WORD_S) req_queue,
 		input bit send_iv
 	);
 		integer i;
@@ -77,12 +77,12 @@ class aes_test #(
 		input reg [`WORD_S-1:0]  cmd,
 		input reg [KEY_SIZE-1:0] key,
 		input reg [`IV_BITS-1:0] iv,
-		input queue_wrapper#(`BLK_S) payload_queue,
+		input queue#(`BLK_S) payload_queue,
 		input integer blks_no,
 		input bit send_iv
 	);
-		queue_wrapper#(`WORD_S) req_queue;
-		queue_wrapper#(8) req_queue_8b;
+		queue#(`WORD_S) req_queue;
+		queue#(8) req_queue_8b;
 
 		req_queue = new();
 		req_queue_8b = new();
