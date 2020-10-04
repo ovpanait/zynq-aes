@@ -8,7 +8,7 @@ module tb_main();
 // Include test helpers
 `include "test_fc.vh"
 
-// Module instantiation
+// GCM Module signals
 localparam integer AES_BLK_BITS = 128;
 localparam integer GCM_BLK_BITS = 128;
 localparam integer SUBKEY_H_BITS = 128;
@@ -20,12 +20,9 @@ localparam integer ICB_BITS = 128;
 
 reg clk;
 reg reset;
-reg en;
 
 reg [AES_IV_BITS-1:0] iv;
-reg iv_en;
-
-reg key_expanded;
+reg  gcm_en;
 
 reg  [AES_BLK_BITS-1:0] aes_alg_out_blk;
 wire [AES_BLK_BITS-1:0] aes_alg_in_blk;
@@ -40,21 +37,26 @@ wire [GCM_BLK_BITS-1:0] gcm_out_blk;
 wire                    gcm_out_store_blk;
 wire                    gcm_done;
 
-// Simulation signals
-integer iv_cnt = 0;
-integer aad_cnt = 0;
-integer aes_in_cnt = 0;
-integer aes_out_cnt = 0;
-
-reg  gcm_en;
-reg  iv_send;
-reg  aad_send;
-reg  aes_send;
-
-reg [31:0] aes_wait;
+reg key_expanded;
 
 queue#(GCM_BLK_BITS) gcm_in_q;
 queue#(GCM_BLK_BITS) gcm_out_q;
+
+// AES algorithm signals
+integer aes_out_cnt = 0;
+
+reg [31:0] aes_wait;
+
+reg [AES_BLK_BITS-1:0] aes_out_data_arr[] = {
+	'hfe62256362600ac766636f962bb05f66,
+	'h69488eec2890c5c6bd0781a54b252bdc,
+	'h49b9736f9d82114b06a9ba85b6b5b4e4,
+	'h71aa8c16a26a6a402b6876f24245301c,
+	'hfe62256362600ac766636f962bb05f66,
+	'h69488eec2890c5c6bd0781a54b252bdc,
+	'h49b9736f9d82114b06a9ba85b6b5b4e4,
+	'h71aa8c16a26a6a402b6876f24245301c
+};
 
 gcm DUT (
 	.clk(clk),
@@ -77,16 +79,6 @@ gcm DUT (
 	.gcm_done(gcm_done)
 );
 
-reg [AES_BLK_BITS-1:0] aes_out_data_arr[] = {
-	'hfe62256362600ac766636f962bb05f66,
-	'h69488eec2890c5c6bd0781a54b252bdc,
-	'h49b9736f9d82114b06a9ba85b6b5b4e4,
-	'h71aa8c16a26a6a402b6876f24245301c,
-	'hfe62256362600ac766636f962bb05f66,
-	'h69488eec2890c5c6bd0781a54b252bdc,
-	'h49b9736f9d82114b06a9ba85b6b5b4e4,
-	'h71aa8c16a26a6a402b6876f24245301c
-};
 
 // Simulation sequence
 
