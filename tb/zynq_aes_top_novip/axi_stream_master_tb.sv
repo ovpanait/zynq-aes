@@ -43,12 +43,6 @@ always @(*) begin
 	fifo_read_req = !fifo_empty && !axis_tvalid;
 end
 
-always @(posedge m00_axis_aclk) begin
-	if (m00_axis_tvalid && m00_axis_tready) begin
-		head_ptr++;
-	end
-end
-
 // AXI logic
 
 assign m00_axis_tdata  = fifo_data;
@@ -70,6 +64,7 @@ always @(posedge m00_axis_aclk) begin
 
 		if (axis_transaction) begin
 			axis_tvalid <= 1'b0;
+			head_ptr++;
 		end
 	end
 end
