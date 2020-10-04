@@ -1,6 +1,8 @@
 `timescale 1ns/1ns
 `define PERIOD 5
 
+`include "queue.vh"
+
 module tb_main();
 
 // Include test helpers
@@ -51,6 +53,9 @@ reg  aes_send;
 
 reg [31:0] aes_wait;
 
+queue#(GCM_BLK_BITS) gcm_in_q;
+queue#(GCM_BLK_BITS) gcm_out_q;
+
 gcm DUT (
 	.clk(clk),
 	.reset(reset),
@@ -72,7 +77,6 @@ gcm DUT (
 	.gcm_done(gcm_done)
 );
 
-// Simulation inputs/outputs
 reg [AES_BLK_BITS-1:0] aes_out_data_arr[] = {
 	'hfe62256362600ac766636f962bb05f66,
 	'h69488eec2890c5c6bd0781a54b252bdc,
@@ -82,31 +86,6 @@ reg [AES_BLK_BITS-1:0] aes_out_data_arr[] = {
 	'h69488eec2890c5c6bd0781a54b252bdc,
 	'h49b9736f9d82114b06a9ba85b6b5b4e4,
 	'h71aa8c16a26a6a402b6876f24245301c
-
-};
-
-reg [AES_BLK_BITS-1:0] aes_in_data_arr[] = {
-	'hbb2bac67a4709430c39c2eb9acfabc0d,
-	'h456c80d30aa1734e57997d548a8f0603,
-	'hbb2bac67a4709430c39c2eb9acfabc0d,
-	'h456c80d30aa1734e57997d548a8f0603
-
-};
-
-reg [AAD_BLK_BITS-1:0] aad_arr[] = {
-	'h00000000000001800000000000000100,
-	'h7d924cfd37b3d046a96eb5e132042405,
-	'hc8731e06509787bbeb41f25827574649,
-	'h5e884d69871f77634c584bb007312234,
-	'h00000000000001800000000000000100,
-	'h7d924cfd37b3d046a96eb5e132042405,
-	'hc8731e06509787bbeb41f25827574649,
-	'h5e884d69871f77634c584bb007312234
-};
-
-reg [AES_IV_BITS-1:0] iv_arr[] = {
-	'h3e894ebb16ce82a53c3e05b200000000,
-	'h3e894ebb16ce82a53c3e05b200000000
 };
 
 // Simulation sequence
@@ -128,6 +107,15 @@ initial begin
 end
 
 initial begin
+	gcm_in_q = new();
+	gcm_out_q = new();
+
+	gcm_in_q.fill_from_file("gcm_in.data");
+	gcm_in_q.print_queue();
+
+	gcm_out_q.fill_from_file("gcm_out.data");
+	gcm_out_q.print_queue();
+
 	wait(reset) @(posedge clk);
 	@(negedge clk) reset = 0;
 
@@ -136,101 +124,29 @@ initial begin
 		@(posedge clk);
 	end
 
-	aes_gcm();
-	aes_gcm();
-
-	// finish delay
-	repeat (10) begin
-		@(negedge clk);
-	end
-	$finish;
+	key_expanded <= 1'b1;
 end
 
-task aes_gcm();
-	// Signal key expansion
-	@(negedge clk);
-	key_expanded = 1'b1;
-
-	// Send IV
-	@(negedge clk);
-	key_expanded = 1'b0;
-	iv_send = 1'b1;
-
-	// Wait for IV to be retrieved
-	@(negedge clk);
-	wait (gcm_valid == 1'b0);
-
-	// Send AAD
-	@(negedge clk);
-	iv_send = 1'b0;
-	aad_send = 1'b1;
-
-	// Wait for AAD data to be retrieved
-	@(negedge clk);
-	wait (gcm_valid == 1'b0);
-
-	// Send AES blocks
-	@(negedge clk);
-	aad_send <= 1'b0;
-	aes_send <= 1'b1;
-
-	// Wait for AES blocks to be retrieved
-	@(negedge clk);
-	wait (gcm_valid == 1'b0);
-
-	@(negedge clk);
-	aes_send <= 1'b0;
-
-	// Wait for GCM module to finish
-	@(negedge clk);
-	wait(gcm_done);
-
-	@(negedge clk);
-endtask
-
-always @(posedge clk) begin
-	if (gcm_out_store_blk) begin
-		$display("GCM OUTPUT: %H", gcm_out_blk);
-	end
-end
 
 
 always @(*) begin
 	gcm_en = gcm_ready && gcm_valid;
 end
 
+/*
+   * Feed GCM module with input blocks stored in the input queue (populated
+   * from gcm_in.data file).
+   *
+ */
 always @(posedge clk) begin
-	if (aad_send || aes_send || iv_send)
-		gcm_valid <= 1'b1;
+	if (reset) begin
+		gcm_valid <= 1'b0;
+	end else begin
+		if (gcm_en || !gcm_valid) begin
+			gcm_valid <= gcm_in_q.size() ? 1'b1 : 1'b0;
 
-	if (iv_send) begin
-		gcm_in_blk <= iv_arr[iv_cnt];
-	end else if (aad_send) begin
-		gcm_in_blk <= aad_arr[aad_cnt];
-	end else if (aes_send) begin
-		gcm_in_blk <= aes_in_data_arr[aes_in_cnt];
-	end
-
-	if (gcm_en) begin
-		if (iv_send) begin
-			iv_cnt++;
-			gcm_valid <= 1'b0;
-		end
-
-		if (aad_send) begin
-			if ((aad_cnt + 1) % 4 == 0) begin
-				gcm_valid <= 1'b0;
-			end
-
-			aad_cnt++;
-		end
-
-		if (aes_send) begin
-			if ((aes_in_cnt + 1) % 2 == 0)  begin
-				gcm_valid <= 1'b0;
-			end
-
-			aes_in_cnt++;
+			if (gcm_in_q.size())
+				gcm_in_blk <= gcm_in_q.pop_front();
 		end
 	end
 end
@@ -258,6 +174,16 @@ always @(posedge clk) begin
 
 			aes_out_cnt++;
 		end
+	end
+end
+
+always @(posedge clk) begin
+	if (gcm_out_store_blk)
+		tester #($size(gcm_out_blk))::verify_output(gcm_out_blk, gcm_out_q.pop_front());
+
+	if (gcm_out_q.size == 0) begin
+		$display("PASS!");
+		$finish;
 	end
 end
 
