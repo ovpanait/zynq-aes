@@ -13,6 +13,8 @@ endif
 
 %.o: %.c $(HEADERS)
 
+all: test gcm
+
 test: cipher.o decipher.o key_expansion.o test.o aes_utils.o test_utils.o
 
 gcm: test_utils.o gcm.o cipher.o key_expansion.o aes_utils.o
