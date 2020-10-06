@@ -8,26 +8,25 @@ module tb_main();
 // Include test helpers
 `include "test_fc.vh"
 
+// Top simulation signals
+reg clk;
+reg reset;
+reg init_done;
+
 // GCM Module signals
+localparam integer AES_MAX_KEY_BITS = 256;
 localparam integer AES_BLK_BITS = 128;
+localparam integer AES_IV_BITS = 128;
+
 localparam integer GCM_BLK_BITS = 128;
 localparam integer SUBKEY_H_BITS = 128;
 localparam integer AAD_BLK_BITS = 128;
-localparam integer AES_IV_BITS = 128;
 localparam integer GHASH_BITS = 128;
 localparam integer TAG_BITS = 128;
 localparam integer ICB_BITS = 128;
 
-reg clk;
-reg reset;
-
 reg [AES_IV_BITS-1:0] iv;
 reg  gcm_en;
-
-reg  [AES_BLK_BITS-1:0] aes_alg_out_blk;
-wire [AES_BLK_BITS-1:0] aes_alg_in_blk;
-wire                    aes_alg_start;
-reg                     aes_alg_done;
 
 reg [GCM_BLK_BITS-1:0] gcm_in_blk;
 reg                    gcm_valid;
@@ -41,22 +40,42 @@ reg key_expanded;
 
 queue#(GCM_BLK_BITS) gcm_in_q;
 queue#(GCM_BLK_BITS) gcm_out_q;
+queue#(GCM_BLK_BITS) aes_keys_q;
 
 // AES algorithm signals
-integer aes_out_cnt = 0;
 
-reg [31:0] aes_wait;
+reg aes_alg_en_cipher;
+reg aes_alg_en_decipher;
+reg aes_alg_en_key;
 
-reg [AES_BLK_BITS-1:0] aes_out_data_arr[] = {
-	'hfe62256362600ac766636f962bb05f66,
-	'h69488eec2890c5c6bd0781a54b252bdc,
-	'h49b9736f9d82114b06a9ba85b6b5b4e4,
-	'h71aa8c16a26a6a402b6876f24245301c,
-	'hfe62256362600ac766636f962bb05f66,
-	'h69488eec2890c5c6bd0781a54b252bdc,
-	'h49b9736f9d82114b06a9ba85b6b5b4e4,
-	'h71aa8c16a26a6a402b6876f24245301c
-};
+reg aes128_mode;
+reg aes256_mode;
+
+wire                        aes_op_in_progress;
+wire [AES_BLK_BITS-1:0]     aes_alg_out_blk;
+wire [AES_BLK_BITS-1:0]     aes_alg_in_blk;
+wire                        aes_alg_start;
+wire                        aes_alg_done;
+reg  [AES_MAX_KEY_BITS-1:0] aes_alg_key;
+
+aes_top aes_alg (
+	.clk(clk),
+	.reset(reset),
+
+	.en_cipher(aes_alg_en_cipher),
+	.en_decipher(aes_alg_en_decipher),
+	.en_key(aes_alg_en_key),
+
+	.aes128_mode(aes128_mode),
+	.aes256_mode(aes256_mode),
+
+	.aes_key(aes_alg_key),
+	.aes_in_blk(aes_alg_in_blk),
+
+	.aes_out_blk(aes_alg_out_blk),
+	.aes_op_in_progress(aes_op_in_progress),
+	.en_o(aes_alg_done)
+);
 
 gcm DUT (
 	.clk(clk),
@@ -82,6 +101,36 @@ gcm DUT (
 
 // Simulation sequence
 
+task setup_test_data(input string fn);
+	integer fd;
+	string key;
+	reg [GCM_BLK_BITS-1:0] data;
+
+	// Populate GCM input data queue and AES key queue
+	fd = $fopen(fn, "r");
+	if (!fd) begin
+		$display("ERROR: File %s not found!", fn);
+		$finish;
+	end
+
+	while (!$feof(fd)) begin
+		$fscanf(fd, "%s %h\n", key, data);
+
+		if (key == "K") // AES KEY
+			aes_keys_q.push_back(data);
+		else if (key == "C" || key == "T") // CIPHERTEXT or TAG
+			gcm_out_q.push_back(data);
+		else // Input data (IV, AADLEN, AAD, PLAINTEXT)
+			gcm_in_q.push_back(data);
+	end
+	$fclose(fd);
+
+	// DEBUG
+	aes_keys_q.print_queue();
+	gcm_in_q.print_queue();
+	gcm_out_q.print_queue();
+endtask
+
 initial begin
 	$dumpfile("gcm.vcd");
 	$dumpvars(1, DUT);
@@ -101,12 +150,9 @@ end
 initial begin
 	gcm_in_q = new();
 	gcm_out_q = new();
+	aes_keys_q = new();
 
-	gcm_in_q.fill_from_file("gcm_in.data");
-	gcm_in_q.print_queue();
-
-	gcm_out_q.fill_from_file("gcm_out.data");
-	gcm_out_q.print_queue();
+	setup_test_data("gcm_vectors.data");
 
 	wait(reset) @(posedge clk);
 	@(negedge clk) reset = 0;
@@ -116,9 +162,8 @@ initial begin
 		@(posedge clk);
 	end
 
-	key_expanded <= 1'b1;
+	init_done <= 1'b1;
 end
-
 
 
 always @(*) begin
@@ -128,7 +173,6 @@ end
 /*
    * Feed GCM module with input blocks stored in the input queue (populated
    * from gcm_in.data file).
-   *
  */
 always @(posedge clk) begin
 	if (reset) begin
@@ -144,31 +188,47 @@ always @(posedge clk) begin
 end
 
 /*
-  * Simulate AES encryption behavior.
-  *
+   * AES algorithm control logic.
+   * KEY needs to be expanded before any GCM operation.
  */
+always @(*) begin
+	aes_alg_en_cipher = aes_alg_start; // GCM only performs cipher operations (maybe TODO?)
+	aes_alg_en_decipher = 1'b0;
+end
+
 always @(posedge clk) begin
 	if (reset) begin
-		aes_alg_out_blk <= {AES_BLK_BITS{1'b0}};
-		aes_wait <= {32{1'b0}};
-		aes_alg_done <= 1'b0;
+		key_expanded <= 1'b0;
+		aes_alg_en_key <= 1'b0;
+
+		aes128_mode <= 1'b0;
+		aes256_mode <= 1'b0;
 	end else begin
-		aes_alg_done <= 1'b0;
+		// Only 128-bit keys support for now
+		aes128_mode <= 1'b1;
+		aes256_mode <= 1'b0;
 
-		if (aes_alg_start || aes_wait) begin
-			aes_wait <= aes_wait + 1'b1;
+		aes_alg_en_key <= 1'b0;
+
+		// TODO: simplify this?
+		if (init_done && aes_keys_q.size() && !key_expanded &&
+			!aes_alg_en_key && !aes_op_in_progress) begin
+			// Only 128-bit keys support for now
+			aes_alg_key <= {aes_keys_q.pop_front(), {128{1'b0}}};
+			aes_alg_en_key <= 1'b1;
 		end
 
-		if (aes_wait == 16) begin
-			aes_alg_out_blk <= aes_out_data_arr[aes_out_cnt];
-			aes_alg_done <= 1'b1;
-			aes_wait <= {32{1'b0}};
+		if (!key_expanded && aes_alg_done)
+			key_expanded <= 1'b1;
 
-			aes_out_cnt++;
-		end
+		if (gcm_done)
+			key_expanded <= 1'b0;
 	end
 end
 
+/*
+   * Check results against precomputed values in gcm_out_q queue.
+ */
 always @(posedge clk) begin
 	if (gcm_out_store_blk)
 		tester #($size(gcm_out_blk))::verify_output(gcm_out_blk, gcm_out_q.pop_front());
