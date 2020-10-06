@@ -845,7 +845,7 @@ always @(*) begin
 	 * pass the gctr module results on the output bus.
 	 */
 	gcm_out_blk = gctr_out_blk;
-	gcm_out_store_blk = (state == GCM_CRYPTO) && gctr_done ||
+	gcm_out_store_blk = ((state == GCM_CRYPTO) && gctr_done) ||
 	                    tag_done;
 	gcm_done = tag_done;
 end
@@ -973,7 +973,7 @@ end
    * ---- GCTR control logic ----
  */
 always @(*) begin
-	crypto_ready = !gctr_busy && !crypto_done;
+	crypto_ready = !gctr_busy && !crypto_done && !subkey_busy;
 
 	gctr_icb = (state == GCM_TAG) ? j0 : icb;
 	gctr_in_blk = (state == GCM_TAG) ? ghash_next : gcm_in_blk;
