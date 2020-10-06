@@ -988,14 +988,12 @@ end
    * (i)  by GCTR module for each input data block
    * (ii) for computing the subkey H
  */
-always @(*) begin
-	aes_alg_start = compute_subkey || gctr_aes_alg_start;
-end
-
 always @(posedge clk) begin
+	aes_alg_start <= compute_subkey || gctr_aes_alg_start;
+
 	if (compute_subkey)
 		aes_alg_in_blk <= {`BLK_S{1'b0}};
-	else if (crypto_start)
+	else if (gctr_aes_alg_start)
 		aes_alg_in_blk <= gctr_aes_alg_in_blk;
 
 end
