@@ -781,7 +781,7 @@ always @(*) begin
 	hash_aad_done  = (state == GCM_HASH_AAD)       && (aad_counter == aad_size);
 	crypto_start   = (state == GCM_CRYPTO)         && gcm_en;
 	crypto_done    = (state == GCM_CRYPTO)         && (data_counter == data_size);
-	hash_aad_extra = (state == GCM_AAD_EXTRA)      && !ghash_busy;
+	hash_aad_extra = (state == GCM_AAD_EXTRA)      && !aad_busy;
 	tag_start      = (state == GCM_TAG)            && ghash_done;
 	tag_done       = (state == GCM_TAG)            && gctr_done;
 end
