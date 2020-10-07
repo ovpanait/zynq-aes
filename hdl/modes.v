@@ -831,6 +831,11 @@ always @(posedge clk) begin
 end
 
 always @(*) begin
+	aad_busy = ghash_busy || subkey_busy || hash_aad_done;
+	aad_ready = !aad_busy;
+
+	crypto_ready = !gctr_busy && !crypto_done && !subkey_busy;
+
 	gcm_ready =
 	            (state == GCM_GET_IV)        ?    1'b1      :
 	            (state == GCM_CRYPTO)        ? crypto_ready :
@@ -916,11 +921,6 @@ always @(*) begin
 	                 gctr_out_blk;
 end
 
-always @(*) begin
-	aad_busy = ghash_busy || ((state == GCM_HASH_AAD) && subkey_busy) || hash_aad_done;
-	aad_ready = !aad_busy;
-end
-
 /*
  * The first block before the actual AAD contains information about the AAD and input data lenghts.
  * If this block is available on the input (signaled through "get_aad_size"),
@@ -973,12 +973,9 @@ end
    * ---- GCTR control logic ----
  */
 always @(*) begin
-	crypto_ready = !gctr_busy && !crypto_done && !subkey_busy;
-
 	gctr_icb = (state == GCM_TAG) ? j0 : icb;
 	gctr_in_blk = (state == GCM_TAG) ? ghash_next : gcm_in_blk;
 	gctr_en = crypto_start || tag_start;
-
 end
 
 /*
