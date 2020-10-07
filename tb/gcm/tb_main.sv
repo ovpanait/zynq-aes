@@ -118,9 +118,9 @@ task setup_test_data(input string fn);
 
 		if (key == "K") // AES KEY
 			aes_keys_q.push_back(data);
-		else if (key == "C" || key == "T") // CIPHERTEXT or TAG
+		else if (key == "DOUT" || key == "T") // DATA_OUT or TAG
 			gcm_out_q.push_back(data);
-		else // Input data (IV, AADLEN, AAD, PLAINTEXT)
+		else // Input data (IV, AADLEN, AAD, DATA_IN)
 			gcm_in_q.push_back(data);
 	end
 	$fclose(fd);
