@@ -703,6 +703,8 @@ reg  hash_aad;
 reg  hash_aad_done;
 reg  crypto_start;
 reg  crypto_done;
+reg  hash_crypto_data;
+reg  hash_aad_extra;
 
 reg  [DATA_LEN_BITS-1:0] data_size;
 reg  [DATA_LEN_BITS-1:0] data_counter;
@@ -712,8 +714,6 @@ reg  aad_ready;
 reg  aad_busy;
 
 reg  crypto_ready;
-
-reg  hash_aad_extra;
 
 reg  [TAG_BITS-1:0] tag;
 reg  tag_start;
@@ -774,16 +774,17 @@ gctr gctr_mod(
    *                      the final tag.
  */
 always @(*) begin
-	compute_subkey = (state == GCM_COMPUTE_SUBKEY) && key_expanded;
-	get_iv         = (state == GCM_GET_IV)         && gcm_en;
-	get_aad_size   = (state == GCM_GET_AAD_SIZE)   && gcm_en;
-	hash_aad       = (state == GCM_HASH_AAD)       && gcm_en;
-	hash_aad_done  = (state == GCM_HASH_AAD)       && (aad_counter == aad_size);
-	crypto_start   = (state == GCM_CRYPTO)         && gcm_en;
-	crypto_done    = (state == GCM_CRYPTO)         && (data_counter == data_size);
-	hash_aad_extra = (state == GCM_AAD_EXTRA)      && !aad_busy;
-	tag_start      = (state == GCM_TAG)            && ghash_done;
-	tag_done       = (state == GCM_TAG)            && gctr_done;
+	compute_subkey   = (state == GCM_COMPUTE_SUBKEY) && key_expanded;
+	get_iv           = (state == GCM_GET_IV)         && gcm_en;
+	get_aad_size     = (state == GCM_GET_AAD_SIZE)   && gcm_en;
+	hash_aad         = (state == GCM_HASH_AAD)       && gcm_en;
+	hash_aad_done    = (state == GCM_HASH_AAD)       && (aad_counter >= aad_size);
+	crypto_start     = (state == GCM_CRYPTO)         && gcm_en;
+	crypto_done      = (state == GCM_CRYPTO)         && (data_counter >= data_size);
+	hash_crypto_data = (state == GCM_CRYPTO)         && gctr_done;
+	hash_aad_extra   = (state == GCM_AAD_EXTRA)      && !aad_busy;
+	tag_start        = (state == GCM_TAG)            && ghash_done;
+	tag_done         = (state == GCM_TAG)            && gctr_done;
 end
 
 always @(*) begin
@@ -911,9 +912,9 @@ end
    *
  */
 always @(*) begin
-	ghash_en = (state == GCM_HASH_AAD)  ? hash_aad       :
-	           (state == GCM_AAD_EXTRA) ? hash_aad_extra :
-	           (state == GCM_CRYPTO)    ? gctr_done      :
+	ghash_en = (state == GCM_HASH_AAD)  ? hash_aad         :
+	           (state == GCM_AAD_EXTRA) ? hash_aad_extra   :
+	           (state == GCM_CRYPTO)    ? hash_crypto_data :
 	           1'b0;
 
 	ghash_data_blk = (state == GCM_HASH_AAD) ? gcm_in_blk :
