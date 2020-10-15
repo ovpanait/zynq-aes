@@ -231,7 +231,8 @@ end
  */
 always @(posedge clk) begin
 	if (gcm_out_store_blk)
-		tester #($size(gcm_out_blk))::verify_output(gcm_out_blk, gcm_out_q.pop_front());
+		if (!tester #($size(gcm_out_blk))::verify_output(gcm_out_blk, gcm_out_q.pop_front()))
+			$finish;
 
 	if (gcm_out_q.size == 0) begin
 		$display("PASS!");
