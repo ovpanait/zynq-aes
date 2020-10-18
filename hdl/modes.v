@@ -686,6 +686,9 @@ wire ghash_done;
 reg  ghash_busy;
 reg  ghash_en;
 
+reg  [GCTR_BLK_BITS-1:0] gctr_out_blk_final;
+reg  gctr_out_blk_final_valid;
+
 wire [GCTR_BLK_BITS-1:0] gctr_aes_alg_in_blk;
 wire [GCTR_BLK_BITS-1:0] gctr_out_blk;
 reg  [GCTR_BLK_BITS-1:0] gctr_in_blk;
@@ -703,6 +706,9 @@ reg  hash_aad;
 reg  hash_aad_done;
 reg  crypto_start;
 reg  crypto_done;
+reg  crypto_store;
+reg  crypto_blk_last;
+reg  [DATA_LEN_BITS-1:0] crypto_cnt_next;
 reg  hash_crypto_data;
 reg  hash_aad_extra;
 
@@ -781,10 +787,10 @@ always @(*) begin
 	hash_aad_done    = (state == GCM_HASH_AAD)       && (aad_counter >= aad_size);
 	crypto_start     = (state == GCM_CRYPTO)         && gcm_en;
 	crypto_done      = (state == GCM_CRYPTO)         && (data_counter >= data_size);
-	hash_crypto_data = (state == GCM_CRYPTO)         && gctr_done;
+	hash_crypto_data = (state == GCM_CRYPTO)         && gctr_out_blk_final_valid;
 	hash_aad_extra   = (state == GCM_AAD_EXTRA)      && !aad_busy;
 	tag_start        = (state == GCM_TAG)            && ghash_done;
-	tag_done         = (state == GCM_TAG)            && gctr_done;
+	tag_done         = (state == GCM_TAG)            && gctr_out_blk_final_valid;
 end
 
 always @(*) begin
@@ -835,7 +841,10 @@ always @(*) begin
 	aad_busy = ghash_busy || subkey_busy || hash_aad_done;
 	aad_ready = !aad_busy;
 
-	crypto_ready = !gctr_busy && !crypto_done && !subkey_busy;
+	crypto_cnt_next = data_counter + GCM_BLK_BITS;
+	crypto_blk_last = crypto_cnt_next >= data_size;
+	crypto_ready = !gctr_busy && !crypto_done && ~gctr_out_blk_final_valid && !subkey_busy;
+	crypto_store = (state == GCM_CRYPTO) && gctr_out_blk_final_valid;
 
 	gcm_ready =
 	            (state == GCM_GET_IV)        ?    1'b1      :
@@ -845,14 +854,8 @@ always @(*) begin
 		    1'b0;
 	gcm_en = gcm_ready && gcm_valid;
 
-	/*
-	 * Do not store the GCM output data (tag, ciphertext, etc) to registers
-	 * because we do not have any later use for them. Instead, directly
-	 * pass the gctr module results on the output bus.
-	 */
-	gcm_out_blk = gctr_out_blk;
-	gcm_out_store_blk = ((state == GCM_CRYPTO) && gctr_done) ||
-	                    tag_done;
+	gcm_out_blk = gctr_out_blk_final;
+	gcm_out_store_blk = crypto_store || tag_done;
 	gcm_done = tag_done;
 end
 
@@ -919,7 +922,7 @@ always @(*) begin
 
 	ghash_data_blk = (state == GCM_HASH_AAD) ? gcm_in_blk :
 	                 (state == GCM_AAD_EXTRA) ? {aad_size, data_size} :
-	                 gctr_out_blk;
+	                 gctr_out_blk_final;
 end
 
 /*
@@ -964,9 +967,8 @@ always @(posedge clk) begin
 		if (ghash_done)
 			tag <= ghash_next;
 
-		if ((state == GCM_CRYPTO) && gctr_done) begin
-			data_counter <= data_counter + GCM_BLK_BITS;
-		end
+		if ((state == GCM_CRYPTO) && gctr_out_blk_final_valid)
+			data_counter <= crypto_cnt_next;
 	end
 end
 
@@ -977,6 +979,23 @@ always @(*) begin
 	gctr_icb = (state == GCM_TAG) ? j0 : icb;
 	gctr_in_blk = (state == GCM_TAG) ? ghash_next : gcm_in_blk;
 	gctr_en = crypto_start || tag_start;
+end
+
+// When the GCM input data length (plaintext/ciphertext) is not a multiple of
+// the block size, we need to zero out the extra bits of the last block.
+always @(posedge clk) begin
+	if (reset) begin
+		gctr_out_blk_final <= {GCTR_BLK_BITS{1'b0}};
+		gctr_out_blk_final_valid <= 1'b0;
+	end else begin
+		gctr_out_blk_final_valid <= gctr_done;
+
+		if ((state == GCM_CRYPTO) && gctr_done && crypto_blk_last)
+			gctr_out_blk_final <= gctr_out_blk &
+			                     ({GCTR_BLK_BITS{1'b1}} << (crypto_cnt_next - data_size));
+		else
+			gctr_out_blk_final <= gctr_out_blk;
+	end
 end
 
 /*
