@@ -648,8 +648,9 @@ module gcm #(
 
 	input [`BLK_S-1:0]              aes_alg_out_blk,
 	output reg [`BLK_S-1:0]         aes_alg_in_blk,
+	output reg                      aes_alg_en_cipher,
+	output reg                      aes_alg_en_decipher,
 	input                           aes_alg_done,
-	output reg                      aes_alg_start,
 
 	input [GCM_BLK_BITS-1:0]        gcm_in_blk,
 	input                           gcm_valid,
@@ -1006,7 +1007,8 @@ end
    * (ii) for computing the subkey H
  */
 always @(posedge clk) begin
-	aes_alg_start <= compute_subkey || gctr_aes_alg_start;
+	aes_alg_en_cipher <= compute_subkey || gctr_aes_alg_start;
+	aes_alg_en_decipher <= 1'b0;
 
 	if (compute_subkey)
 		aes_alg_in_blk <= {`BLK_S{1'b0}};

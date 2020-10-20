@@ -54,7 +54,8 @@ reg aes256_mode;
 wire                        aes_op_in_progress;
 wire [AES_BLK_BITS-1:0]     aes_alg_out_blk;
 wire [AES_BLK_BITS-1:0]     aes_alg_in_blk;
-wire                        aes_alg_start;
+wire                        aes_alg_en_cipher;
+wire                        aes_alg_en_decipher;
 wire                        aes_alg_done;
 reg  [AES_MAX_KEY_BITS-1:0] aes_alg_key;
 
@@ -83,10 +84,11 @@ gcm DUT (
 
 	.key_expanded(key_expanded),
 
+	.aes_alg_en_cipher(aes_alg_en_cipher),
+	.aes_alg_en_decipher(aes_alg_en_decipher),
 	.aes_alg_out_blk(aes_alg_out_blk),
 	.aes_alg_in_blk(aes_alg_in_blk),
 	.aes_alg_done(aes_alg_done),
-	.aes_alg_start(aes_alg_start),
 
 	.gcm_in_blk(gcm_in_blk),
 	.gcm_valid(gcm_valid),
@@ -191,11 +193,6 @@ end
    * AES algorithm control logic.
    * KEY needs to be expanded before any GCM operation.
  */
-always @(*) begin
-	aes_alg_en_cipher = aes_alg_start; // GCM only performs cipher operations (maybe TODO?)
-	aes_alg_en_decipher = 1'b0;
-end
-
 always @(posedge clk) begin
 	if (reset) begin
 		key_expanded <= 1'b0;
