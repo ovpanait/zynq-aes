@@ -270,7 +270,7 @@ assign ecb_flag = is_ECB_op(aes_cmd);
 always @(*) begin
 	ecb_in_blk = in_fifo_rdata;
 
-	ecb_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+	ecb_in_tvalid = ecb_flag && fsm_process_state && in_fifo_read_tvalid;
 
 	ecb_aes_alg_done = aes_alg_done && key_expanded;
 end
@@ -317,7 +317,7 @@ assign cbc_flag = is_CBC_op(aes_cmd);
 always @(*) begin
 	cbc_in_blk = in_fifo_rdata;
 
-	cbc_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+	cbc_in_tvalid = cbc_flag && fsm_process_state && in_fifo_read_tvalid;
 
 	cbc_aes_alg_done = aes_alg_done && key_expanded;
 end
@@ -364,7 +364,7 @@ assign ctr_flag = is_CTR_op(aes_cmd);
 always @(*) begin
 	ctr_in_blk = in_fifo_rdata;
 
-	ctr_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+	ctr_in_tvalid = ctr_flag && fsm_process_state && in_fifo_read_tvalid;
 
 	ctr_aes_alg_done = aes_alg_done && key_expanded;
 end
@@ -411,7 +411,7 @@ assign cfb_flag = is_CFB_op(aes_cmd);
 always @(*) begin
 	cfb_in_blk = in_fifo_rdata;
 
-	cfb_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+	cfb_in_tvalid = cfb_flag && fsm_process_state && in_fifo_read_tvalid;
 
 	cfb_aes_alg_done = aes_alg_done && key_expanded;
 end
@@ -458,7 +458,7 @@ assign ofb_flag = is_OFB_op(aes_cmd);
 always @(*) begin
 	ofb_in_blk = in_fifo_rdata;
 
-	ofb_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+	ofb_in_tvalid = ofb_flag && fsm_process_state && in_fifo_read_tvalid;
 
 	ofb_aes_alg_done = aes_alg_done && key_expanded;
 end
@@ -505,7 +505,7 @@ assign pcbc_flag = is_PCBC_op(aes_cmd);
 always @(*) begin
 	pcbc_in_blk = in_fifo_rdata;
 
-	pcbc_in_tvalid = fsm_process_state && in_fifo_read_tvalid;
+	pcbc_in_tvalid = pcbc_flag && fsm_process_state && in_fifo_read_tvalid;
 
 	pcbc_aes_alg_done = aes_alg_done && key_expanded;
 end
