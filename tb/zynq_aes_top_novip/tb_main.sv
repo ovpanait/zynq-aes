@@ -228,6 +228,21 @@ task aes_send_request(
 	end
 endtask
 
+task aes_send_req_q(
+	input reg [`CMD_BITS-1:0] cmd,
+	input queue#(`BLK_S) req_q
+);
+	integer i;
+	reg [`BLK_S-1:0] block;
+
+	axis_send32(cmd);
+
+	for (i=0; i < req_q.size(); i++) begin
+		block = req_q.get(i);
+		axis_send128(block);
+	end
+endtask
+
 task wait_for_transfer();
 	wait(master_packet_end);
 	@(posedge maxis_clk);
