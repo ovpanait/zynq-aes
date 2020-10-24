@@ -44,6 +44,10 @@ function is_PCBC_op(input [`WORD_S-1:0] cmd);
 	is_PCBC_op = cmd[`PCBC_MODE_BIT];
 endfunction
 
+function is_GCM_op(input [`WORD_S-1:0] cmd);
+	is_GCM_op = cmd[`GCM_MODE_BIT];
+endfunction
+
 function [`WORD_S-1:0] set_key_expansion_bit(input [`WORD_S-1:0] cmd);
 	set_key_expansion_bit = cmd | (1 << `KEY_EXPANSION_OP_BIT);
 endfunction
@@ -86,6 +90,10 @@ endfunction
 
 function [`WORD_S-1:0] set_PCBC_mode_bit(input [`WORD_S-1:0] cmd);
 	set_PCBC_mode_bit = cmd | (1 << `PCBC_MODE_BIT);
+endfunction
+
+function [`WORD_S-1:0] set_GCM_mode_bit(input [`WORD_S-1:0] cmd);
+	set_GCM_mode_bit = cmd | (1 << `GCM_MODE_BIT);
 endfunction
 
 /*

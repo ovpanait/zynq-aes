@@ -1,4 +1,5 @@
 task test_128bit_key();
+	test_128bit_key_gcm();
 	test_128bit_key_ofb();
 	test_128bit_key_cfb();
 	test_128bit_key_pcbc();
@@ -35,6 +36,64 @@ endtask
 task test_128bit_key_ofb();
 	test_128bit_key_ofb_enc();
 	test_128bit_key_ofb_dec();
+endtask
+
+task test_128bit_key_gcm();
+	localparam testcase_name = "GCM stress test (128-bit key)";
+	localparam fn = "gcm_vectors128.data";
+
+	integer fd;
+	integer i, j;
+	string key;
+	reg [`BLK_S-1:0] data;
+
+	reg [`CMD_BITS-1:0] cmd;
+	queue#(`BLK_S) gcm_in_q;
+	queue#(`BLK_S) gcm_out_q;
+
+	cmd = {`WORD_S{1'b0}};
+	gcm_in_q = new();
+	gcm_out_q = new();
+
+	// Populate GCM request queue
+	fd = $fopen(fn, "r");
+	if (!fd) begin
+		$display("ERROR: File %s not found!", fn);
+		$finish;
+	end
+
+	cmd = set_encryption_op_bit(cmd) |
+	      set_key_128_bit(cmd) |
+	      set_GCM_mode_bit(cmd);
+
+	while (!$feof(fd)) begin
+		$fscanf(fd, "%s %h\n", key, data);
+
+		if (key == "DOUT" || key == "T") // DATA_OUT or TAG
+			gcm_out_q.push_back(data);
+		else // Input data (KEY, IV, AADLEN, AAD, DATA_IN)
+			gcm_in_q.push_back(data);
+
+		if (key == "T") begin
+			bus_sem.get(1);
+			// DEBUG
+			//gcm_in_q.print_queue();
+			//gcm_out_q.print_queue();
+
+			for (i = 0; i < gcm_out_q.size(); i++)
+				axis_slave_queue_add128(gcm_out_q.get(i), i == gcm_out_q.size() - 1);
+
+			$display("GCM: Sending %0d blocks!", gcm_in_q.size());
+
+			aes_send_req_q(cmd, gcm_in_q);
+			wait_for_transfer();
+			bus_sem.put(1);
+
+			gcm_out_q.clear();
+			gcm_in_q.clear();
+		end
+	end
+	$fclose(fd);
 endtask
 
 // OFB encryption stress test

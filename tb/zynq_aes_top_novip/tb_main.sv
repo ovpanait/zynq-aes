@@ -4,9 +4,8 @@
 
 module tb_main();
 
-localparam TESTCASE_BLOCKS_NO = 2048;
-// Worst case scenario: cmd + 256-bit key + IV + 1 block per transaction
-localparam AXI_MASTER_FIFO_SIZE = TESTCASE_BLOCKS_NO * 5 * 4;
+localparam TESTCASE_BLOCKS_NO = 512;
+localparam AXI_MASTER_FIFO_SIZE = TESTCASE_BLOCKS_NO * 16 * 4;
 localparam AXI_SLAVE_FIFO_SIZE = TESTCASE_BLOCKS_NO * 4;
 
 localparam C_M_AXIS_TDATA_WIDTH = 32;
@@ -20,6 +19,7 @@ localparam CTR_SUPPORT  = 1;
 localparam CFB_SUPPORT  = 1;
 localparam OFB_SUPPORT  = 1;
 localparam PCBC_SUPPORT = 1;
+localparam GCM_SUPPORT = 1;
 
 bit maxis_clk;
 bit maxis_reset;
@@ -110,7 +110,8 @@ zynq_aes_top #(
 	.CTR_SUPPORT(CTR_SUPPORT),
 	.CFB_SUPPORT(CFB_SUPPORT),
 	.OFB_SUPPORT(OFB_SUPPORT),
-	.PCBC_SUPPORT(PCBC_SUPPORT)
+	.PCBC_SUPPORT(PCBC_SUPPORT),
+	.GCM_SUPPORT(GCM_SUPPORT)
 ) DUT (
 	.aes_clk(aes_clk),
 	.aes_reset(aes_reset),

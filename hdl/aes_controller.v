@@ -13,7 +13,8 @@ module aes_controller #
 	parameter CTR_SUPPORT  =  1,
 	parameter CFB_SUPPORT  =  1,
 	parameter OFB_SUPPORT  =  1,
-	parameter PCBC_SUPPORT =  1
+	parameter PCBC_SUPPORT =  1,
+	parameter GCM_SUPPORT  =  1
 )
 (
 	input wire                           in_bus_clk,
@@ -194,6 +195,21 @@ wire pcbc_aes_alg_en_cipher;
 wire pcbc_out_store_blk;
 reg  pcbc_aes_alg_done;
 
+// GCM signals
+wire gcm_flag;
+
+reg  gcm_key_expanded;
+reg  gcm_in_tvalid;
+wire gcm_in_tready;
+wire gcm_done;
+
+wire [`BLK_S:0 ] gcm_out_blk;
+reg  [`BLK_S-1:0 ] gcm_in_blk;
+wire [`BLK_S-1:0 ] gcm_aes_alg_in_blk;
+wire gcm_aes_alg_en_decipher;
+wire gcm_aes_alg_en_cipher;
+wire gcm_out_store_blk;
+reg  gcm_aes_alg_done;
 
 // ============================================================================
 // AES controller output stage signals
@@ -542,6 +558,52 @@ end
 endgenerate
 
 /*
+   * GCM SUPPORT
+ */
+generate
+if (GCM_SUPPORT) begin
+
+assign gcm_flag = is_GCM_op(aes_cmd);
+
+always @(*) begin
+	gcm_in_blk = in_fifo_rdata;
+	gcm_in_tvalid = gcm_flag && fsm_process_state && in_fifo_read_tvalid;
+	gcm_key_expanded = gcm_flag && key_expanded;
+
+	gcm_aes_alg_done = aes_alg_done && key_expanded;
+end
+
+gcm gcm_mod(
+	.clk(aes_clk),
+	.reset(aes_reset),
+
+	.encrypt_flag(encrypt_flag),
+	.decrypt_flag(decrypt_flag),
+
+	.controller_out_ready(out_fifo_write_tready),
+	.key_expanded(gcm_key_expanded),
+
+	.gcm_in_blk(gcm_in_blk),
+	.gcm_valid(gcm_in_tvalid),
+	.gcm_ready(gcm_in_tready),
+
+	.aes_alg_out_blk(aes_out_blk),
+	.aes_alg_in_blk(gcm_aes_alg_in_blk),
+	.aes_alg_en_cipher(gcm_aes_alg_en_cipher),
+	.aes_alg_en_decipher(gcm_aes_alg_en_decipher),
+	.aes_alg_done(gcm_aes_alg_done),
+
+	.gcm_out_blk(gcm_out_blk),
+	.gcm_out_store_blk(gcm_out_store_blk),
+
+	.gcm_done(gcm_done)
+);
+end else begin
+	assign gcm_flag = 1'b0;
+end
+endgenerate
+
+/*
    * AES algorithm control blocks.
  */
 always @(*) begin
@@ -553,6 +615,7 @@ always @(*) begin
 	                 cfb_flag  ? cfb_aes_alg_in_blk  :
 	                 ofb_flag  ? ofb_aes_alg_in_blk  :
 	                 pcbc_flag ? pcbc_aes_alg_in_blk :
+	                 gcm_flag  ? gcm_aes_alg_in_blk  :
 	                 {`BLK_S{1'b0}};
 	aes_alg_key = aes_key;
 
@@ -563,6 +626,7 @@ always @(*) begin
 	                     cfb_flag  ? cfb_aes_alg_en_cipher  :
 	                     ofb_flag  ? ofb_aes_alg_en_cipher  :
 	                     pcbc_flag ? pcbc_aes_alg_en_cipher :
+	                     gcm_flag  ? gcm_aes_alg_en_cipher  :
 	                      1'b0)
 	                    : 1'b0;
 
@@ -573,6 +637,7 @@ always @(*) begin
 	                      cfb_flag  ? cfb_aes_alg_en_decipher  :
 	                      ofb_flag  ? ofb_aes_alg_en_decipher  :
 	                      pcbc_flag ? pcbc_aes_alg_en_decipher :
+	                      gcm_flag  ? gcm_aes_alg_en_decipher  :
 	                      1'b0)
 	                    : 1'b0;
 
@@ -711,6 +776,7 @@ assign in_fifo_read_tready =
 	                      cfb_flag  ? cfb_in_tready  :
 	                      ofb_flag  ? ofb_in_tready  :
 	                      pcbc_flag ? pcbc_in_tready :
+	                      gcm_flag  ? gcm_in_tready  :
 			      1'b0));
 
 always @(*) begin
@@ -721,6 +787,7 @@ always @(*) begin
 	             cfb_flag  ? cfb_done  :
 	             ofb_flag  ? ofb_done  :
 	             pcbc_flag ? pcbc_done :
+	             gcm_flag  ? gcm_done  :
 	             1'b0;
 end
 
@@ -735,6 +802,7 @@ always @(*) begin
 	                cfb_flag  ? cfb_out_blk  :
 	                ofb_flag  ? ofb_out_blk  :
 	                pcbc_flag ? pcbc_out_blk :
+	                gcm_flag  ? gcm_out_blk  :
 	                {`BLK_S+1{1'b0}};
 
 	store_out_blk =
@@ -744,6 +812,7 @@ always @(*) begin
 	                cfb_flag  ? cfb_out_store_blk  :
 	                ofb_flag  ? ofb_out_store_blk  :
 	                pcbc_flag ? pcbc_out_store_blk :
+	                gcm_flag  ? gcm_out_store_blk  :
 	                1'b0;
 end
 
