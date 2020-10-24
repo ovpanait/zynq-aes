@@ -646,6 +646,8 @@ module gcm #(
 	input                           encrypt_flag,
 	input                           decrypt_flag,
 
+	input                           controller_out_ready,
+
 	input [`BLK_S-1:0]              aes_alg_out_blk,
 	output reg [`BLK_S-1:0]         aes_alg_in_blk,
 	output reg                      aes_alg_en_cipher,
@@ -656,7 +658,7 @@ module gcm #(
 	input                           gcm_valid,
 	output reg                      gcm_ready,
 
-	output reg [GCM_BLK_BITS-1:0]   gcm_out_blk,
+	output reg [GCM_BLK_BITS:0]     gcm_out_blk,
 	output reg                      gcm_out_store_blk,
 
 	output reg                      gcm_done
@@ -789,7 +791,7 @@ always @(*) begin
 	crypto_start     = (state == GCM_CRYPTO)         && gcm_en;
 	crypto_done      = (state == GCM_CRYPTO)         && (data_counter >= data_size);
 	hash_crypto_data = (state == GCM_CRYPTO)         && gctr_out_blk_final_valid;
-	hash_aad_extra   = (state == GCM_AAD_EXTRA)      && !aad_busy;
+	hash_aad_extra   = (state == GCM_AAD_EXTRA)      && !aad_busy && controller_out_ready;
 	tag_start        = (state == GCM_TAG)            && ghash_done;
 	tag_done         = (state == GCM_TAG)            && gctr_out_blk_final_valid;
 end
@@ -844,7 +846,8 @@ always @(*) begin
 
 	crypto_cnt_next = data_counter + GCM_BLK_BITS;
 	crypto_blk_last = crypto_cnt_next >= data_size;
-	crypto_ready = !gctr_busy && !crypto_done && ~gctr_out_blk_final_valid && !subkey_busy;
+	crypto_ready = !gctr_busy && !crypto_done && ~gctr_out_blk_final_valid
+	               && !subkey_busy && controller_out_ready;
 	crypto_store = (state == GCM_CRYPTO) && gctr_out_blk_final_valid;
 
 	gcm_ready =
@@ -855,7 +858,7 @@ always @(*) begin
 		    1'b0;
 	gcm_en = gcm_ready && gcm_valid;
 
-	gcm_out_blk = gctr_out_blk_final;
+	gcm_out_blk = {tag_done, gctr_out_blk_final};
 	gcm_out_store_blk = crypto_store || tag_done;
 	gcm_done = tag_done;
 end
@@ -1062,8 +1065,12 @@ always @(posedge clk) begin
 	end
 
 	if (tag_done) begin
-		$display("GCM: Tag: %H", gctr_out_blk);
+		$display("GCM: Tag: %H", gctr_out_blk_final);
 		$display("GCM State change: GCM_TAG -> GCM_COMPUTE_SUBKEY");
+	end
+
+	if (gcm_out_store_blk) begin
+		$display("GCM: OUT BLK: %H", gcm_out_blk);
 	end
 end
 `endif
