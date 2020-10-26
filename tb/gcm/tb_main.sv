@@ -36,6 +36,7 @@ wire [GCM_BLK_BITS-1:0] gcm_out_blk;
 wire                    gcm_out_store_blk;
 wire                    gcm_done;
 
+reg controller_out_ready;
 reg key_expanded;
 
 queue#(GCM_BLK_BITS) gcm_in_q;
@@ -82,6 +83,7 @@ gcm DUT (
 	.clk(clk),
 	.reset(reset),
 
+	.controller_out_ready(controller_out_ready),
 	.key_expanded(key_expanded),
 
 	.aes_alg_en_cipher(aes_alg_en_cipher),
@@ -195,12 +197,15 @@ end
  */
 always @(posedge clk) begin
 	if (reset) begin
+		controller_out_ready <= 1'b0;
 		key_expanded <= 1'b0;
 		aes_alg_en_key <= 1'b0;
 
 		aes128_mode <= 1'b0;
 		aes256_mode <= 1'b0;
 	end else begin
+		controller_out_ready <= 1'b1;
+
 		// Only 128-bit keys support for now
 		aes128_mode <= 1'b1;
 		aes256_mode <= 1'b0;
