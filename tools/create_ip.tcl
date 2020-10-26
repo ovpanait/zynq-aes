@@ -65,7 +65,7 @@ set local_xdc_files [glob -nocomplain ./xdc/*.xdc]
 set ip_xdc_dir ${ip_path}/${ip_name}_1.0/xdc
 file mkdir ${ip_xdc_dir}
 file copy ${local_xdc_files} ${ip_xdc_dir}
-read_xdc [glob -nocomplain ${ip_xdc_dir}/*.xdc] -quiet -unmanaged
+read_xdc [glob -nocomplain ${ip_xdc_dir}/*.xdc] -quiet
 
 # Add testbench sources
 # TODO
