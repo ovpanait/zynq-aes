@@ -190,22 +190,19 @@ module gctr(
 );
 
 reg [`BLK_S-1:0] data_blk_reg;
-reg [`BLK_S-1:0] icb_reg;
-
-always @(*) begin
-	aes_alg_start = en;
-	aes_alg_in_blk = icb;
-
-	gctr_out_blk = data_blk_reg ^ aes_alg_out_blk;
-	gctr_icb_next = icb_reg + 1'b1;
-	gctr_done = aes_alg_done && gctr_busy;
-end
 
 always @(posedge clk) begin
 	if (en) begin
-		icb_reg <= icb;
+		aes_alg_in_blk <= icb;
 		data_blk_reg <= data_blk;
+
+		gctr_icb_next <= icb + 1'b1;
 	end
+
+	aes_alg_start <= en;
+
+	gctr_out_blk <= data_blk_reg ^ aes_alg_out_blk;
+	gctr_done <= aes_alg_done && gctr_busy;
 end
 
 always @(posedge clk) begin
@@ -215,7 +212,7 @@ always @(posedge clk) begin
 		if (en)
 			gctr_busy <= 1'b1;
 
-		if (aes_alg_done && gctr_busy) begin
+		if (gctr_done) begin
 			gctr_busy <= 1'b0;
 		end
 	end
