@@ -715,10 +715,10 @@ reg  [DATA_LEN_BITS-1:0] crypto_cnt_next;
 reg  hash_crypto_data;
 reg  hash_aad_extra;
 
+reg  [DATA_LEN_BITS-1:0] data_size_bkp;
 reg  [DATA_LEN_BITS-1:0] data_size;
-reg  [DATA_LEN_BITS-1:0] data_counter;
 reg  [AAD_LEN_BITS-1:0] aad_size;
-reg  [AAD_LEN_BITS:0] aad_counter;
+reg  [AAD_LEN_BITS-1:0] aad_size_bkp;
 reg  aad_ready;
 reg  aad_busy;
 
@@ -787,9 +787,9 @@ always @(*) begin
 	get_iv           = (state == GCM_GET_IV)         && gcm_en;
 	get_aad_size     = (state == GCM_GET_AAD_SIZE)   && gcm_en;
 	hash_aad         = (state == GCM_HASH_AAD)       && gcm_en;
-	hash_aad_done    = (state == GCM_HASH_AAD)       && (aad_counter >= aad_size);
+	hash_aad_done    = (state == GCM_HASH_AAD)       && (aad_size == 0);
 	crypto_start     = (state == GCM_CRYPTO)         && gcm_en;
-	crypto_done      = (state == GCM_CRYPTO)         && (data_counter >= data_size);
+	crypto_done      = (state == GCM_CRYPTO)         && (data_size == 0);
 	hash_crypto_data = (state == GCM_CRYPTO)         && gctr_out_blk_final_valid;
 	hash_aad_extra   = (state == GCM_AAD_EXTRA)      && !aad_busy && controller_out_ready;
 	tag_start        = (state == GCM_TAG)            && ghash_done;
@@ -844,8 +844,7 @@ always @(*) begin
 	aad_busy = ghash_busy || subkey_busy || hash_aad_done;
 	aad_ready = !aad_busy;
 
-	crypto_cnt_next = data_counter + GCM_BLK_BITS;
-	crypto_blk_last = crypto_cnt_next >= data_size;
+	crypto_blk_last = data_size < GCM_BLK_BITS;
 	crypto_ready = !gctr_busy && !crypto_done && ~gctr_out_blk_final_valid
 	               && !subkey_busy && controller_out_ready;
 	crypto_store = (state == GCM_CRYPTO) && gctr_out_blk_final_valid;
@@ -925,7 +924,7 @@ always @(*) begin
 	           1'b0;
 
 	ghash_data_blk = (state == GCM_HASH_AAD) ? gcm_in_blk :
-	                 (state == GCM_AAD_EXTRA) ? {aad_size, data_size} :
+	                 (state == GCM_AAD_EXTRA) ? {aad_size_bkp, data_size_bkp} :
 	                 gctr_out_blk_final;
 end
 
@@ -935,26 +934,29 @@ end
  * fill "aad_size" and "data_size" with this info and reset everything, as we
  * are about to start the whole GCM process.
  *
- * Use "ghash_busy" to track when a GHASH operation is in progress. Also, keep
- * track of how many blocks we GHASHed using the aad_counter and data_counter.
+ * Use "ghash_busy" to track when a GHASH operation is in progress.
  */
 always @(posedge clk) begin
 	if (reset) begin
-		data_counter <= {DATA_LEN_BITS{1'b0}};
-		aad_counter <= {DATA_LEN_BITS{1'b0}};
-		data_size <= {AAD_LEN_BITS{1'b0}};
+		data_size_bkp <= {DATA_LEN_BITS{1'b0}};
+		data_size <= {DATA_LEN_BITS{1'b0}};
+
+		aad_size_bkp <= {AAD_LEN_BITS{1'b0}};
 		aad_size <= {AAD_LEN_BITS{1'b0}};
+
 		ghash_busy <= 1'b0;
 
 		tag <= {TAG_BITS{1'b0}};
 	end else begin
 		if (get_aad_size) begin
-			data_counter <= {DATA_LEN_BITS{1'b0}};
-			aad_counter <= {AAD_LEN_BITS{1'b0}};
 			tag <= {TAG_BITS{1'b0}};
 
 			aad_size <= gcm_in_blk[GCM_BLK_BITS-1:64];
 			data_size <= gcm_in_blk[DATA_LEN_BITS:0];
+
+			aad_size_bkp <= gcm_in_blk[GCM_BLK_BITS-1:64];
+			data_size_bkp <= gcm_in_blk[DATA_LEN_BITS:0];
+
 		end
 
 		if (ghash_en) begin
@@ -965,14 +967,18 @@ always @(posedge clk) begin
 			ghash_busy <= 1'b0;
 
 			if (state == GCM_HASH_AAD)
-				aad_counter <= aad_counter + AAD_BLK_BITS;
+				aad_size <= (aad_size >= GCM_BLK_BITS) ?
+				            (aad_size - GCM_BLK_BITS) :
+				            {AAD_LEN_BITS{1'b0}};
 		end
 
 		if (ghash_done)
 			tag <= ghash_next;
 
 		if ((state == GCM_CRYPTO) && gctr_out_blk_final_valid)
-			data_counter <= crypto_cnt_next;
+			data_size <= (data_size >= GCM_BLK_BITS) ?
+			             (data_size - GCM_BLK_BITS) :
+			             {DATA_LEN_BITS{1'b0}};
 	end
 end
 
@@ -996,7 +1002,7 @@ always @(posedge clk) begin
 
 		if ((state == GCM_CRYPTO) && gctr_done && crypto_blk_last)
 			gctr_out_blk_final <= gctr_out_blk &
-			                     ({GCTR_BLK_BITS{1'b1}} << (crypto_cnt_next - data_size));
+			                     ({GCTR_BLK_BITS{1'b1}} << (GCTR_BLK_BITS - data_size));
 		else
 			gctr_out_blk_final <= gctr_out_blk;
 	end
