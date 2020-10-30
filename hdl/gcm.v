@@ -126,12 +126,22 @@ localparam integer GFM_BITS = 128;
 localparam reg [GFM_BITS-1:0] POLYNOMIAL = 'he1000000000000000000000000000000;
 
 wire [GFM_BITS-1:0] gfm_result;
-wire [GFM_BITS-1:0] g_i;
+reg  [GFM_BITS-1:0] g_i;
+reg  [GFM_BITS-1:0] subkey_H_reg;
 wire gfm_done;
+reg  gfm_en;
 
-assign g_i = g_prev ^ data_block;
 assign ghash = gfm_result;
 assign done = gfm_done;
+
+always @(posedge clk) begin
+	gfm_en <= en;
+
+	if (en) begin
+		g_i <= g_prev ^ data_block;
+		subkey_H_reg <= subkey_H;
+	end
+end
 
 gfm #(
 	.GFM_BITS(GFM_BITS),
@@ -140,10 +150,10 @@ gfm #(
 ) DUT (
 	.clk(clk),
 	.reset(reset),
-	.en(en),
+	.en(gfm_en),
 
 	.a(g_i),
-	.b(subkey_H),
+	.b(subkey_H_reg),
 
 	.result(gfm_result),
 	.done(gfm_done)
