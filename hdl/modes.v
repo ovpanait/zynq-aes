@@ -695,6 +695,7 @@ reg  gctr_out_blk_final_valid;
 wire [GCTR_BLK_BITS-1:0] gctr_aes_alg_in_blk;
 wire [GCTR_BLK_BITS-1:0] gctr_out_blk;
 reg  [GCTR_BLK_BITS-1:0] gctr_in_blk;
+wire [GCTR_BLK_BITS-1:0] gctr_mask;
 reg  [GCTR_BLK_BITS-1:0] gctr_icb;
 wire [`IV_BITS-1:0] gctr_icb_next;
 wire gctr_aes_alg_start;
@@ -758,6 +759,16 @@ gctr gctr_mod(
 	.gctr_icb_next(gctr_icb_next),
 	.gctr_busy(gctr_busy),
 	.gctr_done(gctr_done)
+);
+
+gcm_mask #(
+	.WIDTH(GCM_BLK_BITS),
+	.SEL_WIDTH(7)
+) mask_gen (
+	.clk(clk),
+	.sel(data_size[6:0]),
+
+	.mask(gctr_mask)
 );
 
 /*
@@ -1001,8 +1012,7 @@ always @(posedge clk) begin
 		gctr_out_blk_final_valid <= gctr_done;
 
 		if ((state == GCM_CRYPTO) && gctr_done && crypto_blk_last)
-			gctr_out_blk_final <= gctr_out_blk &
-			                     ({GCTR_BLK_BITS{1'b1}} << (GCTR_BLK_BITS - data_size));
+			gctr_out_blk_final <= gctr_out_blk & gctr_mask;
 		else
 			gctr_out_blk_final <= gctr_out_blk;
 	end

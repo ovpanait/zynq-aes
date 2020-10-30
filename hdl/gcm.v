@@ -243,6 +243,29 @@ always @(posedge clk) begin
 	end
 end
 `endif
+endmodule
+
+module gcm_mask #(
+	parameter integer WIDTH = 128,
+	parameter integer SEL_WIDTH = 7
+)(
+	input clk,
+	input [SEL_WIDTH-1:0] sel,
+
+	output reg [WIDTH-1:0] mask
+);
+
+integer i;
+reg [WIDTH-1:0] mask_reversed;
+
+always @(posedge clk) begin
+	mask_reversed <= (1 << sel) - 1'b1;
+end
+
+always @(*) begin
+	for (i = 0; i < WIDTH; i=i+1)
+		mask[i] = mask_reversed[WIDTH - 1 - i];
+end
 
 endmodule
 
