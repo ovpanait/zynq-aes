@@ -83,8 +83,6 @@ struct zynqaes_ctx {
 };
 
 struct zynqaes_dma_ctx {
-	struct work_struct work;
-
 	struct scatterlist tx_sg[4];
 	struct scatterlist *rx_sg;
 
