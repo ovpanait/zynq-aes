@@ -7,6 +7,7 @@
 #include <crypto/engine.h>
 #include <asm/io.h>
 #include <linux/of_platform.h>
+#include <crypto/internal/skcipher.h>
 
 #include <linux/dmaengine.h>
 #include <linux/version.h>
@@ -70,7 +71,7 @@ struct zynqaes_reqctx {
 	u8 iv[ZYNQAES_IVSIZE_MAX];
 	unsigned int ivsize;
 
-	struct ablkcipher_request *areq;
+	struct skcipher_request *areq;
 	unsigned int nbytes;
 
 	struct zynqaes_ctx *ctx;
@@ -140,7 +141,7 @@ static void zynqaes_dma_callback(void *data)
 	dma_unmap_sg(dd->dev, dma_ctx->tx_sg, dma_ctx->tx_nents, DMA_TO_DEVICE);
 	dma_unmap_sg(dd->dev, dma_ctx->rx_sg, dma_ctx->rx_nents, DMA_FROM_DEVICE);
 
-	crypto_finalize_ablkcipher_request(dd->engine, rctx->areq, 0);
+	crypto_finalize_skcipher_request(dd->engine, rctx->areq, 0);
 
 	kfree(dma_ctx);
 }
@@ -218,7 +219,7 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 {
 	struct zynqaes_ctx *ctx;
 	struct zynqaes_dma_ctx *dma_ctx;
-	struct ablkcipher_request *areq;
+	struct skcipher_request *areq;
 	int ret;
 	unsigned int nsg;
 
@@ -284,18 +285,18 @@ out_err:
 static int zynqaes_crypt_req(struct crypto_engine *engine,
 			     void *req)
 {
-	struct ablkcipher_request *areq = container_of(req, struct ablkcipher_request, base);
-	struct crypto_ablkcipher *cipher = crypto_ablkcipher_reqtfm(areq);
-	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
+	struct skcipher_request *areq = container_of(req, struct skcipher_request, base);
+	struct crypto_skcipher *cipher = crypto_skcipher_reqtfm(areq);
+	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
-	struct zynqaes_reqctx *rctx = ablkcipher_request_ctx(areq);
+	struct zynqaes_reqctx *rctx = skcipher_request_ctx(areq);
 
 	int ret;
 
 	rctx->ctx = ctx;
 	rctx->areq = areq;
-	rctx->nbytes = areq->nbytes;
-	rctx->ivsize = crypto_ablkcipher_ivsize(cipher);
+	rctx->nbytes = areq->cryptlen;
+	rctx->ivsize = crypto_skcipher_ivsize(cipher);
 
 	zynqaes_set_key_bit(ctx->key_len, rctx);
 
@@ -303,7 +304,7 @@ static int zynqaes_crypt_req(struct crypto_engine *engine,
 	dev_dbg(dd->dev, "[%s:%d] rctx->cmd: %x\n", __func__, __LINE__, rctx->cmd);
 
 	if (rctx->ivsize) {
-		memcpy(rctx->iv, areq->info, rctx->ivsize);
+		memcpy(rctx->iv, areq->iv, rctx->ivsize);
 	}
 
 	ret = zynqaes_enqueue_next_dma_op(rctx);
@@ -318,21 +319,21 @@ out:
 	return ret;
 }
 
-static int zynqaes_crypt(struct ablkcipher_request *areq, const u32 cmd)
+static int zynqaes_crypt(struct skcipher_request *areq, const u32 cmd)
 {
-	struct zynqaes_reqctx *rctx = ablkcipher_request_ctx(areq);
+	struct zynqaes_reqctx *rctx = skcipher_request_ctx(areq);
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
 	rctx->cmd = cmd;
 
-	return crypto_transfer_ablkcipher_request_to_engine(dd->engine, areq);
+	return crypto_transfer_skcipher_request_to_engine(dd->engine, areq);
 }
 
-static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
+static int zynqaes_setkey(struct crypto_skcipher *cipher, const u8 *key,
 			    unsigned int len)
 {
-	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
+	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
 	int ret = 0;
 
@@ -350,7 +351,7 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 		ret = -ENOTSUPP;
 		break;
 	default:
-		crypto_ablkcipher_set_flags(cipher, CRYPTO_TFM_RES_BAD_KEY_LEN);
+		crypto_skcipher_set_flags(cipher, CRYPTO_TFM_RES_BAD_KEY_LEN);
 		dev_err(dd->dev, "[%s:%d] Invalid key size! (must be 128/192/256 bits)",
 				__func__, __LINE__);
 
@@ -360,71 +361,71 @@ static int zynqaes_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 	return ret;
 }
 
-static int zynqaes_ecb_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_ecb_encrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_ECB_ENCRYPT);
 }
 
-static int zynqaes_ecb_decrypt(struct ablkcipher_request *areq)
+static int zynqaes_ecb_decrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_ECB_DECRYPT);
 }
 
-static int zynqaes_cbc_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_cbc_encrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_CBC_ENCRYPT);
 }
 
-static int zynqaes_cbc_decrypt(struct ablkcipher_request *areq)
+static int zynqaes_cbc_decrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_CBC_DECRYPT);
 }
 
-static int zynqaes_pcbc_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_pcbc_encrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_PCBC_ENCRYPT);
 }
 
-static int zynqaes_pcbc_decrypt(struct ablkcipher_request *areq)
+static int zynqaes_pcbc_decrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_PCBC_DECRYPT);
 }
 
-static int zynqaes_ctr_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_ctr_encrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_CTR_ENCRYPT);
 }
 
-static int zynqaes_ctr_decrypt(struct ablkcipher_request *areq)
+static int zynqaes_ctr_decrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_CTR_DECRYPT);
 }
 
-static int zynqaes_cfb_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_cfb_encrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_CFB_ENCRYPT);
 }
 
-static int zynqaes_cfb_decrypt(struct ablkcipher_request *areq)
+static int zynqaes_cfb_decrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_CFB_DECRYPT);
 }
 
-static int zynqaes_ofb_encrypt(struct ablkcipher_request *areq)
+static int zynqaes_ofb_encrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_OFB_ENCRYPT);
 }
 
-static int zynqaes_ofb_decrypt(struct ablkcipher_request *areq)
+static int zynqaes_ofb_decrypt(struct skcipher_request *areq)
 {
 	return zynqaes_crypt(areq, ZYNQAES_OFB_DECRYPT);
 }
 
-static int zynqaes_cra_init(struct crypto_tfm *tfm)
+static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
 {
-	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
 
-	tfm->crt_ablkcipher.reqsize = sizeof(struct zynqaes_reqctx);
+	crypto_skcipher_set_reqsize(tfm, sizeof(struct zynqaes_reqctx));
 
 	ctx->enginectx.op.prepare_request = NULL;
 	ctx->enginectx.op.unprepare_request = NULL;
@@ -433,141 +434,111 @@ static int zynqaes_cra_init(struct crypto_tfm *tfm)
 	return 0;
 }
 
-static struct crypto_alg zynqaes_ecb_alg = {
-	.cra_name		=	"ecb(aes)",
-	.cra_driver_name	=	"zynqaes-ecb",
-	.cra_priority		=	200,
-	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
-					CRYPTO_ALG_ASYNC,
-	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
-	.cra_type		=	&crypto_ablkcipher_type,
-	.cra_module		=	THIS_MODULE,
-	.cra_init		= 	zynqaes_cra_init,
-	.cra_u			=	{
-		.ablkcipher = {
-			.min_keysize		=	AES_MIN_KEY_SIZE,
-			.max_keysize		=	AES_MAX_KEY_SIZE,
-			.setkey	   		= 	zynqaes_setkey,
-			.encrypt		=	zynqaes_ecb_encrypt,
-			.decrypt		=	zynqaes_ecb_decrypt,
-		}
-	}
+static struct skcipher_alg zynqaes_ecb_alg = {
+	.base.cra_name		=	"ecb(aes)",
+	.base.cra_driver_name	=	"zynqaes-ecb",
+	.base.cra_priority	=	200,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_module	=	THIS_MODULE,
+
+	.min_keysize		=	AES_MIN_KEY_SIZE,
+	.max_keysize		=	AES_MAX_KEY_SIZE,
+	.init			=	zynqaes_skcipher_init,
+	.setkey			=	zynqaes_setkey,
+	.encrypt		=	zynqaes_ecb_encrypt,
+	.decrypt		=	zynqaes_ecb_decrypt,
 };
 
-static struct crypto_alg zynqaes_cbc_alg = {
-	.cra_name		=	"cbc(aes)",
-	.cra_driver_name	=	"zynqaes-cbc",
-	.cra_priority		=	200,
-	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
-					CRYPTO_ALG_ASYNC,
-	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
-	.cra_type		=	&crypto_ablkcipher_type,
-	.cra_module		=	THIS_MODULE,
-	.cra_init		= 	zynqaes_cra_init,
-	.cra_u			=	{
-		.ablkcipher = {
-			.min_keysize		=	AES_MIN_KEY_SIZE,
-			.max_keysize		=	AES_MAX_KEY_SIZE,
-			.ivsize			=	AES_BLOCK_SIZE,
-			.setkey	   		= 	zynqaes_setkey,
-			.encrypt		=	zynqaes_cbc_encrypt,
-			.decrypt		=	zynqaes_cbc_decrypt,
-		}
-	}
+static struct skcipher_alg zynqaes_cbc_alg = {
+	.base.cra_name		=	"cbc(aes)",
+	.base.cra_driver_name	=	"zynqaes-cbc",
+	.base.cra_priority	=	200,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_module	=	THIS_MODULE,
+
+	.min_keysize		=	AES_MIN_KEY_SIZE,
+	.max_keysize		=	AES_MAX_KEY_SIZE,
+	.ivsize			=	AES_BLOCK_SIZE,
+	.init			=	zynqaes_skcipher_init,
+	.setkey			=	zynqaes_setkey,
+	.encrypt		=	zynqaes_cbc_encrypt,
+	.decrypt		=	zynqaes_cbc_decrypt,
 };
 
-static struct crypto_alg zynqaes_pcbc_alg = {
-	.cra_name		=	"pcbc(aes)",
-	.cra_driver_name	=	"zynqaes-pcbc",
-	.cra_priority		=	200,
-	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
-					CRYPTO_ALG_ASYNC,
-	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
-	.cra_type		=	&crypto_ablkcipher_type,
-	.cra_module		=	THIS_MODULE,
-	.cra_init		= 	zynqaes_cra_init,
-	.cra_u			=	{
-		.ablkcipher = {
-			.min_keysize		=	AES_MIN_KEY_SIZE,
-			.max_keysize		=	AES_MAX_KEY_SIZE,
-			.ivsize			=	AES_BLOCK_SIZE,
-			.setkey	   		= 	zynqaes_setkey,
-			.encrypt		=	zynqaes_pcbc_encrypt,
-			.decrypt		=	zynqaes_pcbc_decrypt,
-		}
-	}
+static struct skcipher_alg zynqaes_pcbc_alg = {
+	.base.cra_name		=	"pcbc(aes)",
+	.base.cra_driver_name	=	"zynqaes-pcbc",
+	.base.cra_priority	=	200,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_module	=	THIS_MODULE,
+
+	.min_keysize		=	AES_MIN_KEY_SIZE,
+	.max_keysize		=	AES_MAX_KEY_SIZE,
+	.ivsize			=	AES_BLOCK_SIZE,
+	.init			=	zynqaes_skcipher_init,
+	.setkey			=	zynqaes_setkey,
+	.encrypt		=	zynqaes_pcbc_encrypt,
+	.decrypt		=	zynqaes_pcbc_decrypt,
 };
 
-static struct crypto_alg zynqaes_ctr_alg = {
-	.cra_name		=	"ctr(aes)",
-	.cra_driver_name	=	"zynqaes-ctr",
-	.cra_priority		=	200,
-	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
-					CRYPTO_ALG_ASYNC,
-	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
-	.cra_type		=	&crypto_ablkcipher_type,
-	.cra_module		=	THIS_MODULE,
-	.cra_init		= 	zynqaes_cra_init,
-	.cra_u			=	{
-		.ablkcipher = {
-			.min_keysize		=	AES_MIN_KEY_SIZE,
-			.max_keysize		=	AES_MAX_KEY_SIZE,
-			.ivsize			=	AES_BLOCK_SIZE,
-			.setkey			=	zynqaes_setkey,
-			.encrypt		=	zynqaes_ctr_encrypt,
-			.decrypt		=	zynqaes_ctr_decrypt,
-		}
-	}
+static struct skcipher_alg zynqaes_ctr_alg = {
+	.base.cra_name		=	"ctr(aes)",
+	.base.cra_driver_name	=	"zynqaes-ctr",
+	.base.cra_priority	=	200,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_module	=	THIS_MODULE,
+
+	.min_keysize		=	AES_MIN_KEY_SIZE,
+	.max_keysize		=	AES_MAX_KEY_SIZE,
+	.ivsize			=	AES_BLOCK_SIZE,
+	.init			=	zynqaes_skcipher_init,
+	.setkey			=	zynqaes_setkey,
+	.encrypt		=	zynqaes_ctr_encrypt,
+	.decrypt		=	zynqaes_ctr_decrypt,
 };
 
-static struct crypto_alg zynqaes_cfb_alg = {
-	.cra_name		=	"cfb(aes)",
-	.cra_driver_name	=	"zynqaes-cfb",
-	.cra_priority		=	200,
-	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
-					CRYPTO_ALG_ASYNC,
-	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
-	.cra_type		=	&crypto_ablkcipher_type,
-	.cra_module		=	THIS_MODULE,
-	.cra_init		= 	zynqaes_cra_init,
-	.cra_u			=	{
-		.ablkcipher = {
-			.min_keysize		=	AES_MIN_KEY_SIZE,
-			.max_keysize		=	AES_MAX_KEY_SIZE,
-			.ivsize			=	AES_BLOCK_SIZE,
-			.setkey			=	zynqaes_setkey,
-			.encrypt		=	zynqaes_cfb_encrypt,
-			.decrypt		=	zynqaes_cfb_decrypt,
-		}
-	}
+static struct skcipher_alg zynqaes_cfb_alg = {
+	.base.cra_name		=	"cfb(aes)",
+	.base.cra_driver_name	=	"zynqaes-cfb",
+	.base.cra_priority	=	200,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_module	=	THIS_MODULE,
+
+	.min_keysize		=	AES_MIN_KEY_SIZE,
+	.max_keysize		=	AES_MAX_KEY_SIZE,
+	.ivsize			=	AES_BLOCK_SIZE,
+	.init			=	zynqaes_skcipher_init,
+	.setkey			=	zynqaes_setkey,
+	.encrypt		=	zynqaes_cfb_encrypt,
+	.decrypt		=	zynqaes_cfb_decrypt,
 };
 
-static struct crypto_alg zynqaes_ofb_alg = {
-	.cra_name		=	"ofb(aes)",
-	.cra_driver_name	=	"zynqaes-ofb",
-	.cra_priority		=	200,
-	.cra_flags		=	CRYPTO_ALG_TYPE_ABLKCIPHER |
-					CRYPTO_ALG_ASYNC,
-	.cra_blocksize		=	AES_BLOCK_SIZE,
-	.cra_ctxsize		=	sizeof(struct zynqaes_ctx),
-	.cra_type		=	&crypto_ablkcipher_type,
-	.cra_module		=	THIS_MODULE,
-	.cra_init		= 	zynqaes_cra_init,
-	.cra_u			=	{
-		.ablkcipher = {
-			.min_keysize		=	AES_MIN_KEY_SIZE,
-			.max_keysize		=	AES_MAX_KEY_SIZE,
-			.ivsize			=	AES_BLOCK_SIZE,
-			.setkey			=	zynqaes_setkey,
-			.encrypt		=	zynqaes_ofb_encrypt,
-			.decrypt		=	zynqaes_ofb_decrypt,
-		}
-	}
+static struct skcipher_alg zynqaes_ofb_alg = {
+	.base.cra_name		=	"ofb(aes)",
+	.base.cra_driver_name	=	"zynqaes-ofb",
+	.base.cra_priority	=	200,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_module	=	THIS_MODULE,
+
+	.min_keysize		=	AES_MIN_KEY_SIZE,
+	.max_keysize		=	AES_MAX_KEY_SIZE,
+	.ivsize			=	AES_BLOCK_SIZE,
+	.init			=	zynqaes_skcipher_init,
+	.setkey			=	zynqaes_setkey,
+	.encrypt		=	zynqaes_ofb_encrypt,
+	.decrypt		=	zynqaes_ofb_decrypt,
 };
 
 static int zynqaes_probe(struct platform_device *pdev)
@@ -631,22 +602,22 @@ static int zynqaes_probe(struct platform_device *pdev)
 	if (err)
 		goto free_engine;
 
-	if ((err = crypto_register_alg(&zynqaes_ecb_alg)))
+	if ((err = crypto_register_skcipher(&zynqaes_ecb_alg)))
 		goto free_engine;
 
-	if ((err = crypto_register_alg(&zynqaes_cbc_alg)))
+	if ((err = crypto_register_skcipher(&zynqaes_cbc_alg)))
 		goto free_ecb_alg;
 
-	if ((err = crypto_register_alg(&zynqaes_ctr_alg)))
+	if ((err = crypto_register_skcipher(&zynqaes_ctr_alg)))
 		goto free_cbc_alg;
 
-	if ((err = crypto_register_alg(&zynqaes_pcbc_alg)))
+	if ((err = crypto_register_skcipher(&zynqaes_pcbc_alg)))
 		goto free_ctr_alg;
 
-	if ((err = crypto_register_alg(&zynqaes_cfb_alg)))
+	if ((err = crypto_register_skcipher(&zynqaes_cfb_alg)))
 		goto free_pcbc_alg;
 
-	if ((err = crypto_register_alg(&zynqaes_ofb_alg)))
+	if ((err = crypto_register_skcipher(&zynqaes_ofb_alg)))
 		goto free_cfb_alg;
 
 	dev_dbg(dd->dev, "[%s:%d]: Probing successful \n", __func__, __LINE__);
@@ -654,19 +625,19 @@ static int zynqaes_probe(struct platform_device *pdev)
 	return 0;
 
 free_cfb_alg:
-	crypto_unregister_alg(&zynqaes_cfb_alg);
+	crypto_unregister_skcipher(&zynqaes_cfb_alg);
 
 free_pcbc_alg:
-	crypto_unregister_alg(&zynqaes_pcbc_alg);
+	crypto_unregister_skcipher(&zynqaes_pcbc_alg);
 
 free_ctr_alg:
-	crypto_unregister_alg(&zynqaes_ctr_alg);
+	crypto_unregister_skcipher(&zynqaes_ctr_alg);
 
 free_cbc_alg:
-	crypto_unregister_alg(&zynqaes_cbc_alg);
+	crypto_unregister_skcipher(&zynqaes_cbc_alg);
 
 free_ecb_alg:
-	crypto_unregister_alg(&zynqaes_ecb_alg);
+	crypto_unregister_skcipher(&zynqaes_ecb_alg);
 
 free_engine:
 	if (dd->engine)
@@ -688,12 +659,12 @@ static int zynqaes_remove(struct platform_device *pdev)
 {
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	crypto_unregister_alg(&zynqaes_ecb_alg);
-	crypto_unregister_alg(&zynqaes_cbc_alg);
-	crypto_unregister_alg(&zynqaes_ctr_alg);
-	crypto_unregister_alg(&zynqaes_pcbc_alg);
-	crypto_unregister_alg(&zynqaes_cfb_alg);
-	crypto_unregister_alg(&zynqaes_ofb_alg);
+	crypto_unregister_skcipher(&zynqaes_ecb_alg);
+	crypto_unregister_skcipher(&zynqaes_cbc_alg);
+	crypto_unregister_skcipher(&zynqaes_ctr_alg);
+	crypto_unregister_skcipher(&zynqaes_pcbc_alg);
+	crypto_unregister_skcipher(&zynqaes_cfb_alg);
+	crypto_unregister_skcipher(&zynqaes_ofb_alg);
 
 	crypto_engine_exit(dd->engine);
 
