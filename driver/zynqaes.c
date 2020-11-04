@@ -1,20 +1,19 @@
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/module.h>
-#include <crypto/algapi.h>
-#include <crypto/aes.h>
-#include <crypto/scatterwalk.h>
-#include <crypto/engine.h>
 #include <asm/io.h>
-#include <linux/of_platform.h>
+#include <crypto/aes.h>
+#include <crypto/algapi.h>
+#include <crypto/engine.h>
 #include <crypto/internal/skcipher.h>
-
-#include <linux/dmaengine.h>
-#include <linux/version.h>
+#include <crypto/scatterwalk.h>
 #include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
 #include <linux/dmapool.h>
-#include <linux/slab.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/version.h>
 #include <linux/workqueue.h>
 
 #define ZYNQAES_CMD_LEN 4
