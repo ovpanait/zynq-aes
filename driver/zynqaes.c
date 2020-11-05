@@ -65,15 +65,19 @@ struct zynqaes_dev {
 	struct crypto_engine *engine;
 };
 
-struct zynqaes_reqctx {
+struct zynqaes_reqctx_base {
 	u32 cmd;
 	u8 iv[ZYNQAES_IVSIZE_MAX];
 	unsigned int ivsize;
 
+	struct zynqaes_ctx *ctx;
+};
+
+struct zynqaes_skcipher_reqctx {
 	struct skcipher_request *areq;
 	unsigned int nbytes;
 
-	struct zynqaes_ctx *ctx;
+	struct zynqaes_reqctx_base base;
 };
 
 struct zynqaes_ctx {
@@ -94,13 +98,14 @@ struct zynqaes_dma_ctx {
 	dma_addr_t tx_dma_handle;
 	dma_addr_t rx_dma_handle;
 
-	struct zynqaes_reqctx *rctx;
+	void (*callback)(void *);
+	struct zynqaes_reqctx_base *rctx;
 };
 
 /* Assume only one device for now */
 static struct zynqaes_dev *dd;
 
-static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rctx)
+static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx_base *rctx)
 {
 	switch (key_len) {
 	case AES_KEYSIZE_128:
@@ -114,7 +119,7 @@ static void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx *rct
 	}
 }
 
-static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx *rctx)
+static struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx_base *rctx)
 {
 	struct zynqaes_dma_ctx *dma_ctx;
 
@@ -132,10 +137,11 @@ err:
 	return NULL;
 }
 
-static void zynqaes_dma_callback(void *data)
+static void zynqaes_skcipher_dma_callback(void *data)
 {
 	struct zynqaes_dma_ctx *dma_ctx = data;
-	struct zynqaes_reqctx *rctx = dma_ctx->rctx;
+	struct zynqaes_skcipher_reqctx *rctx = container_of(dma_ctx->rctx,
+			struct zynqaes_skcipher_reqctx, base);
 
 	dma_unmap_sg(dd->dev, dma_ctx->tx_sg, dma_ctx->tx_nents, DMA_TO_DEVICE);
 	dma_unmap_sg(dd->dev, dma_ctx->rx_sg, dma_ctx->rx_nents, DMA_FROM_DEVICE);
@@ -196,7 +202,7 @@ static int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 		goto err;
 	}
 
-	rx_chan_desc->callback = zynqaes_dma_callback;
+	rx_chan_desc->callback = dma_ctx->callback;
 	rx_chan_desc->callback_param = dma_ctx;
 
 	dma_ctx->rx_cookie = dmaengine_submit(rx_chan_desc);
@@ -214,7 +220,7 @@ err:
 	return ret;
 }
 
-static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
+static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *rctx)
 {
 	struct zynqaes_ctx *ctx;
 	struct zynqaes_dma_ctx *dma_ctx;
@@ -225,22 +231,22 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 	struct scatterlist *sg;
 	unsigned int src_nbytes;
 
-	ctx = rctx->ctx;
+	ctx = rctx->base.ctx;
 	areq = rctx->areq;
 
-	dma_ctx = zynqaes_create_dma_ctx(rctx);
+	dma_ctx = zynqaes_create_dma_ctx(&rctx->base);
 	if (dma_ctx == NULL) {
 		dev_err(dd->dev, "[%s:%d] zynqaes_create_dma_ctx failed.", __func__, __LINE__);
 		goto out_err;
 	}
 
-	nsg = rctx->ivsize ? 4 : 3;
+	nsg = rctx->base.ivsize ? 4 : 3;
 
 	sg_init_table(dma_ctx->tx_sg, nsg);
-	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->cmd, sizeof(rctx->cmd));
+	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->base.cmd, sizeof(rctx->base.cmd));
 	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, ctx->key_len);
-	if (rctx->ivsize) {
-		sg_set_buf(&dma_ctx->tx_sg[2], rctx->iv, AES_BLOCK_SIZE);
+	if (rctx->base.ivsize) {
+		sg_set_buf(&dma_ctx->tx_sg[2], rctx->base.iv, AES_BLOCK_SIZE);
 	}
 	sg_chain(dma_ctx->tx_sg, nsg, areq->src);
 
@@ -263,6 +269,8 @@ static int zynqaes_enqueue_next_dma_op(struct zynqaes_reqctx *rctx)
 	dma_ctx->rx_nents = sg_nents(dma_ctx->rx_sg);
 	dma_ctx->tx_nents += nsg - 1;
 
+	dma_ctx->callback = zynqaes_skcipher_dma_callback;
+
 	dev_dbg(dd->dev, "[%s:%d] dma_ctx->tx_nents: %d\n", __func__, __LINE__, dma_ctx->tx_nents);
 	dev_dbg(dd->dev, "[%s:%d] dma_ctx->rx_nents: %d\n", __func__, __LINE__, dma_ctx->rx_nents);
 
@@ -281,32 +289,33 @@ out_err:
 	return ret;
 }
 
-static int zynqaes_crypt_req(struct crypto_engine *engine,
+static int zynqaes_skcipher_crypt_req(struct crypto_engine *engine,
 			     void *req)
 {
 	struct skcipher_request *areq = container_of(req, struct skcipher_request, base);
 	struct crypto_skcipher *cipher = crypto_skcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
 	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
-	struct zynqaes_reqctx *rctx = skcipher_request_ctx(areq);
+	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
 
 	int ret;
 
-	rctx->ctx = ctx;
+	rctx->base.ctx = ctx;
+	rctx->base.ivsize = crypto_skcipher_ivsize(cipher);
+
 	rctx->areq = areq;
 	rctx->nbytes = areq->cryptlen;
-	rctx->ivsize = crypto_skcipher_ivsize(cipher);
 
-	zynqaes_set_key_bit(ctx->key_len, rctx);
+	zynqaes_set_key_bit(ctx->key_len, &rctx->base);
 
 	dev_dbg(dd->dev, "[%s:%d] rctx->nbytes: %u\n", __func__, __LINE__, rctx->nbytes);
-	dev_dbg(dd->dev, "[%s:%d] rctx->cmd: %x\n", __func__, __LINE__, rctx->cmd);
+	dev_dbg(dd->dev, "[%s:%d] rctx->cmd: %x\n", __func__, __LINE__, rctx->base.cmd);
 
-	if (rctx->ivsize) {
-		memcpy(rctx->iv, areq->iv, rctx->ivsize);
+	if (rctx->base.ivsize) {
+		memcpy(rctx->base.iv, areq->iv, rctx->base.ivsize);
 	}
 
-	ret = zynqaes_enqueue_next_dma_op(rctx);
+	ret = zynqaes_skcipher_enqueue_next_dma_op(rctx);
 	if (ret) {
 		dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d", __func__, __LINE__, ret);
 		goto out;
@@ -318,13 +327,13 @@ out:
 	return ret;
 }
 
-static int zynqaes_crypt(struct skcipher_request *areq, const u32 cmd)
+static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 {
-	struct zynqaes_reqctx *rctx = skcipher_request_ctx(areq);
+	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
 
-	rctx->cmd = cmd;
+	rctx->base.cmd = cmd;
 
 	return crypto_transfer_skcipher_request_to_engine(dd->engine, areq);
 }
@@ -362,73 +371,73 @@ static int zynqaes_setkey(struct crypto_skcipher *cipher, const u8 *key,
 
 static int zynqaes_ecb_encrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_ECB_ENCRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_ECB_ENCRYPT);
 }
 
 static int zynqaes_ecb_decrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_ECB_DECRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_ECB_DECRYPT);
 }
 
 static int zynqaes_cbc_encrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CBC_ENCRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_CBC_ENCRYPT);
 }
 
 static int zynqaes_cbc_decrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CBC_DECRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_CBC_DECRYPT);
 }
 
 static int zynqaes_pcbc_encrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_PCBC_ENCRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_PCBC_ENCRYPT);
 }
 
 static int zynqaes_pcbc_decrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_PCBC_DECRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_PCBC_DECRYPT);
 }
 
 static int zynqaes_ctr_encrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CTR_ENCRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_CTR_ENCRYPT);
 }
 
 static int zynqaes_ctr_decrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CTR_DECRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_CTR_DECRYPT);
 }
 
 static int zynqaes_cfb_encrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CFB_ENCRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_CFB_ENCRYPT);
 }
 
 static int zynqaes_cfb_decrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_CFB_DECRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_CFB_DECRYPT);
 }
 
 static int zynqaes_ofb_encrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_OFB_ENCRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_OFB_ENCRYPT);
 }
 
 static int zynqaes_ofb_decrypt(struct skcipher_request *areq)
 {
-	return zynqaes_crypt(areq, ZYNQAES_OFB_DECRYPT);
+	return zynqaes_skcipher_crypt(areq, ZYNQAES_OFB_DECRYPT);
 }
 
 static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
 {
 	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
 
-	crypto_skcipher_set_reqsize(tfm, sizeof(struct zynqaes_reqctx));
+	crypto_skcipher_set_reqsize(tfm, sizeof(struct zynqaes_skcipher_reqctx));
 
 	ctx->enginectx.op.prepare_request = NULL;
 	ctx->enginectx.op.unprepare_request = NULL;
-	ctx->enginectx.op.do_one_request = zynqaes_crypt_req;
+	ctx->enginectx.op.do_one_request = zynqaes_skcipher_crypt_req;
 
 	return 0;
 }
