@@ -243,10 +243,9 @@ static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 	return crypto_transfer_skcipher_request_to_engine(dd->engine, areq);
 }
 
-static int zynqaes_setkey(struct crypto_skcipher *tfm, const u8 *key,
-			    unsigned int len)
+static int zynqaes_setkey(struct zynqaes_ctx *ctx, const u8 *key,
+			  unsigned int len)
 {
-	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
 	int ret = 0;
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
@@ -270,6 +269,14 @@ static int zynqaes_setkey(struct crypto_skcipher *tfm, const u8 *key,
 	}
 
 	return ret;
+}
+
+static int zynqaes_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key,
+				   unsigned int len)
+{
+	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
+
+	return zynqaes_setkey(ctx, key, len);
 }
 
 static int zynqaes_ecb_encrypt(struct skcipher_request *areq)
@@ -357,7 +364,7 @@ static struct skcipher_alg zynqaes_ecb_alg = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.init			=	zynqaes_skcipher_init,
-	.setkey			=	zynqaes_setkey,
+	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ecb_encrypt,
 	.decrypt		=	zynqaes_ecb_decrypt,
 };
@@ -375,7 +382,7 @@ static struct skcipher_alg zynqaes_cbc_alg = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
-	.setkey			=	zynqaes_setkey,
+	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_cbc_encrypt,
 	.decrypt		=	zynqaes_cbc_decrypt,
 };
@@ -393,7 +400,7 @@ static struct skcipher_alg zynqaes_pcbc_alg = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
-	.setkey			=	zynqaes_setkey,
+	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_pcbc_encrypt,
 	.decrypt		=	zynqaes_pcbc_decrypt,
 };
@@ -411,7 +418,7 @@ static struct skcipher_alg zynqaes_ctr_alg = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
-	.setkey			=	zynqaes_setkey,
+	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ctr_encrypt,
 	.decrypt		=	zynqaes_ctr_decrypt,
 };
@@ -429,7 +436,7 @@ static struct skcipher_alg zynqaes_cfb_alg = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
-	.setkey			=	zynqaes_setkey,
+	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_cfb_encrypt,
 	.decrypt		=	zynqaes_cfb_decrypt,
 };
@@ -447,7 +454,7 @@ static struct skcipher_alg zynqaes_ofb_alg = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
-	.setkey			=	zynqaes_setkey,
+	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ofb_encrypt,
 	.decrypt		=	zynqaes_ofb_decrypt,
 };
