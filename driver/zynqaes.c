@@ -243,11 +243,10 @@ static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 	return crypto_transfer_skcipher_request_to_engine(dd->engine, areq);
 }
 
-static int zynqaes_setkey(struct crypto_skcipher *cipher, const u8 *key,
+static int zynqaes_setkey(struct crypto_skcipher *tfm, const u8 *key,
 			    unsigned int len)
 {
-	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
-	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
 	int ret = 0;
 
 	dev_dbg(dd->dev, "[%s:%d] Entering function\n", __func__, __LINE__);
@@ -264,7 +263,6 @@ static int zynqaes_setkey(struct crypto_skcipher *cipher, const u8 *key,
 		ret = -ENOTSUPP;
 		break;
 	default:
-		crypto_skcipher_set_flags(cipher, CRYPTO_TFM_RES_BAD_KEY_LEN);
 		dev_err(dd->dev, "[%s:%d] Invalid key size! (must be 128/192/256 bits)",
 				__func__, __LINE__);
 
