@@ -99,4 +99,6 @@ struct zynqaes_dma_ctx {
 	struct zynqaes_reqctx_base *rctx;
 };
 
+extern struct zynqaes_dev *zynqaes_dd;
+
 #endif
