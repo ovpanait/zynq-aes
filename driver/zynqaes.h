@@ -1,7 +1,6 @@
 #ifndef __ZYNQAES_H__
 #define __ZYNQAES_H__
 
-#include <asm/io.h>
 #include <crypto/aes.h>
 #include <crypto/algapi.h>
 #include <crypto/engine.h>
@@ -10,7 +9,6 @@
 #include <linux/dmaengine.h>
 #include <linux/dmapool.h>
 #include <linux/slab.h>
-#include <linux/version.h>
 #include <linux/workqueue.h>
 
 #define ZYNQAES_CMD_LEN 4
@@ -63,18 +61,13 @@ struct zynqaes_dev {
 };
 
 struct zynqaes_reqctx_base {
+	struct zynqaes_dev *dd;
+
 	u32 cmd;
 	u8 iv[ZYNQAES_IVSIZE_MAX];
 	unsigned int ivsize;
 
 	struct zynqaes_ctx *ctx;
-};
-
-struct zynqaes_skcipher_reqctx {
-	struct skcipher_request *areq;
-	unsigned int nbytes;
-
-	struct zynqaes_reqctx_base base;
 };
 
 struct zynqaes_ctx {
@@ -99,6 +92,15 @@ struct zynqaes_dma_ctx {
 	struct zynqaes_reqctx_base *rctx;
 };
 
-extern struct zynqaes_dev *zynqaes_dd;
+
+struct zynqaes_dev *zynqaes_find_dev(void);
+void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx_base *rctx);
+int zynqaes_setkey(struct zynqaes_ctx *ctx, const u8 *key, unsigned int len);
+
+struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx_base *rctx);
+int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx);
+
+void zynqaes_unregister_skciphers(void);
+int zynqaes_register_skciphers(void);
 
 #endif
