@@ -60,16 +60,6 @@ struct zynqaes_dev {
 	struct crypto_engine *engine;
 };
 
-struct zynqaes_reqctx_base {
-	struct zynqaes_dev *dd;
-
-	u32 cmd;
-	u8 iv[ZYNQAES_IVSIZE_MAX];
-	unsigned int ivsize;
-
-	struct zynqaes_ctx *ctx;
-};
-
 struct zynqaes_ctx {
 	struct crypto_engine_ctx enginectx;
 	u8 key[AES_MAX_KEY_SIZE];
@@ -89,16 +79,24 @@ struct zynqaes_dma_ctx {
 	dma_addr_t rx_dma_handle;
 
 	void (*callback)(void *);
-	struct zynqaes_reqctx_base *rctx;
 };
 
+struct zynqaes_reqctx_base {
+	struct zynqaes_dev *dd;
+
+	u32 cmd;
+	u8 iv[ZYNQAES_IVSIZE_MAX];
+	unsigned int ivsize;
+
+	struct zynqaes_ctx *ctx;
+	struct zynqaes_dma_ctx dma_ctx;
+};
 
 struct zynqaes_dev *zynqaes_find_dev(void);
 void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx_base *rctx);
 int zynqaes_setkey(struct zynqaes_ctx *ctx, const u8 *key, unsigned int len);
 
-struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx_base *rctx);
-int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx);
+int zynqaes_dma_op(struct zynqaes_reqctx_base *rctx);
 
 void zynqaes_unregister_skciphers(void);
 int zynqaes_register_skciphers(void);

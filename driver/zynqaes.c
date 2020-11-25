@@ -29,39 +29,19 @@ void zynqaes_set_key_bit(unsigned int key_len, struct zynqaes_reqctx_base *rctx)
 	}
 }
 
-struct zynqaes_dma_ctx *zynqaes_create_dma_ctx(struct zynqaes_reqctx_base *rctx)
+int zynqaes_dma_op(struct zynqaes_reqctx_base *rctx)
 {
-	struct zynqaes_dev *dd;
 	struct zynqaes_dma_ctx *dma_ctx;
-
-	dd = rctx->dd;
-
-	dma_ctx = kzalloc(sizeof(struct zynqaes_dma_ctx), GFP_ATOMIC);
-	if (dma_ctx == NULL) {
-		dev_err(dd->dev, "[%s:%d] tx: tx_buf: Allocating memory failed\n",
-			__func__, __LINE__);
-
-		goto err;
-	}
-
-	dma_ctx->rctx = rctx;
-
-	return dma_ctx;
-
-err:
-	return NULL;
-}
-
-int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
-{
 	struct zynqaes_dev *dd;
+
 	struct dma_async_tx_descriptor *tx_chan_desc;
 	struct dma_async_tx_descriptor *rx_chan_desc;
 	unsigned int tx_sg_len;
 	unsigned int rx_sg_len;
 	int ret;
 
-	dd = dma_ctx->rctx->dd;
+	dma_ctx = &rctx->dma_ctx;
+	dd = rctx->dd;
 
 	/* Tx Channel */
 	tx_sg_len = dma_map_sg(dd->dev, dma_ctx->tx_sg, dma_ctx->tx_nents, DMA_TO_DEVICE);
@@ -116,7 +96,7 @@ int zynqaes_dma_op(struct zynqaes_dma_ctx *dma_ctx)
 	}
 
 	rx_chan_desc->callback = dma_ctx->callback;
-	rx_chan_desc->callback_param = dma_ctx;
+	rx_chan_desc->callback_param = rctx;
 
 	dma_ctx->rx_cookie = dmaengine_submit(rx_chan_desc);
 	if (dma_submit_error(dma_ctx->rx_cookie)) {

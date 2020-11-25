@@ -11,19 +11,22 @@ struct zynqaes_skcipher_reqctx {
 
 static void zynqaes_skcipher_dma_callback(void *data)
 {
-	struct zynqaes_dma_ctx *dma_ctx = data;
-	struct zynqaes_skcipher_reqctx *rctx = container_of(dma_ctx->rctx,
-			struct zynqaes_skcipher_reqctx, base);
-	struct zynqaes_dev *dd = rctx->base.dd;
+	struct zynqaes_dev *dd;
+	struct zynqaes_dma_ctx *dma_ctx;
+	struct zynqaes_reqctx_base *rctx_base;
+	struct zynqaes_skcipher_reqctx *rctx_sk;
+
+	rctx_base = data;
+	dd = rctx_base->dd;
+	dma_ctx = &rctx_base->dma_ctx;
+	rctx_sk = container_of(rctx_base, struct zynqaes_skcipher_reqctx, base);
 
 	dma_unmap_sg(dd->dev, dma_ctx->tx_sg, dma_ctx->tx_nents,
 			DMA_TO_DEVICE);
 	dma_unmap_sg(dd->dev, dma_ctx->rx_sg, dma_ctx->rx_nents,
 			DMA_FROM_DEVICE);
 
-	crypto_finalize_skcipher_request(dd->engine, rctx->areq, 0);
-
-	kfree(dma_ctx);
+	crypto_finalize_skcipher_request(dd->engine, rctx_sk->areq, 0);
 }
 
 static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *rctx)
@@ -38,17 +41,13 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	struct scatterlist *sg;
 	unsigned int src_nbytes;
 
-	dd = rctx->base.dd;
-	ctx = rctx->base.ctx;
 	areq = rctx->areq;
 
-	dma_ctx = zynqaes_create_dma_ctx(&rctx->base);
-	if (dma_ctx == NULL) {
-		dev_err(dd->dev, "[%s:%d] zynqaes_create_dma_ctx failed.",
-					__func__, __LINE__);
+	dd = rctx->base.dd;
+	ctx = rctx->base.ctx;
+	dma_ctx = &rctx->base.dma_ctx;
 
-		goto out_err;
-	}
+	memset(dma_ctx, 0, sizeof(*dma_ctx));
 
 	nsg = rctx->base.ivsize ? 4 : 3;
 
@@ -86,17 +85,14 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	dev_dbg(dd->dev, "[%s:%d] dma_ctx->rx_nents: %d\n", __func__, __LINE__,
 			dma_ctx->rx_nents);
 
-	ret = zynqaes_dma_op(dma_ctx);
+	ret = zynqaes_dma_op(&rctx->base);
 	if (ret) {
 		dev_err(dd->dev, "[%s:%d] zynqaes_dma_op failed with: %d",
 					__func__, __LINE__, ret);
-		goto free_dma_ctx;
+		goto out_err;
 	}
 
 	return 0;
-
-free_dma_ctx:
-	kfree(dma_ctx);
 
 out_err:
 	return ret;
