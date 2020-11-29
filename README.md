@@ -54,8 +54,8 @@ aes-256-ctr        387.54k      786.60k     3347.20k    13185.02k    23277.57k  
 
 ## Block design and AXI DMA config
 
-![](https://github.com/ovpanait/zynq-aes/blob/master/block_design.png)
-![](https://github.com/ovpanait/zynq-aes/blob/master/axi_dma.png)
+![](https://github.com/ovpanait/zynq-aes/blob/master/bd/block_design.png)
+![](https://github.com/ovpanait/zynq-aes/blob/master/bd/axi_dma.png)
 
 ## Quick Start for Arty Z7-20 board using Yocto (untested recently)
 
