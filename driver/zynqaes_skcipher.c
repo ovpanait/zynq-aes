@@ -39,7 +39,7 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	int ret;
 
 	struct scatterlist *sg;
-	unsigned int src_nbytes;
+	unsigned int nbytes;
 
 	areq = rctx->areq;
 
@@ -64,19 +64,26 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	 * Since the hw expects rctx->nbytes in total, resize it so the total 
 	 * scatterlist array length is rctx->nbytes.
 	 */
-	src_nbytes = 0;
+	dma_ctx->tx_remainder = 0;
+	nbytes = rctx->nbytes;
 	for (sg = areq->src; sg; sg = sg_next(sg)) {
 		++dma_ctx->tx_nents;
-		src_nbytes += sg->length;
 
-		if (sg_is_last(sg) && (src_nbytes > rctx->nbytes)) {
-			sg->length -= (src_nbytes - rctx->nbytes);
+		if (sg->length == nbytes)
+			break;
+
+		if (sg->length > nbytes) {
+			dma_ctx->tx_remainder = sg->length - nbytes;
+			sg->length = nbytes;
+			break;
 		}
+
+		nbytes -= sg->length;
 	}
+	dma_ctx->tx_nents += nsg - 1;
 
 	dma_ctx->rx_sg = areq->dst;
 	dma_ctx->rx_nents = sg_nents(dma_ctx->rx_sg);
-	dma_ctx->tx_nents += nsg - 1;
 
 	dma_ctx->callback = zynqaes_skcipher_dma_callback;
 

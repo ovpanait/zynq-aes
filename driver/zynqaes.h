@@ -73,6 +73,9 @@ struct zynqaes_dma_ctx {
 	unsigned int tx_nents;
 	unsigned int rx_nents;
 
+	unsigned int tx_remainder;
+	unsigned int rx_remainder;
+
 	dma_cookie_t tx_cookie;
 	dma_cookie_t rx_cookie;
 	dma_addr_t tx_dma_handle;
