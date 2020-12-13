@@ -9,6 +9,33 @@ struct zynqaes_skcipher_reqctx {
 	struct zynqaes_reqctx_base base;
 };
 
+static void zynqaes_skcipher_sg_restore(struct scatterlist *sg,
+					unsigned int nents,
+					unsigned int remainder)
+{
+	if (!remainder || !nents)
+		return;
+
+	while (--nents > 0 && sg)
+		sg = sg_next(sg);
+
+	if (!sg)
+		return;
+
+	sg->length += remainder;
+
+	return;
+}
+
+static void zynqaes_skcipher_dma_sg_restore(struct zynqaes_dma_ctx *dma)
+{
+	zynqaes_skcipher_sg_restore(dma->tx_sg, dma->tx_nents,
+				    dma->tx_remainder);
+
+	zynqaes_skcipher_sg_restore(dma->rx_sg, dma->rx_nents,
+				    dma->rx_remainder);
+}
+
 static void zynqaes_skcipher_dma_callback(void *data)
 {
 	struct zynqaes_dev *dd;
@@ -25,6 +52,8 @@ static void zynqaes_skcipher_dma_callback(void *data)
 			DMA_TO_DEVICE);
 	dma_unmap_sg(dd->dev, dma_ctx->rx_sg, dma_ctx->rx_nents,
 			DMA_FROM_DEVICE);
+
+	zynqaes_skcipher_dma_sg_restore(dma_ctx);
 
 	crypto_finalize_skcipher_request(dd->engine, rctx_sk->areq, 0);
 }
@@ -65,6 +94,8 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	 * scatterlist array length is rctx->nbytes.
 	 */
 	dma_ctx->tx_remainder = 0;
+	dma_ctx->rx_remainder = 0;
+
 	nbytes = rctx->nbytes;
 	for (sg = areq->src; sg; sg = sg_next(sg)) {
 		++dma_ctx->tx_nents;
