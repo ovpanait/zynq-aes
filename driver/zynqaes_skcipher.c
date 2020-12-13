@@ -114,7 +114,7 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	dma_ctx->tx_nents += nsg - 1;
 
 	dma_ctx->rx_sg = areq->dst;
-	dma_ctx->rx_nents = sg_nents(dma_ctx->rx_sg);
+	dma_ctx->rx_nents = sg_nents_for_len(dma_ctx->rx_sg, rctx->nbytes);
 
 	dma_ctx->callback = zynqaes_skcipher_dma_callback;
 
