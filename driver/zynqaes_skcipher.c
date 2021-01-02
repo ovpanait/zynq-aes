@@ -4,6 +4,7 @@
 
 struct zynqaes_skcipher_reqctx {
 	struct skcipher_request *areq;
+	struct scatterlist tx_sg[4];
 	unsigned int nbytes;
 
 	struct zynqaes_reqctx_base base;
@@ -80,13 +81,14 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 
 	nsg = rctx->base.ivsize ? 4 : 3;
 
-	sg_init_table(dma_ctx->tx_sg, nsg);
-	sg_set_buf(&dma_ctx->tx_sg[0], &rctx->base.cmd, sizeof(rctx->base.cmd));
-	sg_set_buf(&dma_ctx->tx_sg[1], ctx->key, ctx->key_len);
+	sg_init_table(rctx->tx_sg, nsg);
+	sg_set_buf(&rctx->tx_sg[0], &rctx->base.cmd, sizeof(rctx->base.cmd));
+	sg_set_buf(&rctx->tx_sg[1], ctx->key, ctx->key_len);
 	if (rctx->base.ivsize) {
-		sg_set_buf(&dma_ctx->tx_sg[2], rctx->base.iv, AES_BLOCK_SIZE);
+		sg_set_buf(&rctx->tx_sg[2], rctx->base.iv, AES_BLOCK_SIZE);
 	}
-	sg_chain(dma_ctx->tx_sg, nsg, areq->src);
+	sg_chain(rctx->tx_sg, nsg, areq->src);
+	dma_ctx->tx_sg = rctx->tx_sg;
 
 	/*
 	 * In ipsec, the last scatterlist has 12 extra bytes (ESP authenc. data).

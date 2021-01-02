@@ -67,7 +67,7 @@ struct zynqaes_ctx {
 };
 
 struct zynqaes_dma_ctx {
-	struct scatterlist tx_sg[4];
+	struct scatterlist *tx_sg;
 	struct scatterlist *rx_sg;
 
 	unsigned int tx_nents;
