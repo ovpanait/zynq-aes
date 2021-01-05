@@ -241,6 +241,17 @@ static int af_alg_set_aadlen(struct crypto_op *cop)
 	return 0;
 }
 
+static int af_alg_set_iv(struct crypto_op *cop, uint8_t *iv)
+{
+	struct af_alg_iv *af_iv;
+
+	af_iv = af_alg_get_iv_ptr(cop);
+	af_iv->ivlen = cop->iv_size;
+	memcpy(af_iv->iv, iv, cop->iv_size);
+
+	return 0;
+}
+
 static struct crypto_op *crypto_op_create(void)
 {
 	struct crypto_op *cop;
