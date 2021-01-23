@@ -45,8 +45,6 @@ queue#(GCM_BLK_BITS) aes_keys_q;
 
 // AES algorithm signals
 
-reg aes_alg_en_cipher;
-reg aes_alg_en_decipher;
 reg aes_alg_en_key;
 
 reg aes128_mode;
