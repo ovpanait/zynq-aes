@@ -126,11 +126,6 @@ task setup_test_data(input string fn);
 			gcm_in_q.push_back(data);
 	end
 	$fclose(fd);
-
-	// DEBUG
-	aes_keys_q.print_queue();
-	gcm_in_q.print_queue();
-	gcm_out_q.print_queue();
 endtask
 
 initial begin
@@ -144,43 +139,57 @@ initial begin
 end
 
 initial begin
-	reset <= 1;
-	@(posedge clk);
-	@(negedge clk) reset = 0;
-end
-
-initial begin
 	gcm_in_q = new();
 	gcm_out_q = new();
 	aes_keys_q = new();
 
 	setup_test_data("gcm_vectors.data");
 
-	wait(reset) @(posedge clk);
+	reset <= 1;
+	@(posedge clk);
 	@(negedge clk) reset = 0;
-
-	repeat(10) begin
-		@(negedge clk);
-		@(posedge clk);
-	end
-
-	init_done <= 1'b1;
 end
 
+localparam EXPAND_KEY = 2'b00;
+localparam SEND_DATA  = 2'b01;
+
+reg [1:0] state;
+reg [1:0] state_next;
+
+always @(*) begin
+	state_next = state;
+
+	case (state)
+	EXPAND_KEY: begin
+		if (!key_expanded)
+			state_next = SEND_DATA;
+	end
+	SEND_DATA: begin
+		if (gcm_done)
+			state_next = EXPAND_KEY;
+	end
+	default:
+		state_next = EXPAND_KEY;
+	endcase
+end
+
+always @(posedge clk) begin
+	if (reset) begin
+		state <= EXPAND_KEY;
+	end else begin
+		state <= state_next;
+	end
+end
 
 always @(*) begin
 	gcm_en = gcm_ready && gcm_valid;
 end
 
-/*
-   * Feed GCM module with input blocks stored in the input queue (populated
-   * from gcm_in.data file).
- */
 always @(posedge clk) begin
 	if (reset) begin
 		gcm_valid <= 1'b0;
 	end else begin
-		if (gcm_en || !gcm_valid) begin
+		if (state == SEND_DATA && (gcm_en || !gcm_valid)) begin
 			gcm_valid <= gcm_in_q.size() ? 1'b1 : 1'b0;
 
 			if (gcm_in_q.size())
@@ -189,10 +198,6 @@ always @(posedge clk) begin
 	end
 end
 
-/*
-   * AES algorithm control logic.
-   * KEY needs to be expanded before any GCM operation.
- */
 always @(posedge clk) begin
 	if (reset) begin
 		controller_out_ready <= 1'b0;
@@ -210,16 +215,14 @@ always @(posedge clk) begin
 
 		aes_alg_en_key <= 1'b0;
 
-		// TODO: simplify this?
-		if (init_done && aes_keys_q.size() && !key_expanded &&
-			!aes_alg_en_key && !aes_op_in_progress) begin
-			// Only 128-bit keys support for now
+		if (state == EXPAND_KEY && !key_expanded) begin
 			aes_alg_key <= {aes_keys_q.pop_front(), {128{1'b0}}};
 			aes_alg_en_key <= 1'b1;
 		end
 
-		if (!key_expanded && aes_alg_done)
+		if (!key_expanded && aes_alg_done) begin
 			key_expanded <= 1'b1;
+		end
 
 		if (gcm_done)
 			key_expanded <= 1'b0;
