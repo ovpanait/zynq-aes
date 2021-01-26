@@ -39,9 +39,14 @@ wire                    gcm_done;
 reg controller_out_ready;
 reg key_expanded;
 
+reg encrypt_flag;
+reg decrypt_flag;
+
 queue#(GCM_BLK_BITS) gcm_in_q;
 queue#(GCM_BLK_BITS) gcm_out_q;
-queue#(GCM_BLK_BITS) aes_keys_q;
+// Stores info that is not directly passed to the GCM module
+// (encryption/decryption flags and key)
+queue#(GCM_BLK_BITS) metadata_q;
 
 // AES algorithm signals
 
@@ -81,6 +86,9 @@ gcm DUT (
 	.clk(clk),
 	.reset(reset),
 
+	.encrypt_flag(encrypt_flag),
+	.decrypt_flag(decrypt_flag),
+
 	.controller_out_ready(controller_out_ready),
 	.key_expanded(key_expanded),
 
@@ -102,6 +110,15 @@ gcm DUT (
 
 
 // Simulation sequence
+reg [GCM_BLK_BITS-1:0] op;
+
+function op_get_encrypt_bit(input [GCM_BLK_BITS-1:0] op);
+	op_get_encrypt_bit = op[0];
+endfunction
+
+function op_get_decrypt_bit(input [GCM_BLK_BITS-1:0] op);
+	op_get_decrypt_bit = op[1];
+endfunction
 
 task setup_test_data(input string fn);
 	integer fd;
@@ -118,8 +135,8 @@ task setup_test_data(input string fn);
 	while (!$feof(fd)) begin
 		$fscanf(fd, "%s %h\n", key, data);
 
-		if (key == "K") // AES KEY
-			aes_keys_q.push_back(data);
+		if (key == "OP" || key == "K")
+			metadata_q.push_back(data);
 		else if (key == "DOUT" || key == "T") // DATA_OUT or TAG
 			gcm_out_q.push_back(data);
 		else // Input data (IV, AADLEN, AAD, DATA_IN)
@@ -141,7 +158,7 @@ end
 initial begin
 	gcm_in_q = new();
 	gcm_out_q = new();
-	aes_keys_q = new();
+	metadata_q = new();
 
 	setup_test_data("gcm_vectors.data");
 
@@ -150,8 +167,9 @@ initial begin
 	@(negedge clk) reset = 0;
 end
 
-localparam EXPAND_KEY = 2'b00;
-localparam SEND_DATA  = 2'b01;
+localparam GET_OP_TYPE = 2'b00;
+localparam EXPAND_KEY  = 2'b01;
+localparam SEND_DATA   = 2'b10;
 
 reg [1:0] state;
 reg [1:0] state_next;
@@ -160,22 +178,25 @@ always @(*) begin
 	state_next = state;
 
 	case (state)
+	GET_OP_TYPE: begin
+		state_next = EXPAND_KEY;
+	end
 	EXPAND_KEY: begin
 		if (!key_expanded)
 			state_next = SEND_DATA;
 	end
 	SEND_DATA: begin
 		if (gcm_done)
-			state_next = EXPAND_KEY;
+			state_next = GET_OP_TYPE;
 	end
 	default:
-		state_next = EXPAND_KEY;
+		state_next = GET_OP_TYPE;
 	endcase
 end
 
 always @(posedge clk) begin
 	if (reset) begin
-		state <= EXPAND_KEY;
+		state <= GET_OP_TYPE;
 	end else begin
 		state <= state_next;
 	end
@@ -206,6 +227,9 @@ always @(posedge clk) begin
 
 		aes128_mode <= 1'b0;
 		aes256_mode <= 1'b0;
+
+		encrypt_flag <= 1'b0;
+		decrypt_flag <= 1'b0;
 	end else begin
 		controller_out_ready <= 1'b1;
 
@@ -215,8 +239,14 @@ always @(posedge clk) begin
 
 		aes_alg_en_key <= 1'b0;
 
+		if (state == GET_OP_TYPE) begin
+			op = metadata_q.pop_front();
+			encrypt_flag <= op_get_encrypt_bit(op);
+			decrypt_flag <= op_get_decrypt_bit(op);
+		end
+
 		if (state == EXPAND_KEY && !key_expanded) begin
-			aes_alg_key <= {aes_keys_q.pop_front(), {128{1'b0}}};
+			aes_alg_key <= {metadata_q.pop_front(), {128{1'b0}}};
 			aes_alg_en_key <= 1'b1;
 		end
 
