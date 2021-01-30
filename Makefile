@@ -61,6 +61,16 @@ sim_vip: TB_DIR = $(TB_TOP)/zynq_aes_top_vip
 sim_vip: $(SIM_PROJ)
 	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
 
+# Test targets
+test_%:
+	@if ! test -d $(TB_TOP)/$*;then\
+		echo "ERROR: Testbench directory $(TB_TOP)/%* does not exist!";\
+		exit 1;\
+	fi
+	rm -rf $(SIM_DIR)/$@
+	mkdir -p $(SIM_DIR)/$@
+	cd $(SIM_DIR)/$@; $(TOOLS_DIR)/xsim.sh $(HDL_DIR) $(TB_TOP)/$* $(TB_TOP)/include
+
 test: sim_novip
 
 $(SYNTH_DIR): $(IP_REPO_DIR) $(BD_SOURCES) $(XDC_FILES)
