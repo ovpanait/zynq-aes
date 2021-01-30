@@ -801,7 +801,8 @@ always @(*) begin
 	hash_aad_done    = (state == GCM_HASH_AAD)       && (aad_size == 0);
 	crypto_start     = (state == GCM_CRYPTO)         && gcm_en;
 	crypto_done      = (state == GCM_CRYPTO)         && (data_size == 0);
-	hash_crypto_data = (state == GCM_CRYPTO)         && gctr_out_blk_final_valid;
+	hash_crypto_data = (state == GCM_CRYPTO)         &&
+	                   (encrypt_flag ? gctr_out_blk_final_valid : gcm_en);
 	hash_aad_extra   = (state == GCM_AAD_EXTRA)      && !aad_busy && controller_out_ready;
 	tag_start        = (state == GCM_TAG)            && ghash_done;
 	tag_done         = (state == GCM_TAG)            && gctr_out_blk_final_valid;
@@ -936,7 +937,9 @@ always @(*) begin
 
 	ghash_data_blk = (state == GCM_HASH_AAD) ? gcm_in_blk :
 	                 (state == GCM_AAD_EXTRA) ? {aad_size_bkp, data_size_bkp} :
-	                 gctr_out_blk_final;
+	                 encrypt_flag ? gctr_out_blk_final :
+	                 decrypt_flag ? gcm_in_blk :
+	                 {GCM_BLK_BITS{1'b0}};
 end
 
 /*
