@@ -62,14 +62,14 @@ task test_128bit_key_gcm();
 		$finish;
 	end
 
-	cmd = set_encryption_op_bit(cmd) |
-	      set_key_128_bit(cmd) |
-	      set_GCM_mode_bit(cmd);
-
 	while (!$feof(fd)) begin
 		$fscanf(fd, "%s %h\n", key, data);
 
-		if (key == "DOUT" || key == "T") // DATA_OUT or TAG
+		if (key == "OP") begin
+			cmd = data[`CMD_BITS-1:0];
+			cmd = set_key_128_bit(cmd) |
+			      set_GCM_mode_bit(cmd);
+		end else if (key == "DOUT" || key == "T") // DATA_OUT or TAG
 			gcm_out_q.push_back(data);
 		else // Input data (KEY, IV, AADLEN, AAD, DATA_IN)
 			gcm_in_q.push_back(data);
