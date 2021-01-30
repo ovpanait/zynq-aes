@@ -116,10 +116,6 @@ function op_get_encrypt_bit(input [GCM_BLK_BITS-1:0] op);
 	op_get_encrypt_bit = op[0];
 endfunction
 
-function op_get_decrypt_bit(input [GCM_BLK_BITS-1:0] op);
-	op_get_decrypt_bit = op[1];
-endfunction
-
 task setup_test_data(input string fn);
 	integer fd;
 	string key;
@@ -242,7 +238,7 @@ always @(posedge clk) begin
 		if (state == GET_OP_TYPE) begin
 			op = metadata_q.pop_front();
 			encrypt_flag <= op_get_encrypt_bit(op);
-			decrypt_flag <= op_get_decrypt_bit(op);
+			decrypt_flag <= ~op_get_encrypt_bit(op);
 		end
 
 		if (state == EXPAND_KEY && !key_expanded) begin
