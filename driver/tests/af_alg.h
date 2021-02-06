@@ -37,6 +37,7 @@ int alloc_buffer(uint8_t **buf, unsigned int size);
 int af_alg_sock_setup(struct crypto_op *cop, struct sockaddr_alg *sa);
 int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size);
 int af_alg_set_iv(struct crypto_op *cop, uint8_t *iv);
+void *af_alg_get_iv_ptr(struct crypto_op *cop);
 int af_alg_set_taglen(struct crypto_op *cop);
 int af_alg_set_aadlen(struct crypto_op *cop);
 

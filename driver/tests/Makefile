@@ -24,7 +24,7 @@ CFLAGS += -Wall
 
 all: stress
 
-stress: stress.c
+stress: stress.c af_alg.c
 
 clean:
 	rm -rf stress
