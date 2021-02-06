@@ -13,33 +13,11 @@
 #include <fcntl.h>
 #include <limits.h>
 
-#ifndef SOL_ALG
-#define SOL_ALG 279
-#endif
-
-#define AES_BLOCK_SIZE  16
-#define AES_IV_SIZE     16
-#define AES_KEY128_SIZE 16
-#define AES_KEY256_SIZE 32
-
-#define GCM_IV_SIZE  12
-#define GCM_AAD_SIZE 16
-#define GCM_TAGLEN   16
+#include "af_alg.h"
 
 #define ITER_NO            1
-#define PAYLOAD_AES_BLOCKS 1000
+#define PAYLOAD_AES_BLOCKS 1
 #define PAYLOAD_SIZE       (AES_BLOCK_SIZE * PAYLOAD_AES_BLOCKS)
-
-struct crypto_op {
-	int tfmfd;
-	int opfd;
-	struct msghdr msg;
-	struct iovec iov;
-
-	size_t iv_size;
-	size_t aad_size;
-	size_t taglen;
-};
 
 /*
  * Adapted from https://github.com/dsprenkels/randombytes/blob/master/randombytes.c
@@ -71,7 +49,7 @@ static int get_urandom_bytes(void *buf, size_t n)
 	return 0;
 }
 
-static int alloc_buffer(uint8_t **buf, unsigned int size)
+int alloc_buffer(uint8_t **buf, unsigned int size)
 {
 	uint8_t *buf_ptr;
 
@@ -86,7 +64,7 @@ static int alloc_buffer(uint8_t **buf, unsigned int size)
 	return 0;
 }
 
-static void dump_buffer(FILE *file, char *msg, uint8_t *buf, unsigned int size)
+void dump_buffer(FILE *file, char *msg, uint8_t *buf, unsigned int size)
 {
 	unsigned int i;
 
@@ -98,7 +76,7 @@ static void dump_buffer(FILE *file, char *msg, uint8_t *buf, unsigned int size)
 	fprintf(file, "\n");
 }
 
-static void dump_aes_buffer(FILE *file, char *msg, uint8_t *aes_buf, int blocks_no)
+void dump_aes_buffer(FILE *file, char *msg, uint8_t *aes_buf, int blocks_no)
 {
 	int i = 0;
 
@@ -127,7 +105,7 @@ static void check_aes_buffers(uint8_t *aes_buf_in, uint8_t *aes_buf_out, int blo
         }
 }
 
-static int af_alg_sock_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
+int af_alg_sock_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
 {
 	int ret;
 
@@ -153,7 +131,7 @@ static int af_alg_sock_setup(struct crypto_op *cop, struct sockaddr_alg *sa)
 	return 0;
 }
 
-static int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
+int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
 {
 	int ret;
 
@@ -166,7 +144,7 @@ static int af_alg_set_key(struct crypto_op *cop, uint8_t *key, size_t key_size)
 	return 0;
 }
 
-static int af_alg_set_taglen(struct crypto_op *cop)
+int af_alg_set_taglen(struct crypto_op *cop)
 {
 	int ret;
 
@@ -219,7 +197,7 @@ static int af_alg_set_decryption(struct crypto_op *cop, void *data, size_t size)
 	return 0;
 }
 
-static int af_alg_set_aadlen(struct crypto_op *cop)
+int af_alg_set_aadlen(struct crypto_op *cop)
 {
 	struct cmsghdr *cmsg;
 	uint32_t *aad_ptr;
@@ -241,7 +219,7 @@ static int af_alg_set_aadlen(struct crypto_op *cop)
 	return 0;
 }
 
-static int af_alg_set_iv(struct crypto_op *cop, uint8_t *iv)
+int af_alg_set_iv(struct crypto_op *cop, uint8_t *iv)
 {
 	struct af_alg_iv *af_iv;
 
@@ -252,7 +230,7 @@ static int af_alg_set_iv(struct crypto_op *cop, uint8_t *iv)
 	return 0;
 }
 
-static struct crypto_op *crypto_op_create(void)
+struct crypto_op *crypto_op_create(void)
 {
 	struct crypto_op *cop;
 
@@ -265,7 +243,7 @@ static struct crypto_op *crypto_op_create(void)
 	return cop;
 }
 
-static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
+void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 				size_t aad_size, size_t taglen)
 {
 	size_t cbuf_size;
@@ -343,7 +321,7 @@ static void crypto_op_init(struct crypto_op *cop, size_t iv_size,
 	cop->msg.msg_iovlen = 1;
 }
 
-static void crypto_op_finish(struct crypto_op *cop)
+void crypto_op_finish(struct crypto_op *cop)
 {
 	close(cop->opfd);
 	close(cop->tfmfd);
@@ -385,7 +363,7 @@ static int set_random_aad(struct crypto_op *cop, uint8_t *aad)
 	return 0;
 }
 
-static int encrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
+int encrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
 			uint8_t *data_out, size_t data_out_len)
 {
 	int ret;
@@ -407,7 +385,7 @@ static int encrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
 	return 0;
 }
 
-static int decrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
+int decrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
 			uint8_t *data_out, size_t data_out_len)
 {
 	int ret;
