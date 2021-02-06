@@ -22,9 +22,11 @@ $(call allow-override,STRIP,$(CROSS_COMPILE)strip)
 
 CFLAGS += -Wall
 
-all: stress
+all: stress gcm
 
 stress: stress.c af_alg.c
+
+gcm: gcm.c af_alg.c
 
 clean:
 	rm -rf stress
