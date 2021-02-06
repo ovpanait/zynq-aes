@@ -323,4 +323,13 @@ int decrypt(struct crypto_op *cop, uint8_t *data_in, size_t data_in_len,
 	return 0;
 }
 
+void buf_eq(char *desc, uint8_t *buf1, uint8_t *buf2, unsigned int nbytes)
+{
+	if (memcmp(buf1, buf2, nbytes)) {
+		fprintf(stderr, "%s: data mismatch!\n", desc);
+		dump_buffer(stderr, NULL, buf1, nbytes);
+		dump_buffer(stderr, NULL, buf2, nbytes);
 
+		exit(EXIT_FAILURE);
+	}
+}

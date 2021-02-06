@@ -27,6 +27,7 @@ struct crypto_op {
 
 void dump_buffer(FILE *file, char *msg, uint8_t *buf, unsigned int size);
 void dump_aes_buffer(FILE *file, char *msg, uint8_t *aes_buf, int blocks_no);
+void buf_eq(char *desc, uint8_t *buf1, uint8_t *buf2, unsigned int nbytes);
 
 struct crypto_op *crypto_op_create(void);
 void crypto_op_init(struct crypto_op *cop, size_t iv_size,
