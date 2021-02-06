@@ -1,9 +1,10 @@
 # Uncomment to enable debug info
 # CFLAGS_zynqaes.o := -DDEBUG
+# CFLAGS_zynqaes_aead.o := -DDEBUG
 # CFLAGS_zynqaes_skcipher.o := -DDEBUG
 
 obj-m := zynqaes_crypto.o
-zynqaes_crypto-objs := zynqaes.o zynqaes_skcipher.o
+zynqaes_crypto-objs := zynqaes.o zynqaes_skcipher.o zynqaes_aead.o
 
 SRC := $(shell pwd)
 

@@ -219,10 +219,16 @@ static int zynqaes_probe(struct platform_device *pdev)
 	if ((err = zynqaes_register_skciphers()))
 		goto free_engine;
 
+	if ((err = zynqaes_register_aeads()))
+		goto unregister_skciphers;
+
 	dev_dbg(zynqaes_dd->dev, "[%s:%d]: Probing successful \n",
 				__func__, __LINE__);
 
 	return 0;
+
+unregister_skciphers:
+	zynqaes_unregister_skciphers();
 
 free_engine:
 	if (zynqaes_dd->engine)
@@ -247,6 +253,7 @@ static int zynqaes_remove(struct platform_device *pdev)
 				__func__, __LINE__);
 
 	zynqaes_unregister_skciphers();
+	zynqaes_unregister_aeads();
 
 	crypto_engine_exit(zynqaes_dd->engine);
 
