@@ -21,8 +21,8 @@ xsv_opts="${xsim_opts} -sv"
 # RUN_STEP: <compile>
 compile()
 {
-	VLOG_FILES="$(find ${HDL_DIR} -iname *.v)"
-	SV_FILES="$(find ${HDL_DIR} ${TB_DIR} -iname *.sv)"
+	VLOG_FILES="$(find ${HDL_DIR} -iname '*.v')"
+	SV_FILES="$(find ${HDL_DIR} ${TB_DIR} -iname '*.sv')"
 
 	[ ! -z "${VLOG_FILES}" ] && xvlog ${xvlog_opts} ${VLOG_FILES} 2>&1 | tee -a compile.log
 	[ ! -z "${SV_FILES}" ] && xvlog ${xsv_opts} ${SV_FILES} 2>&1 | tee -a compile.log
