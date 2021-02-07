@@ -71,6 +71,14 @@ static void zynqaes_aead_dump_sg(struct scatterlist *sg)
 	}
 }
 
+static void zynqaes_aead_print_sg_list(struct scatterlist *sg)
+{
+	while (sg) {
+		zynqaes_aead_dump_sg(sg);
+		sg = sg_next(sg);
+	}
+}
+
 static void zynqaes_aead_debug_rctx(struct zynqaes_aead_reqctx *rctx)
 {
 	struct zynqaes_dev *dd = rctx->base.dd;
@@ -441,6 +449,13 @@ static int zynqaes_aead_crypt_req(struct crypto_engine *engine,
 	struct zynqaes_dev *dd = rctx->base.dd;
 	struct zynqaes_ctx *ctx = &aead_ctx->base;
 	int ret;
+
+#ifdef DEBUG
+	pr_debug("areq->src:\n");
+	zynqaes_aead_print_sg_list(areq->src);
+	pr_debug("areq->dst:\n");
+	zynqaes_aead_print_sg_list(areq->dst);
+#endif
 
 	rctx->base.ctx = ctx;
 	rctx->base.ivsize = crypto_aead_ivsize(cipher);
