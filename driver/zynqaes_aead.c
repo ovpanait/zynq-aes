@@ -277,8 +277,9 @@ static int zynqaes_aead_enqueue_next_dma_op(struct zynqaes_aead_reqctx *rctx)
 	u64 nents;
 	int ret;
 
-	struct scatterlist *sg_ptr;
+	struct scatterlist *sg_dst_crypt;
 	struct scatterlist sg_nxt[2];
+	struct scatterlist *sg_ptr;
 
 	areq = rctx->areq;
 	dd = rctx->base.dd;
@@ -301,8 +302,9 @@ static int zynqaes_aead_enqueue_next_dma_op(struct zynqaes_aead_reqctx *rctx)
 #endif
 
 	/* Rx path */
-	scatterwalk_ffwd(sg_nxt, areq->dst, areq->assoclen);
-	nents = sg_nents(sg_nxt);
+	/* Skip to cryptdata in areq->dst */
+	sg_dst_crypt = scatterwalk_ffwd(sg_nxt, areq->dst, areq->assoclen);
+	nents = sg_nents(sg_dst_crypt);
 
 	rctx->rx_sg = kzalloc((nents + ZYNQAES_GCM_RX_EXTRA_NSG) *
 			      sizeof(struct scatterlist), GFP_ATOMIC);
@@ -313,7 +315,7 @@ static int zynqaes_aead_enqueue_next_dma_op(struct zynqaes_aead_reqctx *rctx)
 	}
 
 	sg_ptr = rctx->rx_sg;
-	sg_ptr += zynqaes_aead_sg_copy(sg_ptr, sg_nxt,
+	sg_ptr += zynqaes_aead_sg_copy(sg_ptr, sg_dst_crypt,
 					rctx->cryptlen_nbytes,
 					sg_nxt);
 
