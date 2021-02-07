@@ -57,10 +57,6 @@ sim_novip: TB_DIR = $(TB_TOP)/zynq_aes_top_novip
 sim_novip: $(XSIM_DIR)
 	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
 
-sim_vip: TB_DIR = $(TB_TOP)/zynq_aes_top_vip
-sim_vip: $(SIM_PROJ)
-	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
-
 # Test targets
 test_%:
 	@if ! test -d $(TB_TOP)/$*;then\
