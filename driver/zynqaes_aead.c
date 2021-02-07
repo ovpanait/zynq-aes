@@ -371,13 +371,18 @@ static int zynqaes_aead_enqueue_next_dma_op(struct zynqaes_aead_reqctx *rctx)
 					       areq->assoclen,
 					       sg_nxt);
 
-		sg_set_buf(sg_ptr, aead_ctx->zero_blk, rctx->assoclen_padding);
-		sg_ptr++;
+		if (rctx->assoclen_padding) {
+			sg_set_buf(sg_ptr, aead_ctx->zero_blk,
+					   rctx->assoclen_padding);
+			sg_ptr++;
+		}
 
 		sg_ptr += zynqaes_aead_sg_copy(sg_ptr, sg_nxt,
 					       rctx->cryptlen_nbytes,
 					       sg_nxt);
-		sg_set_buf(sg_ptr, aead_ctx->zero_blk, rctx->cryptlen_padding);
+		if (rctx->cryptlen_padding)
+			sg_set_buf(sg_ptr, aead_ctx->zero_blk,
+					   rctx->cryptlen_padding);
 
 		sg_chain(rctx->tx_sg_header, ZYNQAES_GCM_TX_HEADER_NSG,
 			 rctx->tx_sg_pad);
