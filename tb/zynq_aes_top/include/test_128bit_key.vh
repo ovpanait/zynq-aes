@@ -40,7 +40,7 @@ endtask
 
 task test_128bit_key_gcm();
 	localparam testcase_name = "GCM stress test (128-bit key)";
-	localparam fn = "gcm_vectors128.data";
+	localparam fn = "samples/gcm_vectors128.data";
 
 	integer fd;
 	integer i, j;
@@ -102,8 +102,8 @@ task test_128bit_key_ofb_enc();
 	localparam AES_KEY128 = 'h7af17b56fb4e12150938a6b947d0a639;
 	localparam AES_IV = 'h8c5e2e2dfa06af266c9af15f7c07df01;
 
-	localparam plaintext_fn = "ofb_plaintext_128.txt";
-	localparam ciphertext_fn = "ofb_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/ofb_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/ofb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -150,8 +150,8 @@ task test_128bit_key_ofb_dec();
 	localparam AES_KEY128 = 'h7af17b56fb4e12150938a6b947d0a639;
 	localparam AES_IV = 'h8c5e2e2dfa06af266c9af15f7c07df01;
 
-	localparam plaintext_fn = "ofb_plaintext_128.txt";
-	localparam ciphertext_fn = "ofb_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/ofb_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/ofb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -198,8 +198,8 @@ task test_128bit_key_cfb_enc();
 	localparam AES_KEY128 = 'h7781fa496fad370f8aa2b695c4d0fe06;
 	localparam AES_IV = 'h3dd37da6407c03ef8fb0e100527fcc3f;
 
-	localparam plaintext_fn = "cfb_plaintext_128.txt";
-	localparam ciphertext_fn = "cfb_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/cfb_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/cfb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -245,8 +245,8 @@ task test_128bit_key_cfb_dec();
 	localparam AES_KEY128 = 'h7781fa496fad370f8aa2b695c4d0fe06;
 	localparam AES_IV = 'h3dd37da6407c03ef8fb0e100527fcc3f;
 
-	localparam plaintext_fn = "cfb_plaintext_128.txt";
-	localparam ciphertext_fn = "cfb_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/cfb_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/cfb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -293,8 +293,8 @@ task test_128bit_key_pcbc_enc();
 	localparam AES_KEY128 = 'hdfeec7fa89e979a9eb3d4d3257e37eb4;
 	localparam AES_IV = 'h852b3137f4cae47d797d51df6f4e87ab;
 
-	localparam plaintext_fn = "pcbc_plaintext_128.txt";
-	localparam ciphertext_fn = "pcbc_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/pcbc_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/pcbc_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -340,8 +340,8 @@ task test_128bit_key_pcbc_dec();
 	localparam AES_KEY128 = 'hdfeec7fa89e979a9eb3d4d3257e37eb4;
 	localparam AES_IV = 'h852b3137f4cae47d797d51df6f4e87ab;
 
-	localparam plaintext_fn = "pcbc_plaintext_128.txt";
-	localparam ciphertext_fn = "pcbc_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/pcbc_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/pcbc_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -387,8 +387,8 @@ task test_128bit_key_ctr_enc();
 	localparam AES_KEY128 = 'hd103aa2aa292b696d7f58fb4c18368fa;
 	localparam AES_IV = 'h402426994c5d2dc8f8da82a0bb5ca718;
 
-	localparam plaintext_fn = "ctr_plaintext_128.txt";
-	localparam ciphertext_fn = "ctr_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/ctr_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/ctr_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -434,8 +434,8 @@ task test_128bit_key_ctr_dec();
 	localparam AES_KEY128 = 'hd103aa2aa292b696d7f58fb4c18368fa;
 	localparam AES_IV = 'h402426994c5d2dc8f8da82a0bb5ca718;
 
-	localparam plaintext_fn = "ctr_plaintext_128.txt";
-	localparam ciphertext_fn = "ctr_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/ctr_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/ctr_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -481,8 +481,8 @@ task test_128bit_key_cbc_enc();
 	localparam AES_KEY128 = 'h5468617473206D79204B756E67204675;
 	localparam AES_IV = 'h54776F204F6E65204E696E652054776F;
 
-	localparam plaintext_fn = "cbc_plaintext_128.txt";
-	localparam ciphertext_fn = "cbc_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/cbc_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/cbc_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -528,8 +528,8 @@ task test_128bit_key_cbc_dec();
 	localparam AES_KEY128 = 'h5468617473206D79204B756E67204675;
 	localparam AES_IV = 'h54776F204F6E65204E696E652054776F;
 
-	localparam plaintext_fn = "cbc_plaintext_128.txt";
-	localparam ciphertext_fn = "cbc_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/cbc_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/cbc_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -576,8 +576,8 @@ task test_128bit_key_ecb_enc();
 	localparam testcase_name = "ECB encryption stress test (128-bit key)";
 	localparam AES_KEY128 = 'h5468617473206D79204B756E67204675;
 
-	localparam plaintext_fn = "ecb_plaintext_128.txt";
-	localparam ciphertext_fn = "ecb_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/ecb_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/ecb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -622,8 +622,8 @@ task test_128bit_key_ecb_dec();
 	localparam testcase_name = "ECB decryption stress test (128-bit key)";
 	localparam AES_KEY128 = 'h5468617473206D79204B756E67204675;
 
-	localparam plaintext_fn = "ecb_plaintext_128.txt";
-	localparam ciphertext_fn = "ecb_ciphertext_128.txt";
+	localparam plaintext_fn = "samples/ecb_plaintext_128.txt";
+	localparam ciphertext_fn = "samples/ecb_ciphertext_128.txt";
 
 	integer total_blocks;
 	integer i, j;

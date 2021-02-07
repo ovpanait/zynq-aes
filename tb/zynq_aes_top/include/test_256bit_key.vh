@@ -19,8 +19,8 @@ task test_256bit_key_cbc_enc();
 	localparam AES_KEY256 = 'hb20394f27f88cb8fa5b9b8a95a123ab9853eb5a9f24471f07871a2b458f8180e;
 	localparam AES_IV = 'hb53f62538a064bc49bf03f2dffda050d;
 
-	localparam plaintext_fn = "cbc_plaintext_256.txt";
-	localparam ciphertext_fn = "cbc_ciphertext_256.txt";
+	localparam plaintext_fn = "samples/cbc_plaintext_256.txt";
+	localparam ciphertext_fn = "samples/cbc_ciphertext_256.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -68,8 +68,8 @@ task test_256bit_key_cbc_dec();
 
 	localparam test_blocks_no = 32;
 
-	localparam plaintext_fn = "cbc_plaintext_256.txt";
-	localparam ciphertext_fn = "cbc_ciphertext_256.txt";
+	localparam plaintext_fn = "samples/cbc_plaintext_256.txt";
+	localparam ciphertext_fn = "samples/cbc_ciphertext_256.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -116,8 +116,8 @@ task test_256bit_key_ecb_enc();
 
 	localparam test_blocks_no = 32;
 
-	localparam plaintext_fn = "ecb_plaintext_256.txt";
-	localparam ciphertext_fn = "ecb_ciphertext_256.txt";
+	localparam plaintext_fn = "samples/ecb_plaintext_256.txt";
+	localparam ciphertext_fn = "samples/ecb_ciphertext_256.txt";
 
 	integer total_blocks;
 	integer i, j;
@@ -164,8 +164,8 @@ task test_256bit_key_ecb_dec();
 
 	localparam test_blocks_no = 32;
 
-	localparam plaintext_fn = "ecb_plaintext_256.txt";
-	localparam ciphertext_fn = "ecb_ciphertext_256.txt";
+	localparam plaintext_fn = "samples/ecb_plaintext_256.txt";
+	localparam ciphertext_fn = "samples/ecb_ciphertext_256.txt";
 
 	integer total_blocks;
 	integer i, j;

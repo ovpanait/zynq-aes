@@ -9,7 +9,6 @@ TB_INCLUDE = $(TB_TOP)/include
 XDC_DIR = $(shell readlink -f xdc)
 TOOLS_DIR = $(shell readlink -f tools)
 SIM_DIR = $(shell readlink -f simulation)
-XSIM_DIR = $(SIM_DIR)/export_sim/xsim
 BD_DIR = $(shell readlink -f bd)
 SYNTH_DIR = $(shell readlink -f synthesis)
 REPORTS_DIR = $(SYNTH_DIR)/reports
@@ -45,18 +44,6 @@ $(SIM_PROJ): $(IP_REPO_DIR)
 	-nolog -nojour \
 	-tclargs $(IP_REPO_DIR) $(TB_DIR) $(SIM_DIR)
 
-$(XSIM_DIR): $(HDL_SOURCES)
-	rm -rf $@
-	HDL_INCLUDE=$(HDL_INCLUDE) TB_INCLUDE=$(TB_INCLUDE) VERBOSE=$(VERBOSE) \
-	vivado -mode tcl \
-	-source "$(TOOLS_DIR)/export_sim.tcl" \
-	-nolog -nojour \
-	-tclargs $(TB_DIR) $(SIM_DIR)
-
-sim_novip: TB_DIR = $(TB_TOP)/zynq_aes_top_novip
-sim_novip: $(XSIM_DIR)
-	cd $(XSIM_DIR); ./tb_main.sh -reset_run && ./tb_main.sh
-
 # Test targets
 test_%:
 	@if ! test -d $(TB_TOP)/$*;then\
@@ -67,7 +54,7 @@ test_%:
 	mkdir -p $(SIM_DIR)/$@
 	cd $(SIM_DIR)/$@; $(TOOLS_DIR)/xsim.sh $(HDL_DIR) $(TB_TOP)/$* $(TB_TOP)/include
 
-test: sim_novip
+test: test_zynq_aes_top
 
 $(SYNTH_DIR): $(IP_REPO_DIR) $(BD_SOURCES) $(XDC_FILES)
 	rm -rf $@
