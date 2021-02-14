@@ -1,5 +1,19 @@
 `include "aes.vh"
 
+`define KEY_EXPANSION_OP_BIT 0
+`define ENCRYPTION_OP_BIT    1
+`define DECRYPTION_OP_BIT    2
+`define KEY_128_BIT          3
+`define KEY_192_BIT          4
+`define KEY_256_BIT          5
+`define ECB_MODE_BIT         6
+`define CBC_MODE_BIT         7
+`define CTR_MODE_BIT         8
+`define PCBC_MODE_BIT        9
+`define CFB_MODE_BIT         10
+`define OFB_MODE_BIT         11
+`define GCM_MODE_BIT         12
+
 function is_128bit_key(input [`WORD_S-1:0] cmd);
 	is_128bit_key = cmd[`KEY_128_BIT];
 endfunction
