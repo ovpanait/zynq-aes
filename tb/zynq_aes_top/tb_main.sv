@@ -1,5 +1,5 @@
 `include "aes.vh"
-`include "controller_fc.vh"
+`include "aes_controller.vh"
 `include "queue.vh"
 
 module tb_main();

@@ -40,7 +40,7 @@ module aes_controller #
 	output                               out_bus_tlast
 );
 
-`include "controller_fc.vh"
+`include "aes_controller.vh"
 `include "common.vh"
 
 localparam IN_FIFO_DATA_WIDTH = `BLK_S + 1; // {tlast bit, 1 x 128-bit AES block}

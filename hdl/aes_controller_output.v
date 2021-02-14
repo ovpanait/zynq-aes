@@ -25,7 +25,7 @@ module aes_controller_output #
 	output                                    bus_tlast
 );
 
-`include "controller_fc.vh"
+`include "aes_controller.vh"
 
 // FIFO signals
 

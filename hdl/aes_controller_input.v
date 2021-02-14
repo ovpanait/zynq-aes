@@ -32,7 +32,7 @@ module aes_controller_input #(
 	output                                  controller_in_busy
 );
 
-`include "controller_fc.vh"
+`include "aes_controller.vh"
 
 // AXI related signals
 localparam GET_CMD = 1'b0;
