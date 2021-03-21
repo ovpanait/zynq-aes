@@ -1,9 +1,25 @@
 # AES hardware engine for Xilinx Zynq platform
 
 - 128/256-bit keys
-- ECB/CBC/PCBC/CTR/CFB/OFB
+- GCM/ECB/CBC/PCBC/CTR/CFB/OFB
 - IPSEC offloading OK
 - driver compatible with linux-xlnx v5.4 branch
+
+#### Notes on GCM support:  
+Currently, the hw engine is limited to receiving full 128-bit blocks for  
+processing. This works well for ECB/CBC/PCBC/CTR/CFB/OFB modes of operation  
+since they only deal with block-sized data, but GCM can process arbitrary-sized  
+AAD/CRYPTDATA.
+
+The consequence is that we pad AAD/CRYPTDATA with zeros in the Linux kernel  
+driver before sending it for processing. This means splitting the scatterlist  
+provided by the crypto layer and creating a new one, which introduces  
+considerable overhead.
+
+Therefore, there is a lot of room for improvement in this area (converting the  
+processing pipeline input to deal with arbitrary-sized data) and it is on my  
+TODO list.
+
 
 ## Quick Start
 Generate bitstream for your platform (must have vivado environment sourced).  
