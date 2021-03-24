@@ -1,5 +1,3 @@
-source $env(TCL_INCLUDE)/debug.tcl
-
 # Command line parameters
 if {$argc < 4} {
 	puts "
