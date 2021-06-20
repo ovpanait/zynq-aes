@@ -8,7 +8,10 @@ proc get_cpus_no {} {
 	}
 }
 
-set cpus_no [get_cpus_no]
+set cpus_no [expr [get_cpus_no] - 1]
+if {${cpus_no} == 0} {
+	set cpus_no 1
+}
 
 set tools_dir $env(TOOLS_DIR)
 set part $env(PART)
