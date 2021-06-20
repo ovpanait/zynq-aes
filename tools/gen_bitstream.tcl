@@ -62,6 +62,8 @@ if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose -max_paths 10 -input_pins -file ${reports_dir}/imp_timing.rpt
 report_power -file ${reports_dir}/imp_power.rpt
 
+write_hw_platform -fixed -include_bit -force -file ${out_dir}/zynqaes_hw.xsa
+
 file copy [glob ${proj_path}/${proj_name}.runs/impl_1/*.bit] ${out_dir}
 
 exit
