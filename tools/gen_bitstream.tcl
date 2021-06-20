@@ -18,6 +18,8 @@ set ip_repo_dir [lindex $argv 1]
 set synth_dir [lindex $argv 2]
 set reports_dir [lindex $argv 3]
 
+set out_dir ${synth_dir}/output
+
 set bd_name zynq_aes_bd
 set proj_name zynq_aes
 set proj_path "${synth_dir}/${proj_name}"
@@ -26,6 +28,7 @@ source [glob ${bd_dir}/*.tcl]
 
 file mkdir ${proj_path}
 file mkdir ${reports_dir}
+file mkdir ${out_dir}
 
 create_project -part ${part} ${proj_name} ${proj_path}
 
@@ -58,5 +61,7 @@ if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
 }
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose -max_paths 10 -input_pins -file ${reports_dir}/imp_timing.rpt
 report_power -file ${reports_dir}/imp_power.rpt
+
+file copy [glob ${proj_path}/${proj_name}.runs/impl_1/*.bit] ${out_dir}
 
 exit
