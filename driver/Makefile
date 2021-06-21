@@ -7,6 +7,7 @@ obj-m := zynqaes_crypto.o
 zynqaes_crypto-objs := zynqaes.o zynqaes_skcipher.o zynqaes_aead.o
 
 SRC := $(shell pwd)
+KERNEL_DIR ?= $(KERNEL_SRC)
 
 all:
 	$(MAKE) -C $(KERNEL_DIR) M=$(SRC)
