@@ -11,6 +11,9 @@ TOOLS_DIR = $(shell readlink -f tools)
 SIM_DIR = $(shell readlink -f simulation)
 BD_DIR = $(shell readlink -f bd)
 SYNTH_DIR = $(shell readlink -f synthesis)
+KMOD_DIR = $(shell readlink -f driver)
+META_ZYNQAES_DIR = $(shell readlink -f yocto/meta-zynqaes)
+
 REPORTS_DIR = $(SYNTH_DIR)/reports
 
 XDC_FILES := $(shell find $(XDC_DIR))
@@ -26,6 +29,13 @@ SIM_PROJ_NAME = test_proj
 SIM_PROJ = $(SIM_DIR)/$(SIM_PROJ_NAME)
 
 PART ?= xc7z020clg400-1
+
+KMOD_FILES = $(shell find $(KMOD_DIR) -maxdepth 1 -type f -name "*.[chsS]")
+YOCTO_KMOD_DIR = $(META_ZYNQAES_DIR)/recipes-kernel/zynqaes/files
+
+.PHONY: yocto
+yocto:
+	cp -a $(KMOD_FILES) $(YOCTO_KMOD_DIR)
 
 $(IP_REPO_DIR): $(HDL_SOURCES)
 	rm -rf $@
