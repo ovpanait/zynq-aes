@@ -1,7 +1,13 @@
 # AES hardware engine for Xilinx Zynq platform
 
+#### Features:
+- modes of operation:
+
+  | GCM | ECB | CBC | CTR | CFB | OFB | PCBC |
+  | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+  | :heavy_check_mark:<sup>**<sup> | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+
 - 128/256-bit keys
-- GCM/ECB/CBC/PCBC/CTR/CFB/OFB
 - IPSEC offloading OK
 - driver compatible with linux-xlnx v5.4 branch
 
