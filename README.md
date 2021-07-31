@@ -1,6 +1,6 @@
 # AES hardware engine for Xilinx Zynq platform
 
-#### Features:
+## Features:
 - modes of operation:
 
   | GCM | ECB | CBC | CTR | CFB | OFB | PCBC |
@@ -23,10 +23,14 @@ provided by the crypto layer and creating a new one, which introduces
 considerable overhead.
 
 Therefore, there is a lot of room for improvement in this area (converting the  
-processing pipeline input to deal with arbitrary-sized data) and it is on my  
-TODO list.
+processing pipeline input to deal with arbitrary-sized data).
 
+## TODO list
 
+- [ ] add fallback cipher in linux driver to handle 192-bit keys
+- [ ] convert the processing pipeline to deal with arbitrary-sized data
+- [ ] add support for XTS mode
+  
 ## Quick Start
 Generate bitstream for your platform (must have vivado environment sourced).  
 In my case, the part code for ARTY Z7-20 board is xc7z020clg400-1:  
