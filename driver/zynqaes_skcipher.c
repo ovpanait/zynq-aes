@@ -45,15 +45,11 @@ static void zynqaes_skcipher_dma_sg_restore(struct zynqaes_dma_ctx *dma)
 
 static void zynqaes_skcipher_dma_callback(void *data)
 {
-	struct zynqaes_dev *dd;
-	struct zynqaes_dma_ctx *dma_ctx;
-	struct zynqaes_reqctx_base *rctx_base;
-	struct zynqaes_skcipher_reqctx *rctx_sk;
-
-	rctx_base = data;
-	dd = rctx_base->dd;
-	dma_ctx = &rctx_base->dma_ctx;
-	rctx_sk = container_of(rctx_base, struct zynqaes_skcipher_reqctx, base);
+	struct zynqaes_reqctx_base *rctx_base = data;
+	struct zynqaes_dma_ctx *dma_ctx = &rctx_base->dma_ctx;
+	struct zynqaes_skcipher_reqctx *rctx_sk = container_of(rctx_base,
+					struct zynqaes_skcipher_reqctx, base);
+	struct zynqaes_dev *dd = rctx_base->dd;
 
 	dma_unmap_sg(dd->dev, dma_ctx->tx_sg, dma_ctx->tx_nents,
 			DMA_TO_DEVICE);
@@ -67,25 +63,17 @@ static void zynqaes_skcipher_dma_callback(void *data)
 
 static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *rctx)
 {
-	struct zynqaes_dev *dd;
-	struct zynqaes_skcipher_ctx *ctx;
-	struct zynqaes_dma_ctx *dma_ctx;
-	struct skcipher_request *areq;
-	unsigned int nsg;
-	int ret;
+	struct zynqaes_dma_ctx *dma_ctx = &rctx->base.dma_ctx;
+	struct zynqaes_skcipher_ctx *ctx = rctx->ctx;
+	struct skcipher_request *areq = rctx->areq;
+	struct zynqaes_dev *dd = rctx->base.dd;
 
+	unsigned int nsg = rctx->base.ivsize ? 4 : 3;
 	struct scatterlist *sg;
 	unsigned int nbytes;
-
-	areq = rctx->areq;
-	ctx = rctx->ctx;
-
-	dd = rctx->base.dd;
-	dma_ctx = &rctx->base.dma_ctx;
+	int ret;
 
 	memset(dma_ctx, 0, sizeof(*dma_ctx));
-
-	nsg = rctx->base.ivsize ? 4 : 3;
 
 	sg_init_table(rctx->tx_sg, nsg);
 	sg_set_buf(&rctx->tx_sg[0], &rctx->base.cmd, sizeof(rctx->base.cmd));
@@ -152,16 +140,13 @@ static int zynqaes_skcipher_crypt_req(struct crypto_engine *engine,
 	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
 	struct zynqaes_skcipher_ctx *ctx = crypto_tfm_ctx(tfm);
 	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
-	struct zynqaes_dev *dd;
+	struct zynqaes_dev *dd = rctx->base.dd;
 	int ret;
-
-	dd = rctx->base.dd;
-
-	rctx->base.ivsize = crypto_skcipher_ivsize(cipher);
 
 	rctx->ctx = ctx;
 	rctx->areq = areq;
 	rctx->nbytes = areq->cryptlen;
+	rctx->base.ivsize = crypto_skcipher_ivsize(cipher);
 
 	zynqaes_set_key_bit(ctx->base.key_len, &rctx->base);
 
