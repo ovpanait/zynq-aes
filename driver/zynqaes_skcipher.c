@@ -2,7 +2,13 @@
 
 #include "zynqaes.h"
 
+struct zynqaes_skcipher_ctx {
+	struct zynqaes_ctx base;
+};
+
 struct zynqaes_skcipher_reqctx {
+	struct zynqaes_skcipher_ctx *ctx;
+
 	struct skcipher_request *areq;
 	struct scatterlist tx_sg[4];
 	unsigned int nbytes;
@@ -62,7 +68,7 @@ static void zynqaes_skcipher_dma_callback(void *data)
 static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *rctx)
 {
 	struct zynqaes_dev *dd;
-	struct zynqaes_ctx *ctx;
+	struct zynqaes_skcipher_ctx *ctx;
 	struct zynqaes_dma_ctx *dma_ctx;
 	struct skcipher_request *areq;
 	unsigned int nsg;
@@ -72,9 +78,9 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 	unsigned int nbytes;
 
 	areq = rctx->areq;
+	ctx = rctx->ctx;
 
 	dd = rctx->base.dd;
-	ctx = rctx->base.ctx;
 	dma_ctx = &rctx->base.dma_ctx;
 
 	memset(dma_ctx, 0, sizeof(*dma_ctx));
@@ -83,7 +89,7 @@ static int zynqaes_skcipher_enqueue_next_dma_op(struct zynqaes_skcipher_reqctx *
 
 	sg_init_table(rctx->tx_sg, nsg);
 	sg_set_buf(&rctx->tx_sg[0], &rctx->base.cmd, sizeof(rctx->base.cmd));
-	sg_set_buf(&rctx->tx_sg[1], ctx->key, ctx->key_len);
+	sg_set_buf(&rctx->tx_sg[1], ctx->base.key, ctx->base.key_len);
 	if (rctx->base.ivsize) {
 		sg_set_buf(&rctx->tx_sg[2], rctx->base.iv, AES_BLOCK_SIZE);
 	}
@@ -144,20 +150,20 @@ static int zynqaes_skcipher_crypt_req(struct crypto_engine *engine,
 	struct skcipher_request *areq = container_of(req, struct skcipher_request, base);
 	struct crypto_skcipher *cipher = crypto_skcipher_reqtfm(areq);
 	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
-	struct zynqaes_ctx *ctx = crypto_tfm_ctx(tfm);
+	struct zynqaes_skcipher_ctx *ctx = crypto_tfm_ctx(tfm);
 	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
 	struct zynqaes_dev *dd;
 	int ret;
 
 	dd = rctx->base.dd;
 
-	rctx->base.ctx = ctx;
 	rctx->base.ivsize = crypto_skcipher_ivsize(cipher);
 
+	rctx->ctx = ctx;
 	rctx->areq = areq;
 	rctx->nbytes = areq->cryptlen;
 
-	zynqaes_set_key_bit(ctx->key_len, &rctx->base);
+	zynqaes_set_key_bit(ctx->base.key_len, &rctx->base);
 
 	dev_dbg(dd->dev, "[%s:%d] rctx->nbytes: %u\n", __func__, __LINE__,
 			rctx->nbytes);
@@ -195,9 +201,9 @@ static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 static int zynqaes_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key,
 				   unsigned int len)
 {
-	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
+	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 
-	return zynqaes_setkey(ctx, key, len);
+	return zynqaes_setkey(&ctx->base, key, len);
 }
 
 static int zynqaes_ecb_encrypt(struct skcipher_request *areq)
@@ -262,13 +268,13 @@ static int zynqaes_ofb_decrypt(struct skcipher_request *areq)
 
 static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
 {
-	struct zynqaes_ctx *ctx = crypto_skcipher_ctx(tfm);
+	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 
 	crypto_skcipher_set_reqsize(tfm, sizeof(struct zynqaes_skcipher_reqctx));
 
-	ctx->enginectx.op.prepare_request = NULL;
-	ctx->enginectx.op.unprepare_request = NULL;
-	ctx->enginectx.op.do_one_request = zynqaes_skcipher_crypt_req;
+	ctx->base.enginectx.op.prepare_request = NULL;
+	ctx->base.enginectx.op.unprepare_request = NULL;
+	ctx->base.enginectx.op.do_one_request = zynqaes_skcipher_crypt_req;
 
 	return 0;
 }
@@ -280,7 +286,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
-	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
@@ -295,7 +301,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
-	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
@@ -311,7 +317,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
-	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
@@ -327,7 +333,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
-	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
@@ -343,7 +349,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
-	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
@@ -359,7 +365,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
-	.base.cra_ctxsize	=	sizeof(struct zynqaes_ctx),
+	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
