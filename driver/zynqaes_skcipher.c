@@ -294,7 +294,7 @@ static int zynqaes_ofb_decrypt(struct skcipher_request *areq)
 	return zynqaes_skcipher_crypt(areq, ZYNQAES_OFB_DECRYPT);
 }
 
-static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
+static int zynqaes_skcipher_init_tfm(struct crypto_skcipher *tfm)
 {
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 	const char *name = crypto_tfm_alg_name(&tfm->base);
@@ -316,7 +316,7 @@ static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
 	return 0;
 }
 
-static void zynqaes_skcipher_cra_exit(struct crypto_skcipher *tfm)
+static void zynqaes_skcipher_exit_tfm(struct crypto_skcipher *tfm)
 {
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 
@@ -336,8 +336,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
-	.init			=	zynqaes_skcipher_init,
-	.exit			=	zynqaes_skcipher_cra_exit,
+	.init			=	zynqaes_skcipher_init_tfm,
+	.exit			=	zynqaes_skcipher_exit_tfm,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ecb_encrypt,
 	.decrypt		=	zynqaes_ecb_decrypt,
@@ -354,8 +354,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
-	.init			=	zynqaes_skcipher_init,
-	.exit			=	zynqaes_skcipher_cra_exit,
+	.init			=	zynqaes_skcipher_init_tfm,
+	.exit			=	zynqaes_skcipher_exit_tfm,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_cbc_encrypt,
 	.decrypt		=	zynqaes_cbc_decrypt,
@@ -372,8 +372,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
-	.init			=	zynqaes_skcipher_init,
-	.exit			=	zynqaes_skcipher_cra_exit,
+	.init			=	zynqaes_skcipher_init_tfm,
+	.exit			=	zynqaes_skcipher_exit_tfm,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_pcbc_encrypt,
 	.decrypt		=	zynqaes_pcbc_decrypt,
@@ -390,8 +390,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
-	.init			=	zynqaes_skcipher_init,
-	.exit			=	zynqaes_skcipher_cra_exit,
+	.init			=	zynqaes_skcipher_init_tfm,
+	.exit			=	zynqaes_skcipher_exit_tfm,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ctr_encrypt,
 	.decrypt		=	zynqaes_ctr_decrypt,
@@ -408,8 +408,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
-	.init			=	zynqaes_skcipher_init,
-	.exit			=	zynqaes_skcipher_cra_exit,
+	.init			=	zynqaes_skcipher_init_tfm,
+	.exit			=	zynqaes_skcipher_exit_tfm,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_cfb_encrypt,
 	.decrypt		=	zynqaes_cfb_decrypt,
@@ -426,8 +426,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
-	.init			=	zynqaes_skcipher_init,
-	.exit			=	zynqaes_skcipher_cra_exit,
+	.init			=	zynqaes_skcipher_init_tfm,
+	.exit			=	zynqaes_skcipher_exit_tfm,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ofb_encrypt,
 	.decrypt		=	zynqaes_ofb_decrypt,
