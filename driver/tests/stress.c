@@ -282,21 +282,27 @@ static int stress_aead(char *alg, unsigned int keysize, size_t iv_size,
 int main(void)
 {
 	stress_skcipher("ecb(aes)", AES_KEY128_SIZE, 0);
+	stress_skcipher("ecb(aes)", AES_KEY192_SIZE, 0);
 	stress_skcipher("ecb(aes)", AES_KEY256_SIZE, 0);
 
 	stress_skcipher("cbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("cbc(aes)", AES_KEY192_SIZE, AES_IV_SIZE);
 	stress_skcipher("cbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	stress_skcipher("ctr(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("ctr(aes)", AES_KEY192_SIZE, AES_IV_SIZE);
 	stress_skcipher("ctr(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	stress_skcipher("pcbc(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("pcbc(aes)", AES_KEY192_SIZE, AES_IV_SIZE);
 	stress_skcipher("pcbc(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	stress_skcipher("cfb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("cfb(aes)", AES_KEY192_SIZE, AES_IV_SIZE);
 	stress_skcipher("cfb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	stress_skcipher("ofb(aes)", AES_KEY128_SIZE, AES_IV_SIZE);
+	stress_skcipher("ofb(aes)", AES_KEY192_SIZE, AES_IV_SIZE);
 	stress_skcipher("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	stress_aead("gcm(aes)", AES_KEY128_SIZE, GCM_IV_SIZE, GCM_AAD_SIZE, GCM_TAGLEN);

@@ -8,6 +8,7 @@
 #define AES_BLOCK_SIZE  16
 #define AES_IV_SIZE     16
 #define AES_KEY128_SIZE 16
+#define AES_KEY192_SIZE 24
 #define AES_KEY256_SIZE 32
 
 #define GCM_IV_SIZE  12
