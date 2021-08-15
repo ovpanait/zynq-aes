@@ -4,6 +4,9 @@
 
 struct zynqaes_skcipher_ctx {
 	struct zynqaes_ctx base;
+
+	struct crypto_sync_skcipher *fallback_tfm;
+	bool need_fallback;
 };
 
 struct zynqaes_skcipher_reqctx {
@@ -132,6 +135,27 @@ out_err:
 	return ret;
 }
 
+static int zynqaes_skcipher_fallback(struct skcipher_request *areq, int encrypt)
+{
+	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(areq);
+	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
+	SYNC_SKCIPHER_REQUEST_ON_STACK(subreq, ctx->fallback_tfm);
+	int err;
+
+	skcipher_request_set_sync_tfm(subreq, ctx->fallback_tfm);
+	skcipher_request_set_callback(subreq, areq->base.flags,
+				      areq->base.complete, areq->base.data);
+	skcipher_request_set_crypt(subreq, areq->src, areq->dst, areq->cryptlen,
+				   areq->iv);
+
+	if (encrypt)
+		err = crypto_skcipher_encrypt(subreq);
+	else
+		err = crypto_skcipher_decrypt(subreq);
+
+	return err;
+}
+
 static int zynqaes_skcipher_crypt_req(struct crypto_engine *engine,
 			     void *req)
 {
@@ -174,8 +198,14 @@ out:
 
 static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 {
+	struct crypto_skcipher *cipher = crypto_skcipher_reqtfm(areq);
+	struct crypto_tfm *tfm = crypto_skcipher_tfm(cipher);
+	struct zynqaes_skcipher_ctx *ctx = crypto_tfm_ctx(tfm);
 	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
 	struct zynqaes_dev *dd = zynqaes_find_dev();
+
+	if (ctx->need_fallback)
+		return zynqaes_skcipher_fallback(areq, cmd & ZYNQAES_ENCRYPTION_FLAG);
 
 	rctx->base.dd = dd;
 	rctx->base.cmd = cmd;
@@ -187,6 +217,19 @@ static int zynqaes_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key,
 				   unsigned int len)
 {
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
+
+	ctx->need_fallback = false;
+
+	if (len == AES_KEYSIZE_192) {
+		ctx->need_fallback = true;
+
+		crypto_sync_skcipher_clear_flags(ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
+		crypto_sync_skcipher_set_flags(ctx->fallback_tfm, tfm->base.crt_flags &
+						 CRYPTO_TFM_REQ_MASK);
+
+		return crypto_sync_skcipher_setkey(ctx->fallback_tfm, key, len);
+	}
+
 
 	return zynqaes_setkey(&ctx->base, key, len);
 }
@@ -254,6 +297,15 @@ static int zynqaes_ofb_decrypt(struct skcipher_request *areq)
 static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
 {
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
+	const char *name = crypto_tfm_alg_name(&tfm->base);
+
+	ctx->fallback_tfm = crypto_alloc_sync_skcipher(name, 0,
+						CRYPTO_ALG_NEED_FALLBACK);
+	if (IS_ERR(ctx->fallback_tfm)) {
+		pr_err("ERROR: Cannot allocate fallback for %s %ld\n",
+			name, PTR_ERR(ctx->fallback_tfm));
+		return PTR_ERR(ctx->fallback_tfm);
+	}
 
 	crypto_skcipher_set_reqsize(tfm, sizeof(struct zynqaes_skcipher_reqctx));
 
@@ -264,12 +316,20 @@ static int zynqaes_skcipher_init(struct crypto_skcipher *tfm)
 	return 0;
 }
 
+static void zynqaes_skcipher_cra_exit(struct crypto_skcipher *tfm)
+{
+	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
+
+	crypto_free_sync_skcipher(ctx->fallback_tfm);
+}
+
 static struct skcipher_alg zynqaes_skcipher_algs[] = {
 {
 	.base.cra_name		=	"ecb(aes)",
 	.base.cra_driver_name	=	"zynqaes-ecb",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
@@ -277,6 +337,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.min_keysize		=	AES_MIN_KEY_SIZE,
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.init			=	zynqaes_skcipher_init,
+	.exit			=	zynqaes_skcipher_cra_exit,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ecb_encrypt,
 	.decrypt		=	zynqaes_ecb_decrypt,
@@ -284,7 +345,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_name		=	"cbc(aes)",
 	.base.cra_driver_name	=	"zynqaes-cbc",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
@@ -293,6 +355,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
+	.exit			=	zynqaes_skcipher_cra_exit,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_cbc_encrypt,
 	.decrypt		=	zynqaes_cbc_decrypt,
@@ -300,7 +363,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_name		=	"pcbc(aes)",
 	.base.cra_driver_name	=	"zynqaes-pcbc",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
@@ -309,6 +373,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
+	.exit			=	zynqaes_skcipher_cra_exit,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_pcbc_encrypt,
 	.decrypt		=	zynqaes_pcbc_decrypt,
@@ -316,7 +381,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_name		=	"ctr(aes)",
 	.base.cra_driver_name	=	"zynqaes-ctr",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
@@ -325,6 +391,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
+	.exit			=	zynqaes_skcipher_cra_exit,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ctr_encrypt,
 	.decrypt		=	zynqaes_ctr_decrypt,
@@ -332,7 +399,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_name		=	"cfb(aes)",
 	.base.cra_driver_name	=	"zynqaes-cfb",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
@@ -341,6 +409,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
+	.exit			=	zynqaes_skcipher_cra_exit,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_cfb_encrypt,
 	.decrypt		=	zynqaes_cfb_decrypt,
@@ -348,7 +417,8 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_name		=	"ofb(aes)",
 	.base.cra_driver_name	=	"zynqaes-ofb",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	AES_BLOCK_SIZE,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
@@ -357,6 +427,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.max_keysize		=	AES_MAX_KEY_SIZE,
 	.ivsize			=	AES_BLOCK_SIZE,
 	.init			=	zynqaes_skcipher_init,
+	.exit			=	zynqaes_skcipher_cra_exit,
 	.setkey			=	zynqaes_skcipher_setkey,
 	.encrypt		=	zynqaes_ofb_encrypt,
 	.decrypt		=	zynqaes_ofb_decrypt,
