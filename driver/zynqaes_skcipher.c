@@ -6,7 +6,6 @@ struct zynqaes_skcipher_ctx {
 	struct zynqaes_ctx base;
 
 	struct crypto_skcipher *fallback_tfm;
-	bool need_fallback;
 };
 
 struct zynqaes_skcipher_reqctx {
@@ -198,6 +197,14 @@ out:
 	return ret;
 }
 
+static int zynqaes_skcipher_need_fallback(const u32 cmd,
+					  struct skcipher_request *areq,
+					  struct zynqaes_skcipher_ctx *ctx)
+{
+	return ((areq->cryptlen % AES_BLOCK_SIZE != 0) && (cmd & ZYNQAES_CTR_FLAG)) |
+		(ctx->base.key_len == AES_KEYSIZE_192);
+}
+
 static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 {
 	struct crypto_skcipher *cipher = crypto_skcipher_reqtfm(areq);
@@ -206,7 +213,7 @@ static int zynqaes_skcipher_crypt(struct skcipher_request *areq, const u32 cmd)
 	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
 	struct zynqaes_dev *dd = zynqaes_find_dev();
 
-	if (ctx->need_fallback)
+	if (zynqaes_skcipher_need_fallback(cmd, areq, ctx))
 		return zynqaes_skcipher_fallback(areq, cmd & ZYNQAES_ENCRYPTION_FLAG);
 
 	rctx->base.dd = dd;
@@ -220,10 +227,8 @@ static int zynqaes_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key,
 {
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 
-	ctx->need_fallback = false;
-
 	if (len == AES_KEYSIZE_192) {
-		ctx->need_fallback = true;
+		ctx->base.key_len = len;
 
 		crypto_skcipher_clear_flags(ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
 		crypto_skcipher_set_flags(ctx->fallback_tfm, tfm->base.crt_flags &
@@ -387,7 +392,7 @@ static struct skcipher_alg zynqaes_skcipher_algs[] = {
 	.base.cra_priority	=	200,
 	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
 					CRYPTO_ALG_NEED_FALLBACK,
-	.base.cra_blocksize	=	AES_BLOCK_SIZE,
+	.base.cra_blocksize	=	1,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_skcipher_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
