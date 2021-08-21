@@ -5,7 +5,7 @@
 struct zynqaes_skcipher_ctx {
 	struct zynqaes_ctx base;
 
-	struct crypto_sync_skcipher *fallback_tfm;
+	struct crypto_skcipher *fallback_tfm;
 	bool need_fallback;
 };
 
@@ -17,6 +17,8 @@ struct zynqaes_skcipher_reqctx {
 	unsigned int nbytes;
 
 	struct zynqaes_reqctx_base base;
+
+	struct skcipher_request fallback_req;   // keep at the end
 };
 
 static void zynqaes_skcipher_sg_restore(struct scatterlist *sg,
@@ -137,21 +139,21 @@ out_err:
 
 static int zynqaes_skcipher_fallback(struct skcipher_request *areq, int encrypt)
 {
+	struct zynqaes_skcipher_reqctx *rctx = skcipher_request_ctx(areq);
 	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(areq);
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
-	SYNC_SKCIPHER_REQUEST_ON_STACK(subreq, ctx->fallback_tfm);
 	int err;
 
-	skcipher_request_set_sync_tfm(subreq, ctx->fallback_tfm);
-	skcipher_request_set_callback(subreq, areq->base.flags,
+	skcipher_request_set_tfm(&rctx->fallback_req, ctx->fallback_tfm);
+	skcipher_request_set_callback(&rctx->fallback_req, areq->base.flags,
 				      areq->base.complete, areq->base.data);
-	skcipher_request_set_crypt(subreq, areq->src, areq->dst, areq->cryptlen,
-				   areq->iv);
+	skcipher_request_set_crypt(&rctx->fallback_req, areq->src, areq->dst,
+				   areq->cryptlen, areq->iv);
 
 	if (encrypt)
-		err = crypto_skcipher_encrypt(subreq);
+		err = crypto_skcipher_encrypt(&rctx->fallback_req);
 	else
-		err = crypto_skcipher_decrypt(subreq);
+		err = crypto_skcipher_decrypt(&rctx->fallback_req);
 
 	return err;
 }
@@ -223,11 +225,11 @@ static int zynqaes_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key,
 	if (len == AES_KEYSIZE_192) {
 		ctx->need_fallback = true;
 
-		crypto_sync_skcipher_clear_flags(ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
-		crypto_sync_skcipher_set_flags(ctx->fallback_tfm, tfm->base.crt_flags &
+		crypto_skcipher_clear_flags(ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
+		crypto_skcipher_set_flags(ctx->fallback_tfm, tfm->base.crt_flags &
 						 CRYPTO_TFM_REQ_MASK);
 
-		return crypto_sync_skcipher_setkey(ctx->fallback_tfm, key, len);
+		return crypto_skcipher_setkey(ctx->fallback_tfm, key, len);
 	}
 
 
@@ -299,7 +301,7 @@ static int zynqaes_skcipher_init_tfm(struct crypto_skcipher *tfm)
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 	const char *name = crypto_tfm_alg_name(&tfm->base);
 
-	ctx->fallback_tfm = crypto_alloc_sync_skcipher(name, 0,
+	ctx->fallback_tfm = crypto_alloc_skcipher(name, 0,
 						CRYPTO_ALG_NEED_FALLBACK);
 	if (IS_ERR(ctx->fallback_tfm)) {
 		pr_err("ERROR: Cannot allocate fallback for %s %ld\n",
@@ -307,7 +309,9 @@ static int zynqaes_skcipher_init_tfm(struct crypto_skcipher *tfm)
 		return PTR_ERR(ctx->fallback_tfm);
 	}
 
-	crypto_skcipher_set_reqsize(tfm, sizeof(struct zynqaes_skcipher_reqctx));
+	crypto_skcipher_set_reqsize(tfm,
+				sizeof(struct zynqaes_skcipher_reqctx) +
+				crypto_skcipher_reqsize(ctx->fallback_tfm));
 
 	ctx->base.enginectx.op.prepare_request = NULL;
 	ctx->base.enginectx.op.unprepare_request = NULL;
@@ -320,7 +324,7 @@ static void zynqaes_skcipher_exit_tfm(struct crypto_skcipher *tfm)
 {
 	struct zynqaes_skcipher_ctx *ctx = crypto_skcipher_ctx(tfm);
 
-	crypto_free_sync_skcipher(ctx->fallback_tfm);
+	crypto_free_skcipher(ctx->fallback_tfm);
 }
 
 static struct skcipher_alg zynqaes_skcipher_algs[] = {
