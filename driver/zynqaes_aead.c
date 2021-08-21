@@ -516,7 +516,7 @@ static int zynqaes_gcm_decrypt(struct aead_request *areq)
 	return zynqaes_aead_crypt(areq, ZYNQAES_GCM_DECRYPT);
 }
 
-static int zynqaes_aead_init(struct crypto_aead *tfm)
+static int zynqaes_aead_init_tfm(struct crypto_aead *tfm)
 {
 	struct zynqaes_aead_ctx *aead_ctx = crypto_aead_ctx(tfm);
 	struct zynqaes_ctx *ctx = &aead_ctx->base;
@@ -540,7 +540,7 @@ static struct aead_alg zynqaes_aead_algs[] = {
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_aead_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
-	.init			=	zynqaes_aead_init,
+	.init			=	zynqaes_aead_init_tfm,
 	.setkey			=	zynqaes_aead_setkey,
 	.setauthsize		=	zynqaes_aead_setauthsize,
 	.encrypt		=	zynqaes_gcm_encrypt,
