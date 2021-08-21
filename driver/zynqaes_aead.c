@@ -16,6 +16,9 @@ struct zynqaes_aead_ctx {
 	 * multiples of AES_BLOCK_SIZE.
 	 */
 	u8 zero_blk[AES_BLOCK_SIZE];
+
+	struct crypto_aead *fallback_tfm;
+	bool need_fallback;
 };
 
 struct zynqaes_aead_reqctx {
@@ -45,6 +48,7 @@ struct zynqaes_aead_reqctx {
 	u8 out_tag[ZYNQAES_TAG_MAX];
 
 	struct zynqaes_reqctx_base base;
+	struct aead_request fallback_req;   // keep at the end
 };
 
 #ifdef DEBUG
@@ -133,6 +137,18 @@ static int zynqaes_aead_setkey(struct crypto_aead *tfm, const u8 *key,
 {
 	struct zynqaes_aead_ctx *aead_ctx = crypto_aead_ctx(tfm);
 	struct zynqaes_ctx *ctx = &aead_ctx->base;
+
+	aead_ctx->need_fallback = false;
+
+	if (len == AES_KEYSIZE_192) {
+		aead_ctx->need_fallback = true;
+
+		crypto_aead_clear_flags(aead_ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
+		crypto_aead_set_flags(aead_ctx->fallback_tfm, tfm->base.crt_flags &
+						 CRYPTO_TFM_REQ_MASK);
+
+		return crypto_aead_setkey(aead_ctx->fallback_tfm, key, len);
+	}
 
 	return zynqaes_setkey(ctx, key, len);
 }
@@ -438,6 +454,38 @@ out_err:
 	return ret;
 }
 
+static int zynqaes_aead_fallback(struct aead_request *areq, int encrypt)
+{
+	struct zynqaes_aead_reqctx *rctx = aead_request_ctx(areq);
+	struct crypto_aead *tfm = crypto_aead_reqtfm(areq);
+	struct zynqaes_aead_ctx *ctx = crypto_aead_ctx(tfm);
+	struct zynqaes_dev *dd = rctx->base.dd;
+	int err;
+
+	err = crypto_aead_setauthsize(ctx->fallback_tfm, ctx->authsize);
+	if (err) {
+		dev_err(dd->dev, "[%s:%d] crypto_aead_setauthsize() failed! err: %d",
+			__func__, __LINE__, err);
+
+		goto out;
+	}
+
+	aead_request_set_tfm(&rctx->fallback_req, ctx->fallback_tfm);
+	aead_request_set_callback(&rctx->fallback_req, areq->base.flags,
+				  areq->base.complete, areq->base.data);
+	aead_request_set_crypt(&rctx->fallback_req, areq->src, areq->dst,
+			       areq->cryptlen, areq->iv);
+	aead_request_set_ad(&rctx->fallback_req, areq->assoclen);
+
+	if (encrypt)
+		err = crypto_aead_encrypt(&rctx->fallback_req);
+	else
+		err = crypto_aead_decrypt(&rctx->fallback_req);
+
+out:
+	return err;
+}
+
 static int zynqaes_aead_crypt_req(struct crypto_engine *engine,
 			     void *req)
 {
@@ -497,8 +545,14 @@ out:
 
 static int zynqaes_aead_crypt(struct aead_request *areq, const u32 cmd)
 {
+	struct crypto_aead *cipher = crypto_aead_reqtfm(areq);
+	struct crypto_tfm *tfm = crypto_aead_tfm(cipher);
+	struct zynqaes_aead_ctx *ctx = crypto_tfm_ctx(tfm);
 	struct zynqaes_aead_reqctx *rctx = aead_request_ctx(areq);
 	struct zynqaes_dev *dd = zynqaes_find_dev();
+
+	if (ctx->need_fallback)
+		return zynqaes_aead_fallback(areq, cmd & ZYNQAES_ENCRYPTION_FLAG);
 
 	rctx->base.dd = dd;
 	rctx->base.cmd = cmd;
@@ -521,7 +575,18 @@ static int zynqaes_aead_init_tfm(struct crypto_aead *tfm)
 	struct zynqaes_aead_ctx *aead_ctx = crypto_aead_ctx(tfm);
 	struct zynqaes_ctx *ctx = &aead_ctx->base;
 
-	crypto_aead_set_reqsize(tfm, sizeof(struct zynqaes_aead_reqctx));
+	const char *name = crypto_tfm_alg_name(&tfm->base);
+
+	aead_ctx->fallback_tfm = crypto_alloc_aead(name, 0,
+						CRYPTO_ALG_NEED_FALLBACK);
+	if (IS_ERR(aead_ctx->fallback_tfm)) {
+		pr_err("ERROR: Cannot allocate fallback for %s %ld\n",
+			name, PTR_ERR(aead_ctx->fallback_tfm));
+		return PTR_ERR(aead_ctx->fallback_tfm);
+	}
+
+	crypto_aead_set_reqsize(tfm, sizeof(struct zynqaes_aead_reqctx) +
+				crypto_aead_reqsize(aead_ctx->fallback_tfm));
 
 	ctx->enginectx.op.prepare_request = NULL;
 	ctx->enginectx.op.unprepare_request = NULL;
@@ -530,17 +595,26 @@ static int zynqaes_aead_init_tfm(struct crypto_aead *tfm)
 	return 0;
 }
 
+static void zynqaes_aead_exit_tfm(struct crypto_aead *tfm)
+{
+	struct zynqaes_aead_ctx *ctx = crypto_aead_ctx(tfm);
+
+	crypto_free_aead(ctx->fallback_tfm);
+}
+
 static struct aead_alg zynqaes_aead_algs[] = {
 {
 	.base.cra_name		=	"gcm(aes)",
 	.base.cra_driver_name	=	"zynqaes-gcm",
 	.base.cra_priority	=	200,
-	.base.cra_flags		=	CRYPTO_ALG_ASYNC,
+	.base.cra_flags		=	CRYPTO_ALG_ASYNC |
+					CRYPTO_ALG_NEED_FALLBACK,
 	.base.cra_blocksize	=	1,
 	.base.cra_ctxsize	=	sizeof(struct zynqaes_aead_ctx),
 	.base.cra_module	=	THIS_MODULE,
 
 	.init			=	zynqaes_aead_init_tfm,
+	.exit			=	zynqaes_aead_exit_tfm,
 	.setkey			=	zynqaes_aead_setkey,
 	.setauthsize		=	zynqaes_aead_setauthsize,
 	.encrypt		=	zynqaes_gcm_encrypt,
