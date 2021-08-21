@@ -306,6 +306,8 @@ int main(void)
 	stress_skcipher("ofb(aes)", AES_KEY256_SIZE, AES_IV_SIZE);
 
 	stress_aead("gcm(aes)", AES_KEY128_SIZE, GCM_IV_SIZE, GCM_AAD_SIZE, GCM_TAGLEN);
+	stress_aead("gcm(aes)", AES_KEY192_SIZE, GCM_IV_SIZE, GCM_AAD_SIZE, GCM_TAGLEN);
+	stress_aead("gcm(aes)", AES_KEY256_SIZE, GCM_IV_SIZE, GCM_AAD_SIZE, GCM_TAGLEN);
 
 	return 0;
 }
