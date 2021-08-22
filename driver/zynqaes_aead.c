@@ -132,19 +132,17 @@ static void zynqaes_dump_dma_ctx(struct zynqaes_dev *dd,
 #endif
 
 static int zynqaes_aead_setkey(struct crypto_aead *tfm, const u8 *key,
-				   unsigned int len)
+			       unsigned int len)
 {
-	struct zynqaes_aead_ctx *aead_ctx = crypto_aead_ctx(tfm);
-	struct zynqaes_ctx *ctx = &aead_ctx->base;
+	struct zynqaes_aead_ctx *ctx = crypto_aead_ctx(tfm);
 
-	return zynqaes_setkey(ctx, key, len);
+	return zynqaes_setkey(&ctx->base, key, len);
 }
 
-static int zynqaes_aead_setauthsize(struct crypto_aead *aead,
-				       unsigned int authsize)
+static int zynqaes_aead_setauthsize(struct crypto_aead *tfm,
+				    unsigned int authsize)
 {
-	struct crypto_tfm *tfm = crypto_aead_tfm(aead);
-	struct zynqaes_aead_ctx *tfm_ctx = crypto_tfm_ctx(tfm);
+	struct zynqaes_aead_ctx *tfm_ctx = crypto_aead_ctx(tfm);
 
 	tfm_ctx->authsize = authsize;
 
@@ -487,9 +485,8 @@ static int zynqaes_aead_crypt_req(struct crypto_engine *engine,
 			     void *req)
 {
 	struct aead_request *areq = container_of(req, struct aead_request, base);
-	struct crypto_aead *cipher = crypto_aead_reqtfm(areq);
-	struct crypto_tfm *tfm = crypto_aead_tfm(cipher);
-	struct zynqaes_aead_ctx *aead_ctx = crypto_tfm_ctx(tfm);
+	struct crypto_aead *tfm = crypto_aead_reqtfm(areq);
+	struct zynqaes_aead_ctx *aead_ctx = crypto_aead_ctx(tfm);
 	struct zynqaes_aead_reqctx *rctx = aead_request_ctx(areq);
 	struct zynqaes_dev *dd = rctx->base.dd;
 	struct zynqaes_ctx *ctx = &aead_ctx->base;
@@ -503,7 +500,7 @@ static int zynqaes_aead_crypt_req(struct crypto_engine *engine,
 #endif
 
 	rctx->base.ctx = ctx;
-	rctx->base.ivsize = crypto_aead_ivsize(cipher);
+	rctx->base.ivsize = crypto_aead_ivsize(tfm);
 
 	rctx->areq = areq;
 	rctx->aead_ctx = aead_ctx;
@@ -547,9 +544,8 @@ static bool zynqaes_aead_need_fallback(struct zynqaes_aead_ctx *ctx)
 
 static int zynqaes_aead_crypt(struct aead_request *areq, const u32 cmd)
 {
-	struct crypto_aead *cipher = crypto_aead_reqtfm(areq);
-	struct crypto_tfm *tfm = crypto_aead_tfm(cipher);
-	struct zynqaes_aead_ctx *ctx = crypto_tfm_ctx(tfm);
+	struct crypto_aead *tfm = crypto_aead_reqtfm(areq);
+	struct zynqaes_aead_ctx *ctx = crypto_aead_ctx(tfm);
 	struct zynqaes_aead_reqctx *rctx = aead_request_ctx(areq);
 	struct zynqaes_dev *dd = zynqaes_find_dev();
 
