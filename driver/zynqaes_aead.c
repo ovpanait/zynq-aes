@@ -18,7 +18,6 @@ struct zynqaes_aead_ctx {
 	u8 zero_blk[AES_BLOCK_SIZE];
 
 	struct crypto_aead *fallback_tfm;
-	bool need_fallback;
 };
 
 struct zynqaes_aead_reqctx {
@@ -137,18 +136,6 @@ static int zynqaes_aead_setkey(struct crypto_aead *tfm, const u8 *key,
 {
 	struct zynqaes_aead_ctx *aead_ctx = crypto_aead_ctx(tfm);
 	struct zynqaes_ctx *ctx = &aead_ctx->base;
-
-	aead_ctx->need_fallback = false;
-
-	if (len == AES_KEYSIZE_192) {
-		aead_ctx->need_fallback = true;
-
-		crypto_aead_clear_flags(aead_ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
-		crypto_aead_set_flags(aead_ctx->fallback_tfm, tfm->base.crt_flags &
-						 CRYPTO_TFM_REQ_MASK);
-
-		return crypto_aead_setkey(aead_ctx->fallback_tfm, key, len);
-	}
 
 	return zynqaes_setkey(ctx, key, len);
 }
@@ -462,11 +449,21 @@ static int zynqaes_aead_fallback(struct aead_request *areq, int encrypt)
 	struct zynqaes_dev *dd = rctx->base.dd;
 	int err;
 
+	crypto_aead_clear_flags(ctx->fallback_tfm, CRYPTO_TFM_REQ_MASK);
+	crypto_aead_set_flags(ctx->fallback_tfm, tfm->base.crt_flags &
+						 CRYPTO_TFM_REQ_MASK);
+	err = crypto_aead_setkey(ctx->fallback_tfm, ctx->base.key,
+				 ctx->base.key_len);
+	if (err) {
+		dev_err(dd->dev, "[%s:%d] crypto_aead_setkey() failed! err: %d",
+			__func__, __LINE__, err);
+		goto out;
+	}
+
 	err = crypto_aead_setauthsize(ctx->fallback_tfm, ctx->authsize);
 	if (err) {
 		dev_err(dd->dev, "[%s:%d] crypto_aead_setauthsize() failed! err: %d",
 			__func__, __LINE__, err);
-
 		goto out;
 	}
 
@@ -543,6 +540,11 @@ out:
 	return ret;
 }
 
+static bool zynqaes_aead_need_fallback(struct zynqaes_aead_ctx *ctx)
+{
+	return ctx->base.key_len == AES_KEYSIZE_192;
+}
+
 static int zynqaes_aead_crypt(struct aead_request *areq, const u32 cmd)
 {
 	struct crypto_aead *cipher = crypto_aead_reqtfm(areq);
@@ -551,11 +553,11 @@ static int zynqaes_aead_crypt(struct aead_request *areq, const u32 cmd)
 	struct zynqaes_aead_reqctx *rctx = aead_request_ctx(areq);
 	struct zynqaes_dev *dd = zynqaes_find_dev();
 
-	if (ctx->need_fallback)
-		return zynqaes_aead_fallback(areq, cmd & ZYNQAES_ENCRYPTION_FLAG);
-
 	rctx->base.dd = dd;
 	rctx->base.cmd = cmd;
+
+	if (zynqaes_aead_need_fallback(ctx))
+		return zynqaes_aead_fallback(areq, cmd & ZYNQAES_ENCRYPTION_FLAG);
 
 	return crypto_transfer_aead_request_to_engine(dd->engine, areq);
 }
