@@ -122,14 +122,10 @@ int zynqaes_setkey(struct zynqaes_ctx *ctx, const u8 *key,
 
 	switch (len) {
 	case AES_KEYSIZE_128:
+	case AES_KEYSIZE_192:
 	case AES_KEYSIZE_256:
 		ctx->key_len = len;
 		memcpy(ctx->key, key, len);
-
-		break;
-	case AES_KEYSIZE_192:
-		ret = -ENOTSUPP;
-
 		break;
 	default:
 		ret = -EINVAL;
